@@ -8,7 +8,24 @@
 {% assign shop_domain = shop.permanent_domain %}
 
 {% comment %} Container pentru template {% endcomment %}
-<div id="specification-table-container-{{ block.id }}" data-product-id="{{ product_id }}" data-collection-id="{{ collection_id }}" data-shop="{{ shop_domain }}">
+{% assign max_width = block.settings.max_width | default: 1200 %}
+{% assign alignment = block.settings.alignment | default: 'left' %}
+{% assign margin_top = block.settings.margin_top | default: 0 %}
+{% assign margin_left = block.settings.margin_left | default: 0 %}
+{% assign first_column_width = block.settings.first_column_width | default: 40 %}
+{% assign image_height = block.settings.image_height | default: 100 %}
+
+<div id="specification-table-container-{{ block.id }}" 
+     data-product-id="{{ product_id }}" 
+     data-collection-id="{{ collection_id }}" 
+     data-shop="{{ shop_domain }}"
+     data-max-width="{{ max_width }}"
+     data-alignment="{{ alignment }}"
+     data-margin-top="{{ margin_top }}"
+     data-margin-left="{{ margin_left }}"
+     data-first-column-width="{{ first_column_width }}"
+     data-image-height="{{ image_height }}"
+     style="max-width: {{ max_width }}px; margin-top: {{ margin_top }}px; {% if alignment == 'center' %}margin-left: auto; margin-right: auto;{% elsif alignment == 'right' %}margin-left: auto; margin-right: {{ margin_left }}px;{% else %}margin-left: {{ margin_left }}px;{% endif %}">
   <div class="spec-loading" style="text-align: center; padding: 20px;">
     Loading specifications...
   </div>
@@ -272,6 +289,9 @@
     const metafieldCells = templateContainer.querySelectorAll('td[data-namespace][data-key]');
     const currentVariantId = getCurrentVariantId();
     
+    // Obține setarea pentru înălțimea imaginilor
+    const imageHeight = container.dataset.imageHeight || '100';
+    
     // Obține obiectele cu metafield-uri din Liquid
     const productMetafields = window.productMetafieldsData || {};
     const variantMetafields = window.variantMetafieldsData || {};
@@ -314,16 +334,19 @@
       }
       
       // Randare diferită în funcție de tipul metafield-ului
-      renderMetafieldValue(valueElement, value, metafieldType, ownerType, namespace, key);
+      renderMetafieldValue(valueElement, value, metafieldType, ownerType, namespace, key, imageHeight);
     });
   }
   
   // Funcție pentru a randa valoarea metafield-ului în funcție de tip
-  function renderMetafieldValue(element, value, metafieldType, ownerType, namespace, key) {
+  function renderMetafieldValue(element, value, metafieldType, ownerType, namespace, key, imageHeight) {
     if (value === null || value === undefined || value === '') {
       element.innerHTML = 'N/A';
       return;
     }
+    
+    // Folosește înălțimea setată sau default 100px
+    const height = imageHeight || '100';
     
     // Pentru multi_line_text_field și single_line_text_field - randare text simplă
     if (metafieldType === 'multi_line_text_field' || metafieldType === 'single_line_text_field') {
@@ -337,7 +360,7 @@
     // Valoarea este deja procesată în Liquid cu image_url, deci este un string cu URL-ul
     else if (metafieldType === 'file_reference') {
       if (value && value !== '' && value !== 'null') {
-        element.innerHTML = '<img src="' + escapeHtml(String(value)) + '" style="max-width: 100%; height: auto;" />';
+        element.innerHTML = '<img src="' + escapeHtml(String(value)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
       } else {
         element.innerHTML = 'N/A';
       }
@@ -350,10 +373,10 @@
         const productTitle = value.title || '';
         let html = '';
         if (productImage && productImage !== 'null') {
-          html += '<div><img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="max-width: 300px; height: auto;" /></div>';
+          html += '<div style="display:flex;align-items:center;"><img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
         }
         if (productTitle) {
-          html += '<div style="font-weight:bold;text-align:center;">' + escapeHtml(productTitle) + '</div>';
+          html +=  '<span style="font-weight:bold;margin-left:30px">' + escapeHtml(productTitle) + '</span></div>';
         }
         element.innerHTML = html || 'N/A';
       } else {
@@ -368,7 +391,7 @@
         const collectionTitle = value.title || '';
         let html = '';
         if (collectionImage && collectionImage !== 'null') {
-          html += '<div><img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="max-width: 300px; height: auto;" /></div>';
+          html += '<div><img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" /></div>';
         }
         if (collectionTitle) {
           html += '<div style="font-weight:bold;text-align:center;">' + escapeHtml(collectionTitle) + '</div>';
@@ -531,6 +554,9 @@
   
   function renderTemplate(container, template) {
     const styling = template.styling;
+    // Citește setările din container
+    const firstColumnWidth = container.dataset.firstColumnWidth || '40';
+    
     let html = '<div id="specification-table-' + template.id + '" style="';
     html += 'background-color: ' + (styling.backgroundColor || '#ffffff') + '; ';
     html += 'color: ' + (styling.textColor || '#000000') + '; ';
@@ -557,7 +583,7 @@
         html += escapeHtml(section.heading);
         html += '</div>';
         html += '<div id="spec-section-' + template.id + '-' + sectionIndex + '" class="spec-section-content" style="display: none; padding: 10px;">';
-        html += renderSectionTable(section, styling);
+        html += renderSectionTable(section, styling, firstColumnWidth);
         html += '</div>';
         html += '</div>';
       });
@@ -573,7 +599,7 @@
         html += '">';
         html += escapeHtml(section.heading);
         html += '</h3>';
-        html += renderSectionTable(section, styling);
+        html += renderSectionTable(section, styling, firstColumnWidth);
         html += '</div>';
       });
     }
@@ -582,7 +608,7 @@
     container.innerHTML = html;
   }
   
-  function renderSectionTable(section, styling) {
+  function renderSectionTable(section, styling, firstColumnWidth) {
     let html = '<table style="width: 100%; border-collapse: collapse;">';
     html += '<tbody>';
     
@@ -601,7 +627,7 @@
       }
       html += '">';
       html += '<td style="';
-      html += 'padding: 8px; font-weight: bold; width: 40%; ';
+      html += 'padding: 8px; font-weight: bold; width: ' + (firstColumnWidth || '40') + '%; ';
       html += 'color: ' + (styling.textColor || '#000000') + '; ';
       html += 'font-family: ' + (styling.textFontFamily || 'inherit') + '; ';
       html += 'font-size: ' + (styling.textFontSize || '14px') + '; ';
@@ -663,22 +689,76 @@
   "name": "Specification Table",
   "target": "section",
   "settings": [
+
     {
-      "type": "product",
-      "id": "product",
-      "label": "Product",
-      "autofill": true
+      "type": "range",
+      "id": "max_width",
+      "label": "Max Width",
+      "min": 100,
+      "max": 2000,
+      "step": 100,
+      "unit": "px",
+      "default": 1200
     },
     {
-      "type": "collection",
-      "id": "collection",
-      "label": "Collection"
+      "type": "select",
+      "id": "alignment",
+      "label": "Align",
+      "options": [
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
+      ],
+      "default": "left"
     },
     {
-      "type": "text",
-      "id": "app_url",
-      "label": "App URL",
-      "info": "URL-ul complet al aplicației (ex: https://your-app-domain.com). Lăsați gol pentru a folosi metafield-ul sau pattern-ul implicit."
+      "type": "range",
+      "id": "first_column_width",
+      "label": "First column width",
+      "min": 10,
+      "max": 90,
+      "step": 10,
+      "unit": "%",
+      "default": 40
+    },
+    {
+      "type": "range",
+      "id": "margin_top",
+      "label": "Top Gap",
+      "min": 0,
+      "max": 200,
+      "step": 10,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "margin_left",
+      "label": "Left Gap",
+      "min": 0,
+      "max": 200,
+      "step": 10,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "image_height",
+      "label": "Image Height",
+      "min": 40,
+      "max": 300,
+      "step": 20,
+      "unit": "px",
+      "default": 100
     }
   ]
 }
