@@ -422,6 +422,20 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
 }
 
 /**
+ * Helper function pentru a normaliza ID-urile Shopify (extrage ID-ul numeric din GID dacă e cazul)
+ */
+function normalizeShopifyId(id) {
+  if (!id) return null;
+  // Dacă este în format GID (gid://shopify/Product/123456789), extrage doar partea numerică
+  const gidMatch = id.match(/gid:\/\/shopify\/(?:Product|Collection)\/(\d+)/);
+  if (gidMatch) {
+    return gidMatch[1];
+  }
+  // Dacă este deja numeric, returnează-l ca string pentru consistență
+  return String(id);
+}
+
+/**
  * Găsește template-ul pentru un produs sau colecție bazat pe assignment rules
  */
 export async function getTemplateForTarget(shopDomain, productId = null, collectionId = null) {
@@ -432,6 +446,18 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
   if (!shop) {
     return null;
   }
+
+  // Normalizează ID-urile pentru comparare
+  const normalizedProductId = normalizeShopifyId(productId);
+  const normalizedCollectionId = normalizeShopifyId(collectionId);
+
+  console.log('getTemplateForTarget - Input:', {
+    shopDomain,
+    productId,
+    collectionId,
+    normalizedProductId,
+    normalizedCollectionId,
+  });
 
   // Obține toate assignment-urile active
   const assignments = await prisma.templateAssignment.findMany({
@@ -462,62 +488,127 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
     },
   });
 
-  // Verifică mai întâi assignment-ul global (DEFAULT)
-  const globalAssignment = assignments.find(a => a.assignmentType === "DEFAULT");
-  if (globalAssignment && globalAssignment.template.isActive) {
-    return globalAssignment.template;
-  }
+  console.log('getTemplateForTarget - Found assignments:', assignments.map(a => ({
+    id: a.id,
+    assignmentType: a.assignmentType,
+    templateId: a.templateId,
+    templateIsActive: a.template.isActive,
+    targetsCount: a.targets.length,
+    targets: a.targets.map(t => ({
+      targetShopifyId: t.targetShopifyId,
+      targetType: t.targetType,
+      isExcluded: t.isExcluded,
+    })),
+  })));
 
-  // Verifică assignment-urile pentru produse
-  if (productId) {
+  // Prioritatea este: Template de produs > Template de colectie > Template global
+  
+  // 1. Verifică assignment-urile pentru produse (prioritatea cea mai mare)
+  if (normalizedProductId) {
     // Caută assignment-uri directe pentru produs
-    const productAssignment = assignments.find(a => 
-      a.assignmentType === "PRODUCT" &&
-      a.template.isActive &&
-      a.targets.some(t => t.targetShopifyId === productId && !t.isExcluded)
-    );
+    const productAssignment = assignments.find(a => {
+      const matches = a.assignmentType === "PRODUCT" &&
+        a.template.isActive &&
+        a.targets.some(t => {
+          const normalizedTargetId = normalizeShopifyId(t.targetShopifyId);
+          return normalizedTargetId === normalizedProductId && !t.isExcluded;
+        });
+      if (matches) {
+        console.log('getTemplateForTarget - Found PRODUCT assignment:', {
+          assignmentId: a.id,
+          templateId: a.templateId,
+          templateName: a.template.name,
+        });
+      }
+      return matches;
+    });
     if (productAssignment) {
       return productAssignment.template;
     }
 
     // Caută assignment-uri EXCEPT pentru produse (toate produsele EXCEPT cele excluse)
-    const productExceptAssignment = assignments.find(a => 
-      a.assignmentType === "PRODUCT" &&
-      a.template.isActive &&
-      a.targets.length > 0 &&
-      a.targets.every(t => t.isExcluded) &&
-      !a.targets.some(t => t.targetShopifyId === productId && t.isExcluded)
-    );
+    const productExceptAssignment = assignments.find(a => {
+      const matches = a.assignmentType === "PRODUCT" &&
+        a.template.isActive &&
+        a.targets.length > 0 &&
+        a.targets.every(t => t.isExcluded) &&
+        !a.targets.some(t => {
+          const normalizedTargetId = normalizeShopifyId(t.targetShopifyId);
+          return normalizedTargetId === normalizedProductId && t.isExcluded;
+        });
+      if (matches) {
+        console.log('getTemplateForTarget - Found PRODUCT_EXCEPT assignment:', {
+          assignmentId: a.id,
+          templateId: a.templateId,
+          templateName: a.template.name,
+        });
+      }
+      return matches;
+    });
     if (productExceptAssignment) {
       return productExceptAssignment.template;
     }
   }
 
-  // Verifică assignment-urile pentru colecții
-  if (collectionId) {
+  // 2. Verifică assignment-urile pentru colecții (prioritatea medie)
+  if (normalizedCollectionId) {
     // Caută assignment-uri directe pentru colecție
-    const collectionAssignment = assignments.find(a => 
-      a.assignmentType === "COLLECTION" &&
-      a.template.isActive &&
-      a.targets.some(t => t.targetShopifyId === collectionId && !t.isExcluded)
-    );
+    const collectionAssignment = assignments.find(a => {
+      const matches = a.assignmentType === "COLLECTION" &&
+        a.template.isActive &&
+        a.targets.some(t => {
+          const normalizedTargetId = normalizeShopifyId(t.targetShopifyId);
+          return normalizedTargetId === normalizedCollectionId && !t.isExcluded;
+        });
+      if (matches) {
+        console.log('getTemplateForTarget - Found COLLECTION assignment:', {
+          assignmentId: a.id,
+          templateId: a.templateId,
+          templateName: a.template.name,
+        });
+      }
+      return matches;
+    });
     if (collectionAssignment) {
       return collectionAssignment.template;
     }
 
     // Caută assignment-uri EXCEPT pentru colecții (toate colecțiile EXCEPT cele excluse)
-    const collectionExceptAssignment = assignments.find(a => 
-      a.assignmentType === "COLLECTION" &&
-      a.template.isActive &&
-      a.targets.length > 0 &&
-      a.targets.every(t => t.isExcluded) &&
-      !a.targets.some(t => t.targetShopifyId === collectionId && t.isExcluded)
-    );
+    const collectionExceptAssignment = assignments.find(a => {
+      const matches = a.assignmentType === "COLLECTION" &&
+        a.template.isActive &&
+        a.targets.length > 0 &&
+        a.targets.every(t => t.isExcluded) &&
+        !a.targets.some(t => {
+          const normalizedTargetId = normalizeShopifyId(t.targetShopifyId);
+          return normalizedTargetId === normalizedCollectionId && t.isExcluded;
+        });
+      if (matches) {
+        console.log('getTemplateForTarget - Found COLLECTION_EXCEPT assignment:', {
+          assignmentId: a.id,
+          templateId: a.templateId,
+          templateName: a.template.name,
+        });
+      }
+      return matches;
+    });
     if (collectionExceptAssignment) {
       return collectionExceptAssignment.template;
     }
   }
 
+  // 3. Verifică assignment-ul global (DEFAULT) - prioritatea cea mai mică
+  const globalAssignment = assignments.find(a => a.assignmentType === "DEFAULT");
+  if (globalAssignment && globalAssignment.template.isActive) {
+    console.log('getTemplateForTarget - Found DEFAULT assignment:', {
+      assignmentId: globalAssignment.id,
+      templateId: globalAssignment.templateId,
+      templateName: globalAssignment.template.name,
+    });
+    return globalAssignment.template;
+  }
+
+  console.log('getTemplateForTarget - No template found');
   return null;
 }
 
