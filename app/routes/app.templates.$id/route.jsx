@@ -267,6 +267,7 @@ export default function TemplateEditorPage() {
 
   const [openSelectIndex, setOpenSelectIndex] = useState(null);
   const [selectedMetafieldsForSection, setSelectedMetafieldsForSection] = useState({});
+  const [metafieldSearchTerm, setMetafieldSearchTerm] = useState({});
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [templateName, setTemplateName] = useState(template?.name || "");
 
@@ -523,6 +524,54 @@ export default function TemplateEditorPage() {
     return metafieldDefinitions.filter((mf) => !usedIds.has(mf.id));
   };
 
+  const getFilteredMetafields = (sectionIndex) => {
+    const available = getAvailableMetafields(sectionIndex);
+    const searchTerm = (metafieldSearchTerm[sectionIndex] || "").toLowerCase().trim();
+    
+    let filtered = available;
+    
+    if (searchTerm) {
+      filtered = available.filter((mf) => {
+        const name = (mf.name || "").toLowerCase();
+        const namespace = (mf.namespace || "").toLowerCase();
+        const key = (mf.key || "").toLowerCase();
+        const ownerType = (mf.ownerType || "").toLowerCase();
+        const fullKey = `${namespace}.${key}`.toLowerCase();
+        
+        return (
+          name.includes(searchTerm) ||
+          namespace.includes(searchTerm) ||
+          key.includes(searchTerm) ||
+          ownerType.includes(searchTerm) ||
+          fullKey.includes(searchTerm)
+        );
+      });
+    }
+
+    // Sortează alfabetic: mai întâi după name (dacă există), apoi după namespace.key
+    return filtered.sort((a, b) => {
+      const aName = (a.name || "").toLowerCase();
+      const bName = (b.name || "").toLowerCase();
+      const aKey = `${a.namespace || ""}.${a.key || ""}`.toLowerCase();
+      const bKey = `${b.namespace || ""}.${b.key || ""}`.toLowerCase();
+      
+      // Dacă ambele au name, sortează după name
+      if (aName && bName) {
+        return aName.localeCompare(bName);
+      }
+      // Dacă doar a are name, a vine primul
+      if (aName && !bName) {
+        return -1;
+      }
+      // Dacă doar b are name, b vine primul
+      if (!aName && bName) {
+        return 1;
+      }
+      // Dacă niciunul nu are name, sortează după namespace.key
+      return aKey.localeCompare(bKey);
+    });
+  };
+
   // Debug pentru metafield-uri
   console.log("Metafield definitions loaded:", metafieldDefinitions?.length || 0);
 
@@ -568,7 +617,7 @@ export default function TemplateEditorPage() {
                           (mf) => mf.id === metafield.metafieldDefinitionId
                         );
                         const metafieldName = mfDef
-                          ? `${mfDef.namespace}.${mfDef.key}`
+                          ? (mfDef.name || `${mfDef.namespace}.${mfDef.key}`)
                           : "Metafield";
                         const isOdd = mfIndex % 2 === 0; // 0-based index, so 0, 2, 4 are odd rows
                         const rowBackground = styling.rowBackgroundEnabled
@@ -725,7 +774,7 @@ export default function TemplateEditorPage() {
           </s-stack>
         </s-section>
 
-        <s-section heading="Secțiuni și Metafield-uri">
+        <s-section heading="Sections and Metafields">
           <s-stack direction="block" gap="base">
             {sections.map((section, sectionIndex) => (
               <s-box
@@ -738,14 +787,16 @@ export default function TemplateEditorPage() {
               >
                 <s-stack direction="block" gap="base">
                   <s-stack direction="inline" gap="base" alignment="space-between">
-                    <s-heading level="3">Secțiune {sectionIndex + 1}</s-heading>
+                    <s-heading level="3">Section {sectionIndex + 1}</s-heading>
                     {sections.length > 1 && (
                       <s-button
                         type="button"
-                        variant="critical"
+                        variant="primary"
+                        icon="delete"
+                        tone="critical"
                         onClick={() => removeSection(sectionIndex)}
                       >
-                        Șterge Secțiune
+                          Delete Section
                       </s-button>
                     )}
                   </s-stack>
@@ -758,7 +809,7 @@ export default function TemplateEditorPage() {
 
                   <s-text-field
                     name={`section_${sectionIndex}_heading`}
-                    label="Heading Secțiune"
+                    label="Section Title"
                     value={section.heading}
                     onChange={(e) =>
                       updateSectionHeading(sectionIndex, e.target.value)
@@ -767,7 +818,7 @@ export default function TemplateEditorPage() {
                   />
 
                   <s-stack direction="block" gap="tight">
-                    <s-text emphasis="strong">Metafield-uri:</s-text>
+                    <s-text emphasis="strong">Metafields:</s-text>
                     {section.metafields?.map((metafield, mfIndex) => {
                       const mfDef = metafieldDefinitions.find(
                         (mf) => mf.id === metafield.metafieldDefinitionId
@@ -779,31 +830,30 @@ export default function TemplateEditorPage() {
                           borderWidth="base"
                           borderRadius="base"
                         >
-                          <s-stack
-                            direction="inline"
-                            gap="base"
-                            alignment="space-between"
-                          >
-                            <s-text>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                            <s-text style={{ flex: "1" }}>
                               {mfDef
                                 ? `${mfDef.namespace}.${mfDef.key} (${mfDef.ownerType})${mfDef.name ? ` - ${mfDef.name}` : ""}`
-                                : "Metafield șters"}
+                                : "Metafield deleted"}
                             </s-text>
                             <s-button
                               type="button"
-                              variant="tertiary"
+                              variant="primary"
+                              tone="critical"
+                              icon="delete"
                               onClick={() =>
                                 removeMetafieldFromSection(sectionIndex, mfIndex)
                               }
+                              style={{ marginLeft: "16px", flexShrink: 0 }}
                             >
-                              Șterge
+                              
                             </s-button>
                             <input
                               type="hidden"
                               name={`section_${sectionIndex}_metafield_${mfIndex}`}
                               value={metafield.metafieldDefinitionId}
                             />
-                          </s-stack>
+                          </div>
                         </s-box>
                       );
                     })}
@@ -815,6 +865,7 @@ export default function TemplateEditorPage() {
                       <s-button
                         type="button"
                         variant="secondary"
+                        icon = "search"
                         onClick={() =>
                           setOpenSelectIndex(
                             openSelectIndex === sectionIndex ? null : sectionIndex
@@ -822,10 +873,10 @@ export default function TemplateEditorPage() {
                       }
                       >
                         {openSelectIndex === sectionIndex
-                          ? "Închide Lista"
+                          ? "Close the list"
                           : getAvailableMetafields(sectionIndex).length > 0
-                          ? `Selectează Metafield-uri (${getAvailableMetafields(sectionIndex).length} disponibile)`
-                          : "Nu există metafield-uri disponibile"}
+                          ? `Select metafields (${getAvailableMetafields(sectionIndex).length} available)`
+                          : "No any metafields available"}
                       </s-button>
                       {openSelectIndex === sectionIndex &&
                         getAvailableMetafields(sectionIndex).length > 0 && (
@@ -841,22 +892,55 @@ export default function TemplateEditorPage() {
                               right: 0,
                               zIndex: 1000,
                               marginTop: "8px",
-                              maxHeight: "400px",
-                              overflowY: "auto",
+                              maxHeight: "600px",
                               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
                               border: "1px solid #e1e3e5",
+                              display: "flex",
+                              flexDirection: "column",
                             }}
                           >
-                            <s-stack direction="block" gap="base">
+                            <s-stack direction="block" gap="base" style={{ flexShrink: 0 }}>
                               <s-text emphasis="strong">
                                 Selectează metafield-uri ({getAvailableMetafields(sectionIndex).length} disponibile):
                               </s-text>
+                              <s-text-field
+                                label="Caută metafield-uri"
+                                value={metafieldSearchTerm[sectionIndex] || ""}
+                                onChange={(e) => {
+                                  setMetafieldSearchTerm({
+                                    ...metafieldSearchTerm,
+                                    [sectionIndex]: e.target.value,
+                                  });
+                                }}
+                                placeholder="Caută după nume, namespace, key..."
+                                autoComplete="off"
+                              />
+                            </s-stack>
+                            <div
+                              style={{ 
+                                maxHeight: "400px", 
+                                overflowY: "auto",
+                                overflowX: "hidden",
+                                border: "1px solid #e1e3e5",
+                                borderRadius: "4px",
+                                padding: "8px",
+                                marginTop: "8px",
+                                flex: "1 1 auto",
+                                minHeight: 0
+                              }}
+                            >
                               <s-stack
                                 direction="block"
                                 gap="tight"
-                                style={{ maxHeight: "300px", overflowY: "auto" }}
                               >
-                                {getAvailableMetafields(sectionIndex).map((mf) => {
+                                {getFilteredMetafields(sectionIndex).length === 0 ? (
+                                  <s-text tone="subdued" style={{ padding: "16px", textAlign: "center" }}>
+                                    {metafieldSearchTerm[sectionIndex] 
+                                      ? "Nu s-au găsit metafield-uri care să corespundă căutării"
+                                      : "Nu există metafield-uri disponibile"}
+                                  </s-text>
+                                ) : (
+                                  getFilteredMetafields(sectionIndex).map((mf) => {
                                   const isSelected =
                                     selectedMetafieldsForSection[
                                       `${sectionIndex}_${mf.id}`
@@ -875,9 +959,11 @@ export default function TemplateEditorPage() {
                                       label={metafieldLabel}
                                     />
                                   );
-                                })}
+                                })
+                                )}
                               </s-stack>
-                              <s-stack direction="inline" gap="tight">
+                            </div>
+                            <s-stack direction="inline" gap="tight" style={{ flexShrink: 0, marginTop: "12px" }}>
                                 <s-button
                                   type="button"
                                   variant="primary"
@@ -904,7 +990,6 @@ export default function TemplateEditorPage() {
                                   Anulează
                                 </s-button>
                               </s-stack>
-                            </s-stack>
                           </s-box>
                         )}
                     </div>
@@ -913,8 +998,12 @@ export default function TemplateEditorPage() {
               </s-box>
             ))}
 
-            <s-button type="button" onClick={addSection}>
-              Adaugă Secțiune
+            <s-button 
+              type="button" 
+              onClick={addSection}
+              variant="success"
+            >
+              ➕ Add New Section
             </s-button>
           </s-stack>
         </s-section>
