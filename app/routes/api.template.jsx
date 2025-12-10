@@ -6,18 +6,16 @@ import { getMetafieldDefinitions } from "../models/template.server.js";
  * Accesibil din theme extension prin request HTTP
  */
 export async function loader({ request }) {
+  const perfStart = performance.now();
   const url = new URL(request.url);
   const productId = url.searchParams.get("productId");
   const collectionId = url.searchParams.get("collectionId");
   const shop = url.searchParams.get("shop");
 
-  console.log("API Template - Request received:", {
-    url: request.url,
-    productId,
-    collectionId,
-    shop,
-    headers: Object.fromEntries(request.headers.entries()),
-  });
+  // Log doar în development
+  if (process.env.NODE_ENV === "development") {
+    console.log("📡 [API] Template Request received:", { productId, collectionId, shop });
+  }
 
   if (!shop) {
     return Response.json(
@@ -27,9 +25,24 @@ export async function loader({ request }) {
   }
 
   try {
+    const queryStart = performance.now();
+    if (process.env.NODE_ENV === "development") {
+      console.log("🔍 [API] Starting template query...");
+    }
     const template = await getTemplateForTarget(shop, productId, collectionId);
+    const queryTime = performance.now() - queryStart;
+    
+    if (process.env.NODE_ENV === "development") {
+      console.log(`🔍 [API] Template query completed: ${queryTime.toFixed(2)}ms`);
+    }
 
     if (!template) {
+      return Response.json({ template: null });
+    }
+
+    // Verifică dacă template-ul are structura corectă
+    if (!template.sections || !Array.isArray(template.sections)) {
+      console.error("Template missing sections:", template);
       return Response.json({ template: null });
     }
 
@@ -55,7 +68,9 @@ export async function loader({ request }) {
 
     // Obține toate metafield definitions din baza de date pentru a construi codul Liquid
     // Acestea sunt toate metafield-urile cunoscute (nu doar cele din template)
+    const metafieldQueryStart = performance.now();
     const allMetafieldDefinitions = await getMetafieldDefinitions(shop);
+    const metafieldQueryTime = performance.now() - metafieldQueryStart;
     
     // Colectează toate metafield-urile unice din template
     const uniqueTemplateMetafields = new Map();
@@ -68,6 +83,7 @@ export async function loader({ request }) {
       });
     });
 
+    const processingStart = performance.now();
     const response = Response.json({
       template: {
         id: template.id,
@@ -85,7 +101,27 @@ export async function loader({ request }) {
         name: mf.name,
         type: mf.type,
       })),
+      // Performance metrics (doar în development)
+      ...(process.env.NODE_ENV === "development" && {
+        _perf: {
+          query: queryTime.toFixed(2),
+          metafieldQuery: metafieldQueryTime.toFixed(2),
+          processing: (performance.now() - processingStart).toFixed(2),
+          total: (performance.now() - perfStart).toFixed(2),
+        },
+      }),
     });
+
+    const totalTime = performance.now() - perfStart;
+
+    // Logging detaliat pentru performanță
+    if (process.env.NODE_ENV === "development") {
+      console.log("📊 [API] Performance Metrics:");
+      console.log(`   🔍 Template Query: ${queryTime.toFixed(2)}ms`);
+      console.log(`   🔍 Metafield Query: ${metafieldQueryTime.toFixed(2)}ms`);
+      console.log(`   ⚙️  Processing: ${(performance.now() - processingStart).toFixed(2)}ms`);
+      console.log(`   ⏱️  Total API Time: ${totalTime.toFixed(2)}ms`);
+    }
 
     // Adaugă CORS headers pentru a permite request-uri din theme extension
     response.headers.set("Access-Control-Allow-Origin", "*");

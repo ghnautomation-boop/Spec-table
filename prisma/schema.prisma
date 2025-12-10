@@ -9,8 +9,9 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Session {
@@ -42,6 +43,7 @@ model Shop {
   metafieldDefinitions MetafieldDefinition[]
   templates           SpecificationTemplate[]
   assignments         TemplateAssignment[]
+  templateLookups     TemplateLookup[]
 }
 
 model Product {
@@ -106,8 +108,10 @@ model SpecificationTemplate {
   shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   sections    TemplateSection[]
   assignments TemplateAssignment[]
+  lookups     TemplateLookup[]
   
   @@index([shopId])
+  @@index([shopId, isActive])
 }
 
 model TemplateSection {
@@ -139,6 +143,7 @@ model TemplateSectionMetafield {
   
   @@unique([sectionId, metafieldDefinitionId])
   @@index([sectionId])
+  @@index([sectionId, order])
 }
 
 enum AssignmentType {
@@ -161,6 +166,8 @@ model TemplateAssignment {
   
   @@index([shopId])
   @@index([templateId])
+  @@index([shopId, assignmentType])
+  @@index([shopId, templateId, assignmentType])
 }
 
 model TemplateAssignmentTarget {
@@ -175,4 +182,33 @@ model TemplateAssignmentTarget {
   
   @@index([assignmentId])
   @@index([targetShopifyId])
+  @@index([assignmentId, targetShopifyId, isExcluded])
+  @@index([targetShopifyId, targetType])
+}
+
+/**
+ * Tabel de lookup denormalizat pentru performanță maximă
+ * Stochează direct mapping-ul productId/collectionId -> templateId cu prioritate
+ * Priority: 1=PRODUCT, 2=COLLECTION, 3=DEFAULT
+ */
+model TemplateLookup {
+  id            String   @id @default(uuid())
+  shopId        String
+  productId     String?  // ID-ul normalizat al produsului (nullable)
+  collectionId  String?  // ID-ul normalizat al colecției (nullable)
+  templateId    String
+  priority      Int      // 1=PRODUCT, 2=COLLECTION, 3=DEFAULT
+  isDefault     Boolean  @default(false) // true pentru DEFAULT assignments (evită mii de rânduri)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  shop          Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  template      SpecificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  // Indexuri pentru lookup rapid
+  // Covering indexes (include templateId pentru a evita lookup suplimentar)
+  @@index([shopId, productId, priority, templateId])
+  @@index([shopId, collectionId, priority, templateId])
+  @@index([shopId, isDefault, priority, templateId])
+  @@unique([shopId, productId, collectionId, priority])
 }

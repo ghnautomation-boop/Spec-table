@@ -6,11 +6,79 @@ import { authenticate } from "../../shopify.server";
 import { getTemplates, deleteTemplate, getProducts, getCollections, saveTemplateAssignment, getAllAssignments } from "../../models/template.server.js";
 
 export const loader = async ({ request }) => {
+  const perfStart = performance.now();
   const { session } = await authenticate.admin(request);
-  const templates = await getTemplates(session.shop);
-  const products = await getProducts(session.shop);
-  const collections = await getCollections(session.shop);
-  const allAssignments = await getAllAssignments(session.shop);
+  const authTime = performance.now() - perfStart;
+  
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[PERF] Authentication: ${authTime.toFixed(2)}ms`);
+  }
+  
+  // Paralelizează query-urile pentru performanță mai bună
+  // Măsoară fiecare query individual dar le rulează în paralel
+  const queryStart = performance.now();
+  
+  const templatesPromise = (async () => {
+    const start = performance.now();
+    const result = await getTemplates(session.shop);
+    return { result, time: performance.now() - start };
+  })();
+  
+  const productsPromise = (async () => {
+    const start = performance.now();
+    const result = await getProducts(session.shop);
+    return { result, time: performance.now() - start };
+  })();
+  
+  const collectionsPromise = (async () => {
+    const start = performance.now();
+    const result = await getCollections(session.shop);
+    return { result, time: performance.now() - start };
+  })();
+  
+  const assignmentsPromise = (async () => {
+    const start = performance.now();
+    const result = await getAllAssignments(session.shop);
+    return { result, time: performance.now() - start };
+  })();
+  
+  // Așteaptă toate query-urile în paralel
+  const [templatesData, productsData, collectionsData, assignmentsData] = await Promise.all([
+    templatesPromise,
+    productsPromise,
+    collectionsPromise,
+    assignmentsPromise,
+  ]);
+  
+  const templates = templatesData.result;
+  const templatesTime = templatesData.time;
+  const products = productsData.result;
+  const productsTime = productsData.time;
+  const collections = collectionsData.result;
+  const collectionsTime = collectionsData.time;
+  const allAssignments = assignmentsData.result;
+  const assignmentsTime = assignmentsData.time;
+  
+  const queryTime = performance.now() - queryStart;
+  
+  // Măsoară timpul de procesare a datelor
+  const processingStart = performance.now();
+  
+  const totalTime = performance.now() - perfStart;
+  
+  if (process.env.NODE_ENV === "development") {
+    console.log("📊 [PERF] ========== SERVER PERFORMANCE REPORT ==========");
+    console.log(`   🔐 Authentication: ${authTime.toFixed(2)}ms`);
+    console.log(`   🗄️  Database Queries:`);
+    console.log(`      - Templates: ${templatesTime.toFixed(2)}ms`);
+    console.log(`      - Products: ${productsTime.toFixed(2)}ms`);
+    console.log(`      - Collections: ${collectionsTime.toFixed(2)}ms`);
+    console.log(`      - Assignments: ${assignmentsTime.toFixed(2)}ms`);
+    console.log(`   ⏱️  Total Queries: ${queryTime.toFixed(2)}ms`);
+    console.log(`   ⚙️  Data Processing: ${(performance.now() - processingStart).toFixed(2)}ms`);
+    console.log(`   ⏱️  Total Server Time: ${totalTime.toFixed(2)}ms`);
+    console.log("📊 =================================================");
+  }
 
   // Creează map-uri pentru a verifica rapid ce este deja assignat
   const assignedCollections = new Set();
@@ -32,7 +100,7 @@ export const loader = async ({ request }) => {
       });
     }
   });
-
+  
   return { 
     templates, 
     products, 
@@ -41,6 +109,21 @@ export const loader = async ({ request }) => {
     assignedProducts: Array.from(assignedProducts),
     hasGlobalAssignment,
     globalAssignmentTemplateId,
+    // Performance metrics pentru debugging (doar în development)
+    ...(process.env.NODE_ENV === "development" && {
+      _perf: {
+        auth: authTime.toFixed(2),
+        queries: {
+          templates: templatesTime.toFixed(2),
+          products: productsTime.toFixed(2),
+          collections: collectionsTime.toFixed(2),
+          assignments: assignmentsTime.toFixed(2),
+          total: queryTime.toFixed(2),
+        },
+        processing: (performance.now() - processingStart).toFixed(2),
+        total: totalTime.toFixed(2),
+      },
+    }),
   };
 };
 
@@ -483,10 +566,21 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
 }
 
 export default function TemplatesPage() {
-  const { templates, products, collections, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId } = useLoaderData();
+  const loaderData = useLoaderData();
+  const { templates, products, collections, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId, _perf } = loaderData;
   const fetcher = useFetcher();
   const shopify = useAppBridge();
   const location = useLocation();
+
+  // Afișează performance metrics în consola browser-ului (doar în development)
+  useEffect(() => {
+    if (_perf) {
+      console.log("🚀 [PERF] Page Load Performance:", _perf);
+      console.log(`   Authentication: ${_perf.auth}ms`);
+      console.log(`   Database Queries: ${_perf.queries}ms`);
+      console.log(`   Total Server Time: ${_perf.total}ms`);
+    }
+  }, [_perf]);
 
   useEffect(() => {
     if (fetcher.data?.success === false) {

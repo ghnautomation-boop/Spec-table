@@ -1,0 +1,2 @@
+-- Baseline migration for PostgreSQL
+-- All tables already created via db push
