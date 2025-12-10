@@ -1,25 +1,15 @@
-# fly.toml app configuration file generated for description-container-v2 on 2025-12-10T20:00:56+02:00
+# fly.toml app configuration file generated for description-container on 2025-12-10T18:25:48Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'description-container-v2'
+app = 'description-container'
 primary_region = 'fra'
 
 [build]
 
-[deploy]
-  release_command = 'npx prisma migrate deploy'
-
-[env]
-  NODE_ENV = 'production'
-  PORT = '3000'
-  SCOPES = 'read_collection_listings,read_products,write_products'
-  SHOPIFY_API_KEY = 'ca91204f3bbed9d75fb64d69bea21264'
-  SHOPIFY_APP_URL = 'https://description-container-v1.fly.dev'
-
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
@@ -28,5 +18,6 @@ primary_region = 'fra'
 
 [[vm]]
   memory = '1gb'
+  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 1024
