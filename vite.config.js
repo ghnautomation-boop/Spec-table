@@ -10,10 +10,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Replace the HOST env var with SHOPIFY_APP_URL so that it doesn't break the Vite server.
 // The CLI will eventually stop passing in HOST,
 // so we can remove this workaround after the next major release.
-// IMPORTANT: Don't replace HOST if it's an IP address (0.0.0.0) - it's not a valid URL
 if (
   process.env.HOST &&
-  process.env.HOST !== "0.0.0.0" &&
   (!process.env.SHOPIFY_APP_URL ||
     process.env.SHOPIFY_APP_URL === process.env.HOST)
 ) {
@@ -21,16 +19,8 @@ if (
   delete process.env.HOST;
 }
 
-// Extract hostname from SHOPIFY_APP_URL, or use localhost as fallback
-let host = "localhost";
-if (process.env.SHOPIFY_APP_URL) {
-  try {
-    host = new URL(process.env.SHOPIFY_APP_URL).hostname;
-  } catch (e) {
-    // If SHOPIFY_APP_URL is not a valid URL, use localhost
-    host = "localhost";
-  }
-}
+const host = new URL(process.env.SHOPIFY_APP_URL || "http://localhost")
+  .hostname;
 let hmrConfig;
 
 if (host === "localhost") {

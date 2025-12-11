@@ -237,4 +237,3 @@ WHERE ta."shopId" = '1c5cb175-869d-4a9a-99b5-5fb86d3850a7';
 --    - Paginare (LIMIT/OFFSET) pentru a reduce numărul de rânduri
 --    - Cache la nivel de aplicație (Redis)
 
-

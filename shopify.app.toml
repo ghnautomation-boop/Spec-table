@@ -2,7 +2,7 @@
 
 client_id = "ca91204f3bbed9d75fb64d69bea21264"
 name = "description-container-v1"
-application_url = "https://description-container-v1.fly.dev"
+application_url = "https://remains-animated-maintains-rome.trycloudflare.com"
 embedded = true
 
 [build]
@@ -36,11 +36,7 @@ api_version = "2026-01"
 scopes = "read_products,write_products,read_collection_listings"
 
 [auth]
-redirect_urls = [
-  "https://description-container-v1.fly.dev/auth/callback",
-  "https://description-container-v1.fly.dev/auth/shopify/callback",
-  "https://description-container-v1.fly.dev/api/auth/callback"
-]
+redirect_urls = [ "https://remains-animated-maintains-rome.trycloudflare.com/api/auth" ]
 
 
 [app_proxy]

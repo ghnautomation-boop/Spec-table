@@ -16,4 +16,3 @@ CREATE INDEX IF NOT EXISTS "idx_lookup_default_partial"
 ON "TemplateLookup"("shopId", "priority", "templateId") 
 WHERE "isDefault" = true;
 
-

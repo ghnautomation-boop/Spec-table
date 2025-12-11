@@ -2,4 +2,3 @@
 # It should be added to your version-control system (i.e. committed to your repository)
 provider = "postgresql"
 
-

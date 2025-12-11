@@ -608,7 +608,7 @@ export default function TemplatesPage() {
   }
 
   return (
-    <s-page heading="Specifications templates">
+    <s-page heading="Template-uri de Specificații">
         <s-button slot="primary-action" href="/app/templates/new" variant="primary">
           + Create New Template
         </s-button>

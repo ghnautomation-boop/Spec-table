@@ -12,13 +12,13 @@ export async function getTemplates(shopDomain) {
   // Verifică cache pentru shop ID
   let shopId = shopIdCache.get(shopDomain);
   if (!shopId) {
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
       select: { id: true },
-  });
-  if (!shop) {
-    return [];
-  }
+    });
+    if (!shop) {
+      return [];
+    }
     shopId = shop.id;
     shopIdCache.set(shopDomain, shopId);
   }
@@ -75,7 +75,7 @@ export async function getTemplates(shopDomain) {
           id: true,
           assignmentType: true,
           targets: {
-        select: {
+            select: {
               id: true,
               targetShopifyId: true,
               targetType: true,
@@ -172,8 +172,8 @@ export async function createTemplate(data, shopDomain) {
               const tooltipText = metafield.tooltipText && metafield.tooltipText.trim() !== "" ? metafield.tooltipText.trim() : null;
               
               return {
-              metafieldDefinitionId: metafield.metafieldDefinitionId,
-              order: metafieldIndex,
+                metafieldDefinitionId: metafield.metafieldDefinitionId,
+                order: metafieldIndex,
                 customName,
                 tooltipEnabled: metafield.tooltipEnabled || false,
                 tooltipText,
@@ -262,8 +262,8 @@ export async function updateTemplate(templateId, data, shopDomain) {
               const tooltipText = metafield.tooltipText && metafield.tooltipText.trim() !== "" ? metafield.tooltipText.trim() : null;
               
               return {
-              metafieldDefinitionId: metafield.metafieldDefinitionId,
-              order: metafieldIndex,
+                metafieldDefinitionId: metafield.metafieldDefinitionId,
+                order: metafieldIndex,
                 customName,
                 tooltipEnabled: metafield.tooltipEnabled || false,
                 tooltipText,
@@ -358,12 +358,12 @@ export async function getProducts(shopDomain, search = "") {
   // Folosește cache pentru shop ID
   let shopId = shopIdCache.get(shopDomain);
   if (!shopId) {
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
       select: { id: true },
-  });
-  if (!shop) {
-    return [];
+    });
+    if (!shop) {
+      return [];
     }
     shopId = shop.id;
     shopIdCache.set(shopDomain, shopId);
@@ -398,12 +398,12 @@ export async function getCollections(shopDomain, search = "") {
   // Folosește cache pentru shop ID
   let shopId = shopIdCache.get(shopDomain);
   if (!shopId) {
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
       select: { id: true },
-  });
-  if (!shop) {
-    return [];
+    });
+    if (!shop) {
+      return [];
     }
     shopId = shop.id;
     shopIdCache.set(shopDomain, shopId);
@@ -438,12 +438,12 @@ export async function getAllAssignments(shopDomain) {
   // Folosește cache pentru shop ID
   let shopId = shopIdCache.get(shopDomain);
   if (!shopId) {
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
       select: { id: true },
-  });
-  if (!shop) {
-    return [];
+    });
+    if (!shop) {
+      return [];
     }
     shopId = shop.id;
     shopIdCache.set(shopDomain, shopId);
@@ -581,7 +581,7 @@ function normalizeShopifyId(id) {
   }
   // Dacă este deja numeric, returnează-l ca string pentru consistență
   return String(id);
-  }
+}
 
 /**
  * Găsește template-ul pentru un produs sau colecție bazat pe assignment rules
@@ -599,12 +599,12 @@ async function getTemplateWithRelations(templateId) {
       isAccordion: true,
       seeMoreEnabled: true,
       styling: true,
-          sections: {
+      sections: {
         select: {
           id: true,
           heading: true,
           order: true,
-              metafields: {
+          metafields: {
             select: {
               id: true,
               order: true,
@@ -621,17 +621,17 @@ async function getTemplateWithRelations(templateId) {
                   ownerType: true,
                 },
               },
-                },
-                orderBy: {
-                  order: "asc",
-                },
-              },
             },
             orderBy: {
               order: "asc",
             },
           },
         },
+        orderBy: {
+          order: "asc",
+        },
+      },
+    },
   });
 }
 
@@ -686,8 +686,8 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
       },
       select: {
         templateId: true,
-    },
-  });
+      },
+    });
     lookupQueryTime = performance.now() - queryStart;
     
     if (lookup && process.env.NODE_ENV === "development") {
@@ -768,7 +768,7 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
       console.log(`   💡 Tip: Rebuild lookup table if assignments exist`);
     }
     return null;
-    }
+  }
 
   // 4. Obține template-ul complet cu toate relațiile (query separat pentru performanță)
   // OPTIMIZARE: Folosim query-uri separate pentru a evita JOIN-uri complexe
