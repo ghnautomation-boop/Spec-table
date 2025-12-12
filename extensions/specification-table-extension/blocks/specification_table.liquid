@@ -628,82 +628,123 @@
     const displayRows = seeMoreEnabled ? allMetafieldsWithSection.slice(0, 10) : allMetafieldsWithSection;
     const hasMore = seeMoreEnabled && totalRows > 10;
     
-    // Grupează rândurile afișate pe secțiuni
-    const groupedBySection = {};
-    displayRows.forEach(item => {
-      if (!groupedBySection[item.sectionIndex]) {
-        groupedBySection[item.sectionIndex] = {
+    // Grupează toate rândurile pe secțiuni (pentru a ști ce secțiuni există)
+    const allGroupedBySection = {};
+    allMetafieldsWithSection.forEach(item => {
+      if (!allGroupedBySection[item.sectionIndex]) {
+        allGroupedBySection[item.sectionIndex] = {
           heading: item.sectionHeading,
-          metafields: []
+          allMetafields: [],
+          displayMetafields: [],
+          hiddenMetafields: []
         };
       }
-      groupedBySection[item.sectionIndex].metafields.push(item);
+      allGroupedBySection[item.sectionIndex].allMetafields.push(item);
     });
+    
+    // Separe rândurile afișate de cele ascunse pentru fiecare secțiune
+    displayRows.forEach(item => {
+      allGroupedBySection[item.sectionIndex].displayMetafields.push(item);
+    });
+    
+    if (hasMore) {
+      const hiddenRows = allMetafieldsWithSection.slice(10);
+      hiddenRows.forEach(item => {
+        allGroupedBySection[item.sectionIndex].hiddenMetafields.push(item);
+      });
+    }
     
     // SVG pentru săgeată modernă
     const arrowDownSvg = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease;"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     
-    if (template.isAccordion) {
-      Object.keys(groupedBySection).forEach(sectionIndex => {
-        const sectionIdx = parseInt(sectionIndex);
-        const sectionData = groupedBySection[sectionIndex];
+    // Renderizează secțiunile cu rândurile afișate
+    Object.keys(allGroupedBySection).forEach(sectionIndex => {
+      const sectionIdx = parseInt(sectionIndex);
+      const sectionData = allGroupedBySection[sectionIndex];
+      
+      // Skip secțiunile care nu au rânduri de afișat și nu au rânduri ascunse
+      if (sectionData.displayMetafields.length === 0 && sectionData.hiddenMetafields.length === 0) {
+        return;
+      }
+      
+      // Dacă secțiunea nu are rânduri de afișat dar are rânduri ascunse, afișează doar heading-ul
+      // (rândurile vor fi adăugate când se face click pe "See more")
+      if (sectionData.displayMetafields.length === 0 && sectionData.hiddenMetafields.length > 0) {
+        if (template.isAccordion) {
+          html += '<div class="dc_section">';
+          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\')">';
+          html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+          html += '<span class="dc_accordion_arrow" id="spec-arrow-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+          html += '</div>';
+          html += '<div id="spec-section-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+          html += '<div id="spec-table-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
+        } else {
+          html += '<div class="dc_section">';
+          html += '<h3 class="dc_heading">';
+          html += escapeHtml(sectionData.heading);
+          html += '</h3>';
+          html += '<div id="spec-table-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
+          html += '</div>';
+        }
+        return;
+      }
+      
+      if (template.isAccordion) {
         html += '<div class="dc_section">';
         html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\')">';
         html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
         html += '<span class="dc_accordion_arrow" id="spec-arrow-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
         html += '</div>';
         html += '<div id="spec-section-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, displayRows);
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafields);
         html += '</div>';
         html += '</div>';
-      });
-    } else {
-      Object.keys(groupedBySection).forEach(sectionIndex => {
-        const sectionIdx = parseInt(sectionIndex);
-        const sectionData = groupedBySection[sectionIndex];
+      } else {
         html += '<div class="dc_section">';
         html += '<h3 class="dc_heading">';
         html += escapeHtml(sectionData.heading);
         html += '</h3>';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, displayRows);
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafields);
         html += '</div>';
-      });
-    }
+      }
+    });
     
     // Adaugă butonul "See more" o singură dată la final, dacă este necesar
     if (hasMore) {
       html += '<div class="dc_see_more">';
-      html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', ' + totalRows + ')">';
+      html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event)">';
       html += '<span id="see-more-arrow-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
       html += '</button>';
       html += '</div>';
       
-      // Adaugă rândurile ascunse
+      // Adaugă rândurile ascunse organizate pe secțiuni (ca tabele complete)
       html += '<div id="spec-table-hidden-' + template.id + '" class="dc_hidden">';
-      const hiddenRows = allMetafieldsWithSection.slice(10);
-      const hiddenGroupedBySection = {};
-      hiddenRows.forEach(item => {
-        if (!hiddenGroupedBySection[item.sectionIndex]) {
-          hiddenGroupedBySection[item.sectionIndex] = {
-            heading: item.sectionHeading,
-            metafields: []
-          };
-        }
-        hiddenGroupedBySection[item.sectionIndex].metafields.push(item);
-      });
-      
-      Object.keys(hiddenGroupedBySection).forEach(sectionIndex => {
+      Object.keys(allGroupedBySection).forEach(sectionIndex => {
         const sectionIdx = parseInt(sectionIndex);
-        const sectionData = hiddenGroupedBySection[sectionIndex];
-        if (template.isAccordion) {
-          html += '<div id="spec-section-hidden-' + template.id + '-' + sectionIdx + '" class="dc_section">';
-        } else {
-          html += '<div class="dc_section">';
-          html += '<h3 class="dc_heading">';
-          html += escapeHtml(sectionData.heading);
-          html += '</h3>';
+        const sectionData = allGroupedBySection[sectionIndex];
+        
+        // Skip secțiunile care nu au rânduri ascunse
+        if (sectionData.hiddenMetafields.length === 0) {
+          return;
         }
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx + 1000, allMetafieldsWithSection);
+        
+        // Creează un container ascuns cu rândurile extra pentru această secțiune
+        // Rândurile vor fi mutate în tabelul existent când se apasă "See more"
+        html += '<div id="spec-hidden-section-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '">';
+        // Generează rândurile într-un tbody temporar pentru a putea fi mutate ușor
+        html += '<table style="display: none;"><tbody>';
+        html += renderHiddenRowsAsTable(sectionData.hiddenMetafields, styling, template.id, sectionIdx, allMetafieldsWithSection);
+        html += '</tbody></table>';
         html += '</div>';
       });
       html += '</div>';
@@ -713,19 +754,18 @@
     container.innerHTML = html;
   }
   
-  function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allDisplayRows) {
+  function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields) {
     const tableId = 'spec-table-' + templateId + '-' + sectionIndex;
     
     let html = '<div id="' + tableId + '-container" class="dc_table_container">';
-    html += '<table class="dc_table">';
-    html += '<tbody>';
+    html += '<table class="dc_table" id="' + tableId + '">';
+    html += '<tbody id="' + tableId + '-tbody">';
     
-    // Renderizează fiecare metafield din template
-    // Valorile vor fi populate direct din Liquid folosind namespace și key
-    section.metafields.forEach((metafield, index) => {
+    // Renderizează fiecare metafield din lista de afișat
+    displayMetafields.forEach((metafield, index) => {
       // Calculează indexul global pentru colorarea corectă a rândurilor
-      const globalIndex = allDisplayRows ? allDisplayRows.indexOf(metafield) : index;
-      const isOdd = globalIndex % 2 === 0;
+      const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+      const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
       
       // Construiește stiluri inline doar pentru background (dinamic bazat pe index)
       let rowStyle = '';
@@ -788,14 +828,94 @@
     return html;
   }
   
-  window.showAllTableRows = function(templateId, totalRows) {
-    const hiddenContainer = document.getElementById('spec-table-hidden-' + templateId);
-    if (hiddenContainer) {
-      hiddenContainer.style.display = 'block';
+  function renderHiddenRowsAsTable(metafields, styling, templateId, sectionIndex, allMetafieldsWithSection) {
+    // Generează rândurile HTML pentru metafield-urile ascunse
+    let rowsHtml = '';
+    
+    metafields.forEach((metafield, index) => {
+      // Calculează indexul global pentru colorarea corectă a rândurilor
+      const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+      const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
+      
+      // Construiește stiluri inline doar pentru background (dinamic bazat pe index)
+      let rowStyle = '';
+      if (styling.rowBackgroundEnabled) {
+        rowStyle = 'background-color: ' + (isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff')) + '; ';
+      } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
+        rowStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+      }
+      
+      // Adaugă clasele pentru hide from PC/Mobile
+      const hideFromPC = metafield.hideFromPC === true || metafield.hideFromPC === 'true';
+      const hideFromMobile = metafield.hideFromMobile === true || metafield.hideFromMobile === 'true';
+      
+      let rowClasses = 'dc_table_tr';
+      if (hideFromPC) {
+        rowClasses += ' dc_hide_from_pc';
+      }
+      if (hideFromMobile) {
+        rowClasses += ' dc_hide_from_mobile';
+      }
+      
+      rowsHtml += '<tr class="' + rowClasses + '"' + (rowStyle ? ' style="' + rowStyle + '"' : '') + '>';
+      rowsHtml += '<td class="dc_table_td_label">';
+      const displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
+      let nameHtml = escapeHtml(displayName);
+      
+      if (metafield.tooltipEnabled && metafield.tooltipText) {
+        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '">i</span>';
+      }
+      
+      rowsHtml += nameHtml + '  :';
+      rowsHtml += '</td>';
+      rowsHtml += '<td class="dc_table_td_value" data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
+      rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">Loading...</span>';
+      rowsHtml += '</td>';
+      rowsHtml += '</tr>';
+    });
+    
+    // Returnează doar rândurile (fără tabel), pentru a le adăuga în tabelul existent
+    return rowsHtml;
+  }
+  
+  window.showAllTableRows = function(templateId, event) {
+    // Previne comportamentul implicit
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
     }
     
+    const hiddenContainer = document.getElementById('spec-table-hidden-' + templateId);
+    if (!hiddenContainer) {
+      return;
+    }
+    
+    // Găsește toate containerele cu rânduri ascunse
+    const hiddenSections = hiddenContainer.querySelectorAll('[id^="spec-hidden-section-' + templateId + '-"]');
+    
+    hiddenSections.forEach(sectionContainer => {
+      const sectionIndex = sectionContainer.getAttribute('data-section-index');
+      const tableId = 'spec-table-' + templateId + '-' + sectionIndex;
+      const tbody = document.getElementById(tableId + '-tbody');
+      
+      if (tbody) {
+        // Găsește tabelul temporar din containerul ascuns
+        const tempTable = sectionContainer.querySelector('table');
+        if (tempTable) {
+          const tempTbody = tempTable.querySelector('tbody');
+          if (tempTbody) {
+            // Mută toate rândurile din tbody-ul temporar în tbody-ul tabelului existent
+            const rows = Array.from(tempTbody.querySelectorAll('tr'));
+            rows.forEach(row => {
+              tbody.appendChild(row);
+            });
+          }
+        }
+      }
+    });
+    
     // Ascunde butonul "See more"
-    const button = event.target.closest('button');
+    const button = event ? event.target.closest('button') : document.querySelector('.dc_see_more_button');
     if (button) {
       button.style.display = 'none';
     }
@@ -805,6 +925,9 @@
     if (arrow) {
       arrow.style.transform = 'rotate(180deg)';
     }
+    
+    // Ascunde containerul cu rândurile ascunse (nu mai este necesar)
+    hiddenContainer.style.display = 'none';
     
     // Actualizează valorile metafield-urilor pentru rândurile nou afișate
     const container = document.getElementById('specification-table-container-' + templateId);
@@ -928,4 +1051,3 @@
   ]
 }
 {% endschema %}
-

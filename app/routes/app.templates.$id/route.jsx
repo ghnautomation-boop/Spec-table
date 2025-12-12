@@ -2274,4 +2274,3 @@ export default function TemplateEditorPage() {
 export const headers = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
-

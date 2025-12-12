@@ -154,7 +154,7 @@ export async function createTemplate(data, shopDomain) {
     throw new Error("Shop not found");
   }
 
-  const { name, styling, isActive, isAccordion, seeMoreEnabled, sections } = data;
+  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, sections } = data;
 
   return await prisma.specificationTemplate.create({
     data: {
@@ -162,7 +162,11 @@ export async function createTemplate(data, shopDomain) {
       styling: JSON.stringify(styling || {}),
       isActive: isActive !== undefined ? isActive : true,
       isAccordion: isAccordion !== undefined ? isAccordion : false,
+      isAccordionHideFromPC: isAccordionHideFromPC !== undefined ? isAccordionHideFromPC : false,
+      isAccordionHideFromMobile: isAccordionHideFromMobile !== undefined ? isAccordionHideFromMobile : false,
       seeMoreEnabled: seeMoreEnabled !== undefined ? seeMoreEnabled : false,
+      seeMoreHideFromPC: seeMoreHideFromPC !== undefined ? seeMoreHideFromPC : false,
+      seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : false,
       shopId: shop.id,
       sections: {
         create: sections?.map((section, sectionIndex) => ({
@@ -224,7 +228,7 @@ export async function updateTemplate(templateId, data, shopDomain) {
     throw new Error("Template not found");
   }
 
-  const { name, styling, isActive, isAccordion, seeMoreEnabled, sections } = data;
+  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, sections } = data;
 
   // Debug: verifică datele primite
   if (process.env.NODE_ENV === "development") {
@@ -255,7 +259,11 @@ export async function updateTemplate(templateId, data, shopDomain) {
       styling: JSON.stringify(styling || {}),
       isActive: isActive !== undefined ? isActive : template.isActive,
       isAccordion: isAccordion !== undefined ? isAccordion : template.isAccordion,
+      isAccordionHideFromPC: isAccordionHideFromPC !== undefined ? isAccordionHideFromPC : template.isAccordionHideFromPC || false,
+      isAccordionHideFromMobile: isAccordionHideFromMobile !== undefined ? isAccordionHideFromMobile : template.isAccordionHideFromMobile || false,
       seeMoreEnabled: seeMoreEnabled !== undefined ? seeMoreEnabled : template.seeMoreEnabled || false,
+      seeMoreHideFromPC: seeMoreHideFromPC !== undefined ? seeMoreHideFromPC : template.seeMoreHideFromPC || false,
+      seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : template.seeMoreHideFromMobile || false,
       sections: {
         create: sections?.map((section, sectionIndex) => ({
           heading: section.heading,
@@ -603,7 +611,11 @@ async function getTemplateWithRelations(templateId) {
       name: true,
       isActive: true,
       isAccordion: true,
+      isAccordionHideFromPC: true,
+      isAccordionHideFromMobile: true,
       seeMoreEnabled: true,
+      seeMoreHideFromPC: true,
+      seeMoreHideFromMobile: true,
       styling: true,
       sections: {
         select: {
@@ -790,7 +802,11 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
       name: true,
       isActive: true,
       isAccordion: true,
+      isAccordionHideFromPC: true,
+      isAccordionHideFromMobile: true,
       seeMoreEnabled: true,
+      seeMoreHideFromPC: true,
+      seeMoreHideFromMobile: true,
       styling: true,
     },
   });

@@ -101,7 +101,11 @@ model SpecificationTemplate {
   styling       String   // JSON string with styling config
   isActive      Boolean  @default(true)
   isAccordion   Boolean  @default(false)
+  isAccordionHideFromPC   Boolean  @default(false) // Ascunde accordion pe desktop
+  isAccordionHideFromMobile Boolean @default(false) // Ascunde accordion pe mobile
   seeMoreEnabled Boolean @default(false)
+  seeMoreHideFromPC   Boolean  @default(false) // Ascunde "See more" pe desktop
+  seeMoreHideFromMobile Boolean @default(false) // Ascunde "See more" pe mobile
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
