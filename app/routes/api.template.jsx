@@ -106,6 +106,8 @@ export async function loader({ request }) {
         id: template.id,
         name: template.name,
         isAccordion: template.isAccordion,
+        isAccordionHideFromPC: template.isAccordionHideFromPC === true,
+        isAccordionHideFromMobile: template.isAccordionHideFromMobile === true,
         seeMoreEnabled: template.seeMoreEnabled || false,
         seeMoreHideFromPC: template.seeMoreHideFromPC === true,
         seeMoreHideFromMobile: template.seeMoreHideFromMobile === true,

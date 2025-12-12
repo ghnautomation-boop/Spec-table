@@ -711,69 +711,120 @@
         return;
       }
       
+      // Verifică flag-urile pentru accordion
+      const isAccordionHideFromPC = template.isAccordionHideFromPC === true || template.isAccordionHideFromPC === 'true';
+      const isAccordionHideFromMobile = template.isAccordionHideFromMobile === true || template.isAccordionHideFromMobile === 'true';
+      
+      // Determină ce versiune să afișeze pe PC și mobile
+      const showAccordionPC = template.isAccordion && !isAccordionHideFromPC;
+      const showAccordionMobile = template.isAccordion && !isAccordionHideFromMobile;
+      
       // Dacă secțiunea nu are rânduri de afișat dar are rânduri ascunse, afișează doar heading-ul
       // (rândurile vor fi adăugate când se face click pe "See more")
       if (sectionData.displayMetafieldsPC.length === 0 && sectionData.displayMetafieldsMobile.length === 0 && 
           (sectionData.hiddenMetafieldsPC.length > 0 || sectionData.hiddenMetafieldsMobile.length > 0)) {
-        if (template.isAccordion) {
-          html += '<div class="dc_section">';
-          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\')">';
+        html += '<div class="dc_section">';
+        
+        // Versiunea pentru PC
+        html += '<div class="dc_accordion_pc_version">';
+        if (showAccordionPC) {
+          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'pc\')">';
           html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
-          html += '<span class="dc_accordion_arrow" id="spec-arrow-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+          html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
           html += '</div>';
-          html += '<div id="spec-section-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-          html += '<div id="spec-table-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
-          html += '<table class="dc_table" id="spec-table-' + template.id + '-' + sectionIdx + '">';
-          html += '<tbody id="spec-table-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '<div id="spec-section-pc-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+          html += '<div id="spec-table-pc-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-pc-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-pc-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
           html += '</table>';
-          html += '</div>';
           html += '</div>';
           html += '</div>';
         } else {
-          html += '<div class="dc_section">';
           html += '<h3 class="dc_heading">';
           html += escapeHtml(sectionData.heading);
           html += '</h3>';
-          html += '<div id="spec-table-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
-          html += '<table class="dc_table" id="spec-table-' + template.id + '-' + sectionIdx + '">';
-          html += '<tbody id="spec-table-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '<div id="spec-table-pc-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-pc-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-pc-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
+        }
+        html += '</div>';
+        
+        // Versiunea pentru mobile
+        html += '<div class="dc_accordion_mobile_version">';
+        if (showAccordionMobile) {
+          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'mobile\')">';
+          html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+          html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+          html += '</div>';
+          html += '<div id="spec-section-mobile-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+          html += '<div id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-mobile-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
           html += '</table>';
           html += '</div>';
           html += '</div>';
+        } else {
+          html += '<h3 class="dc_heading">';
+          html += escapeHtml(sectionData.heading);
+          html += '</h3>';
+          html += '<div id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-mobile-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
         }
+        html += '</div>';
+        
+        html += '</div>';
         return;
       }
       
-      if (template.isAccordion) {
-        html += '<div class="dc_section">';
-        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\')">';
+      // Generează două versiuni: una pentru PC, una pentru mobile
+      html += '<div class="dc_section">';
+      
+      // Versiunea pentru PC
+      html += '<div class="dc_accordion_pc_version">';
+      if (showAccordionPC) {
+        // Pe PC: accordion
+        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'pc\')">';
         html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
-        html += '<span class="dc_accordion_arrow" id="spec-arrow-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+        html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
         html += '</div>';
-        html += '<div id="spec-section-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-        // Generează două versiuni: una pentru PC, una pentru mobile
-        html += '<div class="dc_see_more_pc_version">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC);
-        html += '</div>';
-        html += '<div class="dc_see_more_mobile_version">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile);
-        html += '</div>';
-        html += '</div>';
+        html += '<div id="spec-section-pc-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc');
         html += '</div>';
       } else {
-        html += '<div class="dc_section">';
+        // Pe PC: normal (fără accordion)
         html += '<h3 class="dc_heading">';
         html += escapeHtml(sectionData.heading);
         html += '</h3>';
-        // Generează două versiuni: una pentru PC, una pentru mobile
-        html += '<div class="dc_see_more_pc_version">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC);
-        html += '</div>';
-        html += '<div class="dc_see_more_mobile_version">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile);
-        html += '</div>';
-        html += '</div>';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc');
       }
+      html += '</div>';
+      
+      // Versiunea pentru mobile
+      html += '<div class="dc_accordion_mobile_version">';
+      if (showAccordionMobile) {
+        // Pe mobile: accordion
+        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'mobile\')">';
+        html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+        html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+        html += '</div>';
+        html += '<div id="spec-section-mobile-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile');
+        html += '</div>';
+      } else {
+        // Pe mobile: normal (fără accordion)
+        html += '<h3 class="dc_heading">';
+        html += escapeHtml(sectionData.heading);
+        html += '</h3>';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile');
+      }
+      html += '</div>';
+      
+      html += '</div>';
     });
     
     // Adaugă butonul "See more" pentru PC și mobile separat, dacă este necesar
@@ -827,8 +878,10 @@
     container.innerHTML = html;
   }
   
-  function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields) {
-    const tableId = 'spec-table-' + templateId + '-' + sectionIndex;
+  function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields, device) {
+    // Generează ID-uri unice pentru PC și mobile
+    const deviceSuffix = device ? '-' + device : '';
+    const tableId = 'spec-table' + deviceSuffix + '-' + templateId + '-' + sectionIndex;
     
     let html = '<div id="' + tableId + '-container" class="dc_table_container">';
     html += '<table class="dc_table" id="' + tableId + '">';
@@ -972,11 +1025,18 @@
     
     hiddenSections.forEach(sectionContainer => {
       const sectionIndex = sectionContainer.getAttribute('data-section-index');
-      const tableId = 'spec-table-' + templateId + '-' + sectionIndex;
+      const tableId = 'spec-table-' + device + '-' + templateId + '-' + sectionIndex;
       
       // Găsește containerul corespunzător device-ului (PC sau mobile)
-      const deviceVersionClass = device === 'pc' ? 'dc_see_more_pc_version' : 'dc_see_more_mobile_version';
-      const deviceContainer = document.querySelector('.' + deviceVersionClass + ' #' + tableId + '-container');
+      // Încearcă mai întâi în versiunea seeMore
+      const seeMoreVersionClass = device === 'pc' ? 'dc_see_more_pc_version' : 'dc_see_more_mobile_version';
+      let deviceContainer = document.querySelector('.' + seeMoreVersionClass + ' #' + tableId + '-container');
+      
+      // Dacă nu găsește, încearcă în versiunea accordion
+      if (!deviceContainer) {
+        const accordionVersionClass = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+        deviceContainer = document.querySelector('.' + accordionVersionClass + ' #' + tableId + '-container');
+      }
       
       if (!deviceContainer) {
         console.log('Device container not found for', device, 'tableId:', tableId);
@@ -1031,9 +1091,25 @@
   }
   
   // Funcție globală pentru toggle accordion
-  window.toggleSpecSection = function(sectionIndex, templateId) {
-    const section = document.getElementById('spec-section-' + templateId + '-' + sectionIndex);
-    const arrow = document.getElementById('spec-arrow-' + templateId + '-' + sectionIndex);
+  window.toggleSpecSection = function(sectionIndex, templateId, device) {
+    // Dacă device nu este specificat, încercă să-l detecteze sau folosește versiunea veche pentru compatibilitate
+    if (!device) {
+      // Versiunea veche (fără device) - pentru compatibilitate
+      const section = document.getElementById('spec-section-' + templateId + '-' + sectionIndex);
+      const arrow = document.getElementById('spec-arrow-' + templateId + '-' + sectionIndex);
+      if (section) {
+        const isHidden = section.style.display === 'none' || section.style.display === '';
+        section.style.display = isHidden ? 'block' : 'none';
+        if (arrow) {
+          arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+      }
+      return;
+    }
+    
+    // Versiunea nouă cu device
+    const section = document.getElementById('spec-section-' + device + '-' + templateId + '-' + sectionIndex);
+    const arrow = document.getElementById('spec-arrow-' + device + '-' + templateId + '-' + sectionIndex);
     if (section) {
       const isHidden = section.style.display === 'none' || section.style.display === '';
       section.style.display = isHidden ? 'block' : 'none';

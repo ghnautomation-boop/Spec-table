@@ -205,3 +205,26 @@
     display: none; /* Pe mobile, ascunde */
   }
 }
+
+/* Versiuni PC și Mobile pentru Accordion */
+/* Pe PC: afișează versiunea PC, ascunde versiunea mobile */
+@media (min-width: 768px) {
+  .dc_accordion_pc_version {
+    display: block;
+  }
+  
+  .dc_accordion_mobile_version {
+    display: none;
+  }
+}
+
+/* Pe mobile: afișează versiunea mobile, ascunde versiunea PC */
+@media (max-width: 767px) {
+  .dc_accordion_pc_version {
+    display: none;
+  }
+  
+  .dc_accordion_mobile_version {
+    display: block;
+  }
+}

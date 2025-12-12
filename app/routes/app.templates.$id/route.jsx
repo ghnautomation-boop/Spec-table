@@ -165,6 +165,8 @@ export const action = async ({ request, params }) => {
   const name = formData.get("name");
   const isActive = formData.get("isActive") === "true";
   const isAccordion = formData.get("isAccordion") === "true";
+  const isAccordionHideFromPC = formData.get("isAccordionHideFromPC") === "true";
+  const isAccordionHideFromMobile = formData.get("isAccordionHideFromMobile") === "true";
   const seeMoreEnabled = formData.get("seeMoreEnabled") === "true";
   const seeMoreHideFromPC = formData.get("seeMoreHideFromPC") === "true";
   const seeMoreHideFromMobile = formData.get("seeMoreHideFromMobile") === "true";
@@ -276,6 +278,8 @@ export const action = async ({ request, params }) => {
           styling,
           isActive,
           isAccordion,
+          isAccordionHideFromPC,
+          isAccordionHideFromMobile,
           seeMoreEnabled,
           seeMoreHideFromPC,
           seeMoreHideFromMobile,
@@ -291,6 +295,8 @@ export const action = async ({ request, params }) => {
           styling,
           isActive,
           isAccordion,
+          isAccordionHideFromPC,
+          isAccordionHideFromMobile,
           seeMoreEnabled,
           seeMoreHideFromPC,
           seeMoreHideFromMobile,
@@ -357,6 +363,12 @@ export default function TemplateEditorPage() {
   );
   const [isAccordion, setIsAccordion] = useState(
     template?.isAccordion || false
+  );
+  const [isAccordionHideFromPC, setIsAccordionHideFromPC] = useState(
+    template?.isAccordionHideFromPC || false
+  );
+  const [isAccordionHideFromMobile, setIsAccordionHideFromMobile] = useState(
+    template?.isAccordionHideFromMobile || false
   );
   const [seeMoreEnabled, setSeeMoreEnabled] = useState(
     template?.seeMoreEnabled || false
@@ -1169,12 +1181,35 @@ export default function TemplateEditorPage() {
                 seeMoreHideFromMobileInput.value = seeMoreHideFromMobile ? "true" : "false";
                 console.log("onSubmit - Updated seeMoreHideFromMobile:", seeMoreHideFromMobileInput.value);
               }
+              
+              // Actualizează valorile pentru isAccordionHideFromPC și isAccordionHideFromMobile
+              const isAccordionHideFromPCInput = e.currentTarget.querySelector('input[name="isAccordionHideFromPC"]');
+              const isAccordionHideFromMobileInput = e.currentTarget.querySelector('input[name="isAccordionHideFromMobile"]');
+              
+              if (isAccordionHideFromPCInput) {
+                isAccordionHideFromPCInput.value = isAccordionHideFromPC ? "true" : "false";
+              }
+              if (isAccordionHideFromMobileInput) {
+                isAccordionHideFromMobileInput.value = isAccordionHideFromMobile ? "true" : "false";
+              }
             }}
           >
             <input type="hidden" name="name" value={templateName} />
         <input type="hidden" name="sectionCount" value={sections.length} />
         <input type="hidden" name="isActive" value={isActive ? "true" : "false"} />
         <input type="hidden" name="isAccordion" value={isAccordion ? "true" : "false"} />
+        <input 
+          type="hidden" 
+          name="isAccordionHideFromPC" 
+          value={isAccordionHideFromPC ? "true" : "false"} 
+          key={`isAccordionHideFromPC-${isAccordionHideFromPC}`}
+        />
+        <input 
+          type="hidden" 
+          name="isAccordionHideFromMobile" 
+          value={isAccordionHideFromMobile ? "true" : "false"} 
+          key={`isAccordionHideFromMobile-${isAccordionHideFromMobile}`}
+        />
         <input 
           type="hidden" 
           name="seeMoreEnabled" 
@@ -1660,10 +1695,86 @@ export default function TemplateEditorPage() {
               id="accordion-switch"
               name="isAccordion"
               checked={isAccordion}
-              onChange={(e) => setIsAccordion(e.target.checked)}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setIsAccordion(newValue);
+                // Dacă dezactivezi accordion, resetează și flag-urile hide
+                if (!newValue) {
+                  setIsAccordionHideFromPC(false);
+                  setIsAccordionHideFromMobile(false);
+                }
+              }}
               value={isAccordion ? "true" : "false"}
               label="Show as accordion (expandable)"
             />
+            {isAccordion && (
+              <s-box 
+                padding="base" 
+                background="subdued" 
+                borderWidth="base" 
+                borderRadius="base"
+                style={{ marginLeft: "24px", marginTop: "8px" }}
+              >
+                <s-stack direction="block" gap="base">
+                  <s-switch
+                    id="accordion-hide-from-pc-switch"
+                    name="isAccordionHideFromPC"
+                    checked={isAccordionHideFromPC}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const newValue = e.target.checked;
+                      // Dacă activezi hideFromPC, dezactivează hideFromMobile (mutual exclusiv)
+                      if (newValue) {
+                        setIsAccordionHideFromMobile(false);
+                      }
+                      setIsAccordionHideFromPC(newValue);
+                      // Actualizează imediat hidden input-ul
+                      setTimeout(() => {
+                        const input = document.querySelector('input[name="isAccordionHideFromPC"]');
+                        if (input) {
+                          input.value = newValue ? "true" : "false";
+                        }
+                        const mobileInput = document.querySelector('input[name="isAccordionHideFromMobile"]');
+                        if (mobileInput) {
+                          mobileInput.value = newValue ? "false" : mobileInput.value;
+                        }
+                      }, 0);
+                    }}
+                    value={isAccordionHideFromPC ? "true" : "false"}
+                    label="Show accordion just on mobile"
+                  />
+                  <s-switch
+                    id="accordion-hide-from-mobile-switch"
+                    name="isAccordionHideFromMobile"
+                    checked={isAccordionHideFromMobile}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const newValue = e.target.checked;
+                      // Dacă activezi hideFromMobile, dezactivează hideFromPC (mutual exclusiv)
+                      if (newValue) {
+                        setIsAccordionHideFromPC(false);
+                      }
+                      setIsAccordionHideFromMobile(newValue);
+                      // Actualizează imediat hidden input-ul
+                      setTimeout(() => {
+                        const input = document.querySelector('input[name="isAccordionHideFromMobile"]');
+                        if (input) {
+                          input.value = newValue ? "true" : "false";
+                        }
+                        const pcInput = document.querySelector('input[name="isAccordionHideFromPC"]');
+                        if (pcInput) {
+                          pcInput.value = newValue ? "false" : pcInput.value;
+                        }
+                      }, 0);
+                    }}
+                    value={isAccordionHideFromMobile ? "true" : "false"}
+                    label="Show accordion just on PC"
+                  />
+                </s-stack>
+              </s-box>
+            )}
             <s-switch
               id="see-more-switch"
               name="seeMoreEnabled"
