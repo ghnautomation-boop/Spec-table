@@ -121,6 +121,45 @@
   width: 100%;
 }
 
+/* Versiuni PC și Mobile pentru See More */
+/* Pe PC: afișează versiunea PC, ascunde versiunea mobile */
+@media (min-width: 768px) {
+  .dc_see_more_pc_version {
+    display: block;
+  }
+  
+  .dc_see_more_mobile_version {
+    display: none;
+  }
+  
+  .dc_see_more_pc {
+    display: block;
+  }
+  
+  .dc_see_more_mobile {
+    display: none;
+  }
+}
+
+/* Pe mobile: afișează versiunea mobile, ascunde versiunea PC */
+@media (max-width: 767px) {
+  .dc_see_more_pc_version {
+    display: none;
+  }
+  
+  .dc_see_more_mobile_version {
+    display: block;
+  }
+  
+  .dc_see_more_pc {
+    display: none;
+  }
+  
+  .dc_see_more_mobile {
+    display: block;
+  }
+}
+
 /* See More Arrow */
 .dc_see_more_arrow {
   display: inline-block;
@@ -142,7 +181,7 @@
 
 /* Table Container */
 .dc_table_container {
-  /* Container pentru tabel */
+  width: 100%;
 }
 
 /* Hide from PC - ascunde pe desktop (screen width >= 768px) */

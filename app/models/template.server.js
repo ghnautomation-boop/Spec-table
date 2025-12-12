@@ -234,6 +234,9 @@ export async function updateTemplate(templateId, data, shopDomain) {
   if (process.env.NODE_ENV === "development") {
     console.log("updateTemplate - Data received:", JSON.stringify({
       name,
+      seeMoreEnabled,
+      seeMoreHideFromPC,
+      seeMoreHideFromMobile,
       sections: sections?.map(s => ({
         heading: s.heading,
         metafields: s.metafields?.map(mf => ({

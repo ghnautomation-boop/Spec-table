@@ -624,9 +624,40 @@
     });
     
     const seeMoreEnabled = template.seeMoreEnabled || false;
+    const seeMoreHideFromPC = template.seeMoreHideFromPC === true || template.seeMoreHideFromPC === 'true';
+    const seeMoreHideFromMobile = template.seeMoreHideFromMobile === true || template.seeMoreHideFromMobile === 'true';
     const totalRows = allMetafieldsWithSection.length;
-    const displayRows = seeMoreEnabled ? allMetafieldsWithSection.slice(0, 10) : allMetafieldsWithSection;
-    const hasMore = seeMoreEnabled && totalRows > 10;
+    
+    // Determină ce rânduri să afișeze pe baza flag-urilor
+    // Dacă seeMoreHideFromPC este true: pe PC afișează toate, pe mobile primele 10 + buton
+    // Dacă seeMoreHideFromMobile este true: pe mobile afișează toate, pe PC primele 10 + buton
+    // Dacă ambele sunt false: funcționează normal (primele 10 + buton peste tot)
+    let displayRowsPC = allMetafieldsWithSection;
+    let displayRowsMobile = allMetafieldsWithSection;
+    let hasMorePC = false;
+    let hasMoreMobile = false;
+    
+    if (seeMoreEnabled) {
+      if (seeMoreHideFromPC) {
+        // Pe PC: toate rândurile, pe mobile: primele 10 + buton
+        displayRowsPC = allMetafieldsWithSection;
+        displayRowsMobile = allMetafieldsWithSection.slice(0, 10);
+        hasMorePC = false;
+        hasMoreMobile = totalRows > 10;
+      } else if (seeMoreHideFromMobile) {
+        // Pe mobile: toate rândurile, pe PC: primele 10 + buton
+        displayRowsPC = allMetafieldsWithSection.slice(0, 10);
+        displayRowsMobile = allMetafieldsWithSection;
+        hasMorePC = totalRows > 10;
+        hasMoreMobile = false;
+      } else {
+        // Normal: primele 10 + buton peste tot
+        displayRowsPC = allMetafieldsWithSection.slice(0, 10);
+        displayRowsMobile = allMetafieldsWithSection.slice(0, 10);
+        hasMorePC = totalRows > 10;
+        hasMoreMobile = totalRows > 10;
+      }
+    }
     
     // Grupează toate rândurile pe secțiuni (pentru a ști ce secțiuni există)
     const allGroupedBySection = {};
@@ -635,22 +666,34 @@
         allGroupedBySection[item.sectionIndex] = {
           heading: item.sectionHeading,
           allMetafields: [],
-          displayMetafields: [],
-          hiddenMetafields: []
+          displayMetafieldsPC: [],
+          displayMetafieldsMobile: [],
+          hiddenMetafieldsPC: [],
+          hiddenMetafieldsMobile: []
         };
       }
       allGroupedBySection[item.sectionIndex].allMetafields.push(item);
     });
     
-    // Separe rândurile afișate de cele ascunse pentru fiecare secțiune
-    displayRows.forEach(item => {
-      allGroupedBySection[item.sectionIndex].displayMetafields.push(item);
+    // Separe rândurile pentru PC și mobile
+    displayRowsPC.forEach(item => {
+      allGroupedBySection[item.sectionIndex].displayMetafieldsPC.push(item);
+    });
+    displayRowsMobile.forEach(item => {
+      allGroupedBySection[item.sectionIndex].displayMetafieldsMobile.push(item);
     });
     
-    if (hasMore) {
-      const hiddenRows = allMetafieldsWithSection.slice(10);
-      hiddenRows.forEach(item => {
-        allGroupedBySection[item.sectionIndex].hiddenMetafields.push(item);
+    // Separe rândurile ascunse pentru PC și mobile
+    if (hasMorePC) {
+      const hiddenRowsPC = allMetafieldsWithSection.slice(10);
+      hiddenRowsPC.forEach(item => {
+        allGroupedBySection[item.sectionIndex].hiddenMetafieldsPC.push(item);
+      });
+    }
+    if (hasMoreMobile) {
+      const hiddenRowsMobile = allMetafieldsWithSection.slice(10);
+      hiddenRowsMobile.forEach(item => {
+        allGroupedBySection[item.sectionIndex].hiddenMetafieldsMobile.push(item);
       });
     }
     
@@ -663,13 +706,15 @@
       const sectionData = allGroupedBySection[sectionIndex];
       
       // Skip secțiunile care nu au rânduri de afișat și nu au rânduri ascunse
-      if (sectionData.displayMetafields.length === 0 && sectionData.hiddenMetafields.length === 0) {
+      if (sectionData.displayMetafieldsPC.length === 0 && sectionData.displayMetafieldsMobile.length === 0 && 
+          sectionData.hiddenMetafieldsPC.length === 0 && sectionData.hiddenMetafieldsMobile.length === 0) {
         return;
       }
       
       // Dacă secțiunea nu are rânduri de afișat dar are rânduri ascunse, afișează doar heading-ul
       // (rândurile vor fi adăugate când se face click pe "See more")
-      if (sectionData.displayMetafields.length === 0 && sectionData.hiddenMetafields.length > 0) {
+      if (sectionData.displayMetafieldsPC.length === 0 && sectionData.displayMetafieldsMobile.length === 0 && 
+          (sectionData.hiddenMetafieldsPC.length > 0 || sectionData.hiddenMetafieldsMobile.length > 0)) {
         if (template.isAccordion) {
           html += '<div class="dc_section">';
           html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\')">';
@@ -706,7 +751,13 @@
         html += '<span class="dc_accordion_arrow" id="spec-arrow-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
         html += '</div>';
         html += '<div id="spec-section-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafields);
+        // Generează două versiuni: una pentru PC, una pentru mobile
+        html += '<div class="dc_see_more_pc_version">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC);
+        html += '</div>';
+        html += '<div class="dc_see_more_mobile_version">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile);
+        html += '</div>';
         html += '</div>';
         html += '</div>';
       } else {
@@ -714,18 +765,36 @@
         html += '<h3 class="dc_heading">';
         html += escapeHtml(sectionData.heading);
         html += '</h3>';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafields);
+        // Generează două versiuni: una pentru PC, una pentru mobile
+        html += '<div class="dc_see_more_pc_version">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC);
+        html += '</div>';
+        html += '<div class="dc_see_more_mobile_version">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile);
+        html += '</div>';
         html += '</div>';
       }
     });
     
-    // Adaugă butonul "See more" o singură dată la final, dacă este necesar
-    if (hasMore) {
-      html += '<div class="dc_see_more">';
-      html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event)">';
-      html += '<span id="see-more-arrow-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
-      html += '</button>';
-      html += '</div>';
+    // Adaugă butonul "See more" pentru PC și mobile separat, dacă este necesar
+    if (hasMorePC || hasMoreMobile) {
+      // Butonul pentru PC
+      if (hasMorePC) {
+        html += '<div class="dc_see_more dc_see_more_pc">';
+        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'pc\')">';
+        html += '<span id="see-more-arrow-pc-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        html += '</button>';
+        html += '</div>';
+      }
+      
+      // Butonul pentru mobile
+      if (hasMoreMobile) {
+        html += '<div class="dc_see_more dc_see_more_mobile">';
+        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'mobile\')">';
+        html += '<span id="see-more-arrow-mobile-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        html += '</button>';
+        html += '</div>';
+      }
       
       // Adaugă rândurile ascunse organizate pe secțiuni (ca tabele complete)
       html += '<div id="spec-table-hidden-' + template.id + '" class="dc_hidden">';
@@ -733,19 +802,23 @@
         const sectionIdx = parseInt(sectionIndex);
         const sectionData = allGroupedBySection[sectionIndex];
         
-        // Skip secțiunile care nu au rânduri ascunse
-        if (sectionData.hiddenMetafields.length === 0) {
-          return;
+        // Container pentru rândurile ascunse PC
+        if (sectionData.hiddenMetafieldsPC.length > 0) {
+          html += '<div id="spec-hidden-section-pc-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="pc">';
+          html += '<table style="display: none;"><tbody>';
+          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsPC, styling, template.id, sectionIdx, allMetafieldsWithSection);
+          html += '</tbody></table>';
+          html += '</div>';
         }
         
-        // Creează un container ascuns cu rândurile extra pentru această secțiune
-        // Rândurile vor fi mutate în tabelul existent când se apasă "See more"
-        html += '<div id="spec-hidden-section-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '">';
-        // Generează rândurile într-un tbody temporar pentru a putea fi mutate ușor
-        html += '<table style="display: none;"><tbody>';
-        html += renderHiddenRowsAsTable(sectionData.hiddenMetafields, styling, template.id, sectionIdx, allMetafieldsWithSection);
-        html += '</tbody></table>';
-        html += '</div>';
+        // Container pentru rândurile ascunse mobile
+        if (sectionData.hiddenMetafieldsMobile.length > 0) {
+          html += '<div id="spec-hidden-section-mobile-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="mobile">';
+          html += '<table style="display: none;"><tbody>';
+          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsMobile, styling, template.id, sectionIdx, allMetafieldsWithSection);
+          html += '</tbody></table>';
+          html += '</div>';
+        }
       });
       html += '</div>';
     }
@@ -878,7 +951,7 @@
     return rowsHtml;
   }
   
-  window.showAllTableRows = function(templateId, event) {
+  window.showAllTableRows = function(templateId, event, device) {
     // Previne comportamentul implicit
     if (event) {
       event.preventDefault();
@@ -887,47 +960,62 @@
     
     const hiddenContainer = document.getElementById('spec-table-hidden-' + templateId);
     if (!hiddenContainer) {
+      console.log('Hidden container not found:', 'spec-table-hidden-' + templateId);
       return;
     }
     
-    // Găsește toate containerele cu rânduri ascunse
-    const hiddenSections = hiddenContainer.querySelectorAll('[id^="spec-hidden-section-' + templateId + '-"]');
+    // Găsește toate containerele cu rânduri ascunse pentru device-ul specificat
+    const selector = '[id^="spec-hidden-section-' + device + '-' + templateId + '-"]';
+    const hiddenSections = hiddenContainer.querySelectorAll(selector);
+    
+    console.log('Found hidden sections for device', device, ':', hiddenSections.length);
     
     hiddenSections.forEach(sectionContainer => {
       const sectionIndex = sectionContainer.getAttribute('data-section-index');
       const tableId = 'spec-table-' + templateId + '-' + sectionIndex;
-      const tbody = document.getElementById(tableId + '-tbody');
       
-      if (tbody) {
-        // Găsește tabelul temporar din containerul ascuns
-        const tempTable = sectionContainer.querySelector('table');
-        if (tempTable) {
-          const tempTbody = tempTable.querySelector('tbody');
-          if (tempTbody) {
-            // Mută toate rândurile din tbody-ul temporar în tbody-ul tabelului existent
-            const rows = Array.from(tempTbody.querySelectorAll('tr'));
-            rows.forEach(row => {
-              tbody.appendChild(row);
-            });
-          }
+      // Găsește containerul corespunzător device-ului (PC sau mobile)
+      const deviceVersionClass = device === 'pc' ? 'dc_see_more_pc_version' : 'dc_see_more_mobile_version';
+      const deviceContainer = document.querySelector('.' + deviceVersionClass + ' #' + tableId + '-container');
+      
+      if (!deviceContainer) {
+        console.log('Device container not found for', device, 'tableId:', tableId);
+        return;
+      }
+      
+      const tbody = deviceContainer.querySelector('#' + tableId + '-tbody');
+      
+      if (!tbody) {
+        console.log('Tbody not found for', device, 'tableId:', tableId);
+        return;
+      }
+      
+      // Găsește tabelul temporar din containerul ascuns
+      const tempTable = sectionContainer.querySelector('table');
+      if (tempTable) {
+        const tempTbody = tempTable.querySelector('tbody');
+        if (tempTbody) {
+          // Mută toate rândurile din tbody-ul temporar în tbody-ul tabelului existent
+          const rows = Array.from(tempTbody.querySelectorAll('tr'));
+          console.log('Moving', rows.length, 'rows to', device, 'tableId:', tableId);
+          rows.forEach(row => {
+            tbody.appendChild(row);
+          });
         }
       }
     });
     
-    // Ascunde butonul "See more"
-    const button = event ? event.target.closest('button') : document.querySelector('.dc_see_more_button');
+    // Ascunde butonul "See more" pentru device-ul specificat
+    const button = event ? event.target.closest('button') : document.querySelector('.dc_see_more_' + device + ' .dc_see_more_button');
     if (button) {
       button.style.display = 'none';
     }
     
-    // Rotirește săgeata
-    const arrow = document.getElementById('see-more-arrow-' + templateId);
+    // Rotirește săgeata pentru device-ul specificat
+    const arrow = document.getElementById('see-more-arrow-' + device + '-' + templateId);
     if (arrow) {
       arrow.style.transform = 'rotate(180deg)';
     }
-    
-    // Ascunde containerul cu rândurile ascunse (nu mai este necesar)
-    hiddenContainer.style.display = 'none';
     
     // Actualizează valorile metafield-urilor pentru rândurile nou afișate
     const container = document.getElementById('specification-table-container-' + templateId);

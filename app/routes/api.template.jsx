@@ -107,6 +107,8 @@ export async function loader({ request }) {
         name: template.name,
         isAccordion: template.isAccordion,
         seeMoreEnabled: template.seeMoreEnabled || false,
+        seeMoreHideFromPC: template.seeMoreHideFromPC === true,
+        seeMoreHideFromMobile: template.seeMoreHideFromMobile === true,
         styling,
         sections,
       },

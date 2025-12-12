@@ -166,6 +166,17 @@ export const action = async ({ request, params }) => {
   const isActive = formData.get("isActive") === "true";
   const isAccordion = formData.get("isAccordion") === "true";
   const seeMoreEnabled = formData.get("seeMoreEnabled") === "true";
+  const seeMoreHideFromPC = formData.get("seeMoreHideFromPC") === "true";
+  const seeMoreHideFromMobile = formData.get("seeMoreHideFromMobile") === "true";
+  
+  // Debug logging
+  console.log("Form submission - seeMore values:", {
+    seeMoreEnabled,
+    seeMoreHideFromPC,
+    seeMoreHideFromMobile,
+    rawPC: formData.get("seeMoreHideFromPC"),
+    rawMobile: formData.get("seeMoreHideFromMobile")
+  });
 
   // Validare: Template name nu poate fi gol
   if (!name || name.trim() === "") {
@@ -266,6 +277,8 @@ export const action = async ({ request, params }) => {
           isActive,
           isAccordion,
           seeMoreEnabled,
+          seeMoreHideFromPC,
+          seeMoreHideFromMobile,
           sections,
         },
         session.shop
@@ -279,6 +292,8 @@ export const action = async ({ request, params }) => {
           isActive,
           isAccordion,
           seeMoreEnabled,
+          seeMoreHideFromPC,
+          seeMoreHideFromMobile,
           sections,
         },
         session.shop
@@ -346,6 +361,12 @@ export default function TemplateEditorPage() {
   const [seeMoreEnabled, setSeeMoreEnabled] = useState(
     template?.seeMoreEnabled || false
   );
+  const [seeMoreHideFromPC, setSeeMoreHideFromPC] = useState(
+    template?.seeMoreHideFromPC || false
+  );
+  const [seeMoreHideFromMobile, setSeeMoreHideFromMobile] = useState(
+    template?.seeMoreHideFromMobile || false
+  );
 
   const [openSelectIndex, setOpenSelectIndex] = useState(null);
   const [selectedMetafieldsForSection, setSelectedMetafieldsForSection] = useState({});
@@ -396,6 +417,21 @@ export default function TemplateEditorPage() {
     });
   }, [sections, formKey]);
 
+  // Actualizează valorile hidden inputs-urilor pentru seeMoreHideFromPC și seeMoreHideFromMobile
+  useEffect(() => {
+    const seeMoreHideFromPCInput = document.querySelector('input[name="seeMoreHideFromPC"]');
+    const seeMoreHideFromMobileInput = document.querySelector('input[name="seeMoreHideFromMobile"]');
+    
+    if (seeMoreHideFromPCInput) {
+      seeMoreHideFromPCInput.value = seeMoreHideFromPC ? "true" : "false";
+      console.log("Updated seeMoreHideFromPC hidden input:", seeMoreHideFromPCInput.value);
+    }
+    if (seeMoreHideFromMobileInput) {
+      seeMoreHideFromMobileInput.value = seeMoreHideFromMobile ? "true" : "false";
+      console.log("Updated seeMoreHideFromMobile hidden input:", seeMoreHideFromMobileInput.value);
+    }
+  }, [seeMoreHideFromPC, seeMoreHideFromMobile]);
+
   const [styling, setStyling] = useState(
     template?.styling
       ? JSON.parse(template.styling)
@@ -443,6 +479,12 @@ export default function TemplateEditorPage() {
     }
     if (template?.seeMoreEnabled !== undefined) {
       setSeeMoreEnabled(template.seeMoreEnabled);
+    }
+    if (template?.seeMoreHideFromPC !== undefined) {
+      setSeeMoreHideFromPC(template.seeMoreHideFromPC);
+    }
+    if (template?.seeMoreHideFromMobile !== undefined) {
+      setSeeMoreHideFromMobile(template.seeMoreHideFromMobile);
     }
     if (template?.name) {
       setTemplateName(template.name);
@@ -1114,13 +1156,43 @@ export default function TemplateEditorPage() {
                   }
                 });
               });
+              
+              // Actualizează valorile pentru seeMoreHideFromPC și seeMoreHideFromMobile
+              const seeMoreHideFromPCInput = e.currentTarget.querySelector('input[name="seeMoreHideFromPC"]');
+              const seeMoreHideFromMobileInput = e.currentTarget.querySelector('input[name="seeMoreHideFromMobile"]');
+              
+              if (seeMoreHideFromPCInput) {
+                seeMoreHideFromPCInput.value = seeMoreHideFromPC ? "true" : "false";
+                console.log("onSubmit - Updated seeMoreHideFromPC:", seeMoreHideFromPCInput.value);
+              }
+              if (seeMoreHideFromMobileInput) {
+                seeMoreHideFromMobileInput.value = seeMoreHideFromMobile ? "true" : "false";
+                console.log("onSubmit - Updated seeMoreHideFromMobile:", seeMoreHideFromMobileInput.value);
+              }
             }}
           >
             <input type="hidden" name="name" value={templateName} />
         <input type="hidden" name="sectionCount" value={sections.length} />
         <input type="hidden" name="isActive" value={isActive ? "true" : "false"} />
         <input type="hidden" name="isAccordion" value={isAccordion ? "true" : "false"} />
-        <input type="hidden" name="seeMoreEnabled" value={seeMoreEnabled ? "true" : "false"} />
+        <input 
+          type="hidden" 
+          name="seeMoreEnabled" 
+          value={seeMoreEnabled ? "true" : "false"} 
+          key={`seeMoreEnabled-${seeMoreEnabled}`}
+        />
+        <input 
+          type="hidden" 
+          name="seeMoreHideFromPC" 
+          value={seeMoreHideFromPC ? "true" : "false"} 
+          key={`seeMoreHideFromPC-${seeMoreHideFromPC}`}
+        />
+        <input 
+          type="hidden" 
+          name="seeMoreHideFromMobile" 
+          value={seeMoreHideFromMobile ? "true" : "false"} 
+          key={`seeMoreHideFromMobile-${seeMoreHideFromMobile}`}
+        />
             <input type="hidden" name="backgroundColor" value={styling.backgroundColor} />
             <input type="hidden" name="textColor" value={styling.textColor} />
             <input type="hidden" name="headingColor" value={styling.headingColor} />
@@ -1596,10 +1668,86 @@ export default function TemplateEditorPage() {
               id="see-more-switch"
               name="seeMoreEnabled"
               checked={seeMoreEnabled}
-              onChange={(e) => setSeeMoreEnabled(e.target.checked)}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setSeeMoreEnabled(newValue);
+                // Dacă dezactivezi seeMore, resetează și flag-urile hide
+                if (!newValue) {
+                  setSeeMoreHideFromPC(false);
+                  setSeeMoreHideFromMobile(false);
+                }
+              }}
               value={seeMoreEnabled ? "true" : "false"}
               label="See more button (Show first 10 rows)"
             />
+            {seeMoreEnabled && (
+              <s-box 
+                padding="base" 
+                background="subdued" 
+                borderWidth="base" 
+                borderRadius="base"
+                style={{ marginLeft: "24px", marginTop: "8px" }}
+              >
+                <s-stack direction="block" gap="base">
+                  <s-switch
+                    id="see-more-hide-from-pc-switch"
+                    name="seeMoreHideFromPC"
+                    checked={seeMoreHideFromPC}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const newValue = e.target.checked;
+                      // Dacă activezi hideFromPC, dezactivează hideFromMobile (mutual exclusiv)
+                      if (newValue) {
+                        setSeeMoreHideFromMobile(false);
+                      }
+                      setSeeMoreHideFromPC(newValue);
+                      // Actualizează imediat hidden input-ul
+                      setTimeout(() => {
+                        const input = document.querySelector('input[name="seeMoreHideFromPC"]');
+                        if (input) {
+                          input.value = newValue ? "true" : "false";
+                        }
+                        const mobileInput = document.querySelector('input[name="seeMoreHideFromMobile"]');
+                        if (mobileInput) {
+                          mobileInput.value = newValue ? "false" : mobileInput.value;
+                        }
+                      }, 0);
+                    }}
+                    value={seeMoreHideFromPC ? "true" : "false"}
+                    label="Show see more button just on mobile"
+                  />
+                  <s-switch
+                    id="see-more-hide-from-mobile-switch"
+                    name="seeMoreHideFromMobile"
+                    checked={seeMoreHideFromMobile}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const newValue = e.target.checked;
+                      // Dacă activezi hideFromMobile, dezactivează hideFromPC (mutual exclusiv)
+                      if (newValue) {
+                        setSeeMoreHideFromPC(false);
+                      }
+                      setSeeMoreHideFromMobile(newValue);
+                      // Actualizează imediat hidden input-ul
+                      setTimeout(() => {
+                        const input = document.querySelector('input[name="seeMoreHideFromMobile"]');
+                        if (input) {
+                          input.value = newValue ? "true" : "false";
+                        }
+                        const pcInput = document.querySelector('input[name="seeMoreHideFromPC"]');
+                        if (pcInput) {
+                          pcInput.value = newValue ? "false" : pcInput.value;
+                        }
+                      }, 0);
+                    }}
+                    value={seeMoreHideFromMobile ? "true" : "false"}
+                    label="Show see more button just on PC"
+                  />
+                </s-stack>
+              </s-box>
+            )}
           </s-stack>
         </s-section>
       </div>
