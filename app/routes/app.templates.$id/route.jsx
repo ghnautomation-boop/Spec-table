@@ -383,7 +383,6 @@ export default function TemplateEditorPage() {
   const [openSelectIndex, setOpenSelectIndex] = useState(null);
   const [selectedMetafieldsForSection, setSelectedMetafieldsForSection] = useState({});
   const [metafieldSearchTerm, setMetafieldSearchTerm] = useState({});
-  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [templateName, setTemplateName] = useState(template?.name || "");
   const [editingMetafield, setEditingMetafield] = useState(null); // { sectionIndex, metafieldIndex }
   const [metafieldEditData, setMetafieldEditData] = useState({ 
@@ -557,8 +556,6 @@ export default function TemplateEditorPage() {
   // Monitorizează salvarea cu succes
   useEffect(() => {
     if (actionData?.success) {
-      setShowSuccessBanner(true);
-      
       // Afișează notificare toast de succes
       shopify.toast.show(
         `Template ${isNew ? "created" : "updated"} successfully!`
@@ -584,17 +581,11 @@ export default function TemplateEditorPage() {
       
       // Save Bar se va ascunde automat după submit cu succes
       
-      // Dacă există redirect, navighează după 1.5 secunde pentru a permite utilizatorului să vadă banner-ul
+      // Dacă există redirect, navighează după 1.5 secunde pentru a permite utilizatorului să vadă notificarea
       if (actionData?.redirect) {
         const timer = setTimeout(() => {
           navigate(actionData.redirect);
         }, 1500);
-        return () => clearTimeout(timer);
-      } else {
-        // Ascunde banner-ul după 5 secunde dacă nu există redirect
-        const timer = setTimeout(() => {
-          setShowSuccessBanner(false);
-        }, 5000);
         return () => clearTimeout(timer);
       }
     } else if (actionData?.success === false && actionData?.error) {
@@ -1377,15 +1368,6 @@ export default function TemplateEditorPage() {
 
   return (
     <s-page heading={isNew ? "Creează Template Nou" : `Editează: ${template?.name}`}>
-      {/* Banner de succes */}
-      {showSuccessBanner && (
-        <div style={{ marginBottom: "16px" }}>
-          <s-banner heading="Template saved" tone="success" dismissible={true} onDismiss={() => setShowSuccessBanner(false)}>
-            Modifications has been saved.
-          </s-banner>
-        </div>
-      )}
-
       {/* Banner de eroare */}
       {actionData?.error && (
         <div style={{ marginBottom: "16px" }}>
@@ -1395,25 +1377,8 @@ export default function TemplateEditorPage() {
         </div>
       )}
 
-      {/* Bară fixă cu butoanele de acțiune */}
-      <div style={{ 
-        position: "sticky", 
-        top: 0, 
-        zIndex: 100, 
-        backgroundColor: "#ffffff", 
-        padding: "16px 0", 
-        borderBottom: "1px solid #e1e3e5",
-        marginBottom: "20px"
-      }}>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-          <s-button
-            type="button"
-            variant="tertiary"
-            onClick={() => handleNavigate("/app/templates")}
-          >
-            Anulează
-          </s-button>
-          <Form 
+      {/* Formular pentru Save Bar */}
+      <Form 
             method="post" 
             style={{ display: "inline" }}
             key={`form-${formKey}`}
@@ -1624,12 +1589,7 @@ export default function TemplateEditorPage() {
                 </div>
                 ))}
 
-            <s-button type="submit" variant="primary">
-              {isNew ? "Create Template" : "Save Changes"}
-            </s-button>
           </Form>
-        </div>
-      </div>
 
       {/* Secțiuni de bază - Informații și Metafield-uri */}
       <div style={{ marginBottom: "20px" }}>

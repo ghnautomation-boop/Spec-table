@@ -490,7 +490,7 @@ export async function getAllAssignments(shopDomain) {
 /**
  * Salvează assignment-ul pentru un template
  */
-export async function saveTemplateAssignment(templateId, assignmentType, targetIds, shopDomain, isExcluded = false) {
+export async function saveTemplateAssignment(templateId, assignmentType, targetIds, shopDomain, isExcluded = false, admin = null) {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
   });
@@ -529,21 +529,91 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     }
   }
 
+  // Pentru EXCEPT assignments, trebuie să adăugăm automat în excluderi
+  // toate produsele/colecțiile care sunt deja assignate la alte template-uri
+  let autoAddedCount = 0;
+  if (isExcluded && assignmentType !== "DEFAULT") {
+    // Găsește toate produsele/colecțiile care sunt deja assignate la alte template-uri
+    const alreadyAssignedTargets = new Set();
+    allAssignments.forEach(assignment => {
+      if (assignment.assignmentType === assignmentType) {
+        assignment.targets.forEach(target => {
+          // Include doar target-urile care NU sunt excluded (sunt assignate direct)
+          if (target.targetType === assignmentType && !target.isExcluded) {
+            alreadyAssignedTargets.add(target.targetShopifyId);
+          }
+        });
+      }
+    });
+    
+    // Adaugă automat target-urile deja assignate în lista de excluderi
+    const targetIdsSet = new Set(targetIds || []);
+    const initialCount = targetIds.length;
+    alreadyAssignedTargets.forEach(targetId => {
+      if (!targetIdsSet.has(targetId)) {
+        targetIds.push(targetId);
+      }
+    });
+    
+    autoAddedCount = targetIds.length - initialCount;
+    
+    if (autoAddedCount > 0 && process.env.NODE_ENV === "development") {
+      console.log(`[EXCEPT] Automatically added ${autoAddedCount} already assigned ${assignmentType === "PRODUCT" ? "products" : "collections"} to exclusions`);
+    }
+  }
+
   // Verifică dacă colecțiile/produsele selectate sunt deja assignate
   // Doar dacă NU sunt excluderi (pentru excluderi, logica este inversă)
   if (targetIds && targetIds.length > 0 && !isExcluded) {
+    // Importă normalizeShopifyId pentru a normaliza ID-urile
+    const { normalizeShopifyId } = await import("./template-lookup.server.js");
+    
     const conflictingAssignments = [];
     for (const targetId of targetIds) {
-      const conflicting = allAssignments.find(a => 
-        a.targets.some(t => t.targetShopifyId === targetId && !t.isExcluded)
+      const normalizedTargetId = normalizeShopifyId(targetId);
+      if (!normalizedTargetId) continue;
+      
+      // Verifică dacă target-ul este assignat direct
+      const directConflict = allAssignments.find(a => 
+        a.assignmentType === assignmentType &&
+        a.targets.some(t => {
+          const normalizedTId = normalizeShopifyId(t.targetShopifyId);
+          return normalizedTId === normalizedTargetId && !t.isExcluded;
+        })
       );
-      if (conflicting) {
+      
+      if (directConflict) {
         conflictingAssignments.push({
-          targetId,
-          templateId: conflicting.templateId,
+          targetId: normalizedTargetId,
+          templateId: directConflict.templateId,
         });
+        continue;
+      }
+      
+      // Verifică dacă target-ul face parte dintr-un EXCEPT assignment
+      for (const assignment of allAssignments) {
+        if (assignment.assignmentType !== assignmentType) continue;
+        
+        // Verifică dacă este un EXCEPT assignment (toate target-urile sunt excluded)
+        const allExcluded = assignment.targets.length > 0 && assignment.targets.every(t => t.isExcluded);
+        if (allExcluded) {
+          const excludedIds = assignment.targets
+            .filter(t => t.isExcluded)
+            .map(t => normalizeShopifyId(t.targetShopifyId))
+            .filter(Boolean);
+          
+          // Dacă target-ul NU este în lista de excluded, înseamnă că face parte din EXCEPT assignment
+          if (!excludedIds.includes(normalizedTargetId)) {
+            conflictingAssignments.push({
+              targetId: normalizedTargetId,
+              templateId: assignment.templateId,
+            });
+            break;
+          }
+        }
       }
     }
+    
     if (conflictingAssignments.length > 0) {
       throw new Error(`Some targets are already assigned to other templates`);
     }
@@ -556,7 +626,7 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
 
   // Reconstruiește lookup table-ul (assignment-urile vechi au fost șterse)
   const { rebuildTemplateLookup: rebuildLookup1 } = await import("./template-lookup.server.js");
-  await rebuildLookup1(shop.id);
+  await rebuildLookup1(shop.id, shopDomain, admin);
 
   // Dacă nu există assignment (null sau empty), nu creăm nimic
   if (!assignmentType || assignmentType === "NONE") {
@@ -581,9 +651,14 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
 
   // Reconstruiește lookup table-ul pentru acest shop (după ce s-a creat noul assignment)
   const { rebuildTemplateLookup: rebuildLookup2 } = await import("./template-lookup.server.js");
-  await rebuildLookup2(shop.id);
+  await rebuildLookup2(shop.id, shopDomain, admin);
 
-  return { success: true, assignment };
+  return { 
+    success: true, 
+    assignment,
+    autoAddedCount: autoAddedCount || 0,
+    autoAddedType: autoAddedCount > 0 ? assignmentType : null
+  };
 }
 
 /**

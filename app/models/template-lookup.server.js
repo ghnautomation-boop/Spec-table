@@ -16,8 +16,11 @@ export function normalizeShopifyId(id) {
 /**
  * Reconstruiește lookup table-ul pentru un shop
  * Această funcție recalculează toate mapping-urile bazate pe assignment-urile curente
+ * @param {string} shopId - ID-ul shop-ului
+ * @param {string} shopDomain - Domain-ul shop-ului (opțional, pentru a obține produsele din colecții)
+ * @param {object} admin - Shopify Admin API client (opțional, pentru a obține produsele din colecții)
  */
-export async function rebuildTemplateLookup(shopId) {
+export async function rebuildTemplateLookup(shopId, shopDomain = null, admin = null) {
   // Șterge toate lookup-urile existente pentru acest shop
   await prisma.templateLookup.deleteMany({
     where: { shopId },
@@ -103,6 +106,7 @@ export async function rebuildTemplateLookup(shopId) {
         // COLLECTION_EXCEPT: toate colecțiile EXCEPT cele excluse
         for (const collectionId of normalizedCollections) {
           if (!excludedIds.includes(collectionId)) {
+            // Adaugă intrarea pentru colecție
             lookupEntries.push({
               shopId,
               productId: null,
@@ -110,6 +114,66 @@ export async function rebuildTemplateLookup(shopId) {
               templateId,
               priority: 2, // COLLECTION priority
             });
+            
+            // Dacă avem acces la Shopify Admin API, obține produsele din colecție
+            if (admin && shopDomain) {
+              try {
+                const collectionGid = `gid://shopify/Collection/${collectionId}`;
+                const query = `
+                  query getCollectionProducts($id: ID!, $cursor: String) {
+                    collection(id: $id) {
+                      id
+                      products(first: 250, after: $cursor) {
+                        pageInfo {
+                          hasNextPage
+                          endCursor
+                        }
+                        nodes {
+                          id
+                        }
+                      }
+                    }
+                  }
+                `;
+                
+                let hasNextPage = true;
+                let cursor = null;
+                
+                while (hasNextPage) {
+                  const variables = { id: collectionGid, ...(cursor && { cursor }) };
+                  const response = await admin.graphql(query, { variables });
+                  const data = await response.json();
+                  
+                  if (data.errors) {
+                    console.error(`Error fetching products for collection ${collectionId}:`, data.errors);
+                    break;
+                  }
+                  
+                  const products = data.data?.collection?.products?.nodes || [];
+                  const pageInfo = data.data?.collection?.products?.pageInfo;
+                  
+                  // Adaugă produsele din colecție în lookup table cu priority 2 (COLLECTION priority)
+                  for (const product of products) {
+                    const normalizedProductId = normalizeShopifyId(product.id);
+                    if (normalizedProductId) {
+                      lookupEntries.push({
+                        shopId,
+                        productId: normalizedProductId,
+                        collectionId: null, // Nu setăm collectionId pentru a evita duplicate-urile
+                        templateId,
+                        priority: 2, // COLLECTION priority (mai mică decât PRODUCT direct)
+                      });
+                    }
+                  }
+                  
+                  hasNextPage = pageInfo?.hasNextPage || false;
+                  cursor = pageInfo?.endCursor || null;
+                }
+              } catch (error) {
+                console.error(`Error fetching products for collection ${collectionId}:`, error);
+                // Continuă fără produsele din colecție dacă există o eroare
+              }
+            }
           }
         }
       } else {
@@ -118,6 +182,7 @@ export async function rebuildTemplateLookup(shopId) {
           if (!target.isExcluded) {
             const collectionId = normalizeShopifyId(target.targetShopifyId);
             if (collectionId) {
+              // Adaugă intrarea pentru colecție
               lookupEntries.push({
                 shopId,
                 productId: null,
@@ -125,6 +190,66 @@ export async function rebuildTemplateLookup(shopId) {
                 templateId,
                 priority: 2, // COLLECTION priority
               });
+              
+              // Dacă avem acces la Shopify Admin API, obține produsele din colecție
+              if (admin && shopDomain) {
+                try {
+                  const collectionGid = `gid://shopify/Collection/${collectionId}`;
+                  const query = `
+                    query getCollectionProducts($id: ID!, $cursor: String) {
+                      collection(id: $id) {
+                        id
+                        products(first: 250, after: $cursor) {
+                          pageInfo {
+                            hasNextPage
+                            endCursor
+                          }
+                          nodes {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  `;
+                  
+                  let hasNextPage = true;
+                  let cursor = null;
+                  
+                  while (hasNextPage) {
+                    const variables = { id: collectionGid, ...(cursor && { cursor }) };
+                    const response = await admin.graphql(query, { variables });
+                    const data = await response.json();
+                    
+                    if (data.errors) {
+                      console.error(`Error fetching products for collection ${collectionId}:`, data.errors);
+                      break;
+                    }
+                    
+                    const products = data.data?.collection?.products?.nodes || [];
+                    const pageInfo = data.data?.collection?.products?.pageInfo;
+                    
+                    // Adaugă produsele din colecție în lookup table cu priority 2 (COLLECTION priority)
+                    for (const product of products) {
+                      const normalizedProductId = normalizeShopifyId(product.id);
+                      if (normalizedProductId) {
+                        lookupEntries.push({
+                          shopId,
+                          productId: normalizedProductId,
+                          collectionId: null, // Nu setăm collectionId pentru a evita duplicate-uri
+                          templateId,
+                          priority: 2, // COLLECTION priority (mai mică decât PRODUCT direct)
+                        });
+                      }
+                    }
+                    
+                    hasNextPage = pageInfo?.hasNextPage || false;
+                    cursor = pageInfo?.endCursor || null;
+                  }
+                } catch (error) {
+                  console.error(`Error fetching products for collection ${collectionId}:`, error);
+                  // Continuă fără produsele din colecție dacă există o eroare
+                }
+              }
             }
           }
         }

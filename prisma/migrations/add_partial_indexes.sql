@@ -17,3 +17,5 @@ ON "TemplateLookup"("shopId", "priority", "templateId")
 WHERE "isDefault" = true;
 
 
+
+
