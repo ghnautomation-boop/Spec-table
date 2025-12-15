@@ -45,6 +45,7 @@ model Shop {
   assignments         TemplateAssignment[]
   templateLookups     TemplateLookup[]
   webhookEvents       WebhookEvent[]
+  setupProgress       SetupProgress?
 }
 
 model Product {
@@ -241,4 +242,28 @@ model WebhookEvent {
   @@index([shopId, status])
   @@index([shopId, createdAt])
   @@index([topic, status])
+}
+
+/**
+ * Tabel pentru tracking-ul progresului de setup al aplicației
+ * Stochează starea fiecărui pas din Setup Guide
+ */
+model SetupProgress {
+  id                      String   @id @default(uuid())
+  shopId                  String   @unique
+  step1_themeSelected     Boolean  @default(false)
+  step1_selectedThemeId   String?  // ID-ul temei selectate
+  step1_selectedThemeName String?  // Numele temei selectate
+  step2_extensionApplied  Boolean  @default(false)
+  step3_extensionActivated Boolean @default(false)
+  step4_templateCreated   Boolean  @default(false)
+  step5_assignmentConfigured Boolean @default(false)
+  step6_tested            Boolean  @default(false)
+  completedAt             DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  shop                    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  @@index([shopId])
 }

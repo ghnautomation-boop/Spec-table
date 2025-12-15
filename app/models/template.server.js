@@ -1111,4 +1111,3 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
 
   return templateWithSections;
 }
-

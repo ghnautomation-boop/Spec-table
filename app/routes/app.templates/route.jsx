@@ -1166,4 +1166,3 @@ export default function TemplatesPage() {
 export const headers = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
-

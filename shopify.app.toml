@@ -2,7 +2,7 @@
 
 client_id = "ca91204f3bbed9d75fb64d69bea21264"
 name = "description-container-v1"
-application_url = "https://import-electoral-bernard-bbs.trycloudflare.com"
+application_url = "https://prostate-board-coral-quilt.trycloudflare.com"
 embedded = true
 
 [build]
@@ -45,10 +45,10 @@ api_version = "2026-01"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_collection_listings"
+scopes = "read_products,write_products,read_collection_listings,read_themes"
 
 [auth]
-redirect_urls = [ "https://import-electoral-bernard-bbs.trycloudflare.com/api/auth" ]
+redirect_urls = [ "https://prostate-board-coral-quilt.trycloudflare.com/api/auth" ]
 
 
 [app_proxy]
