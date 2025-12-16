@@ -19,8 +19,8 @@ export default function App() {
       <CrispChat />
       <s-app-nav>
         <s-link href="/app">Home</s-link>
-        <s-link href="/app/templates">Template-uri</s-link>
-        <s-link href="/app/sync">Sincronizare</s-link>
+        <s-link href="/app/templates">Templates</s-link>
+        <s-link href="/app/sync">Data Sync</s-link>
         <s-link href="/app/additional">Additional page</s-link>
       </s-app-nav>
       <Outlet />
