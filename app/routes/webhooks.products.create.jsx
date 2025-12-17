@@ -1,5 +1,5 @@
 import { authenticate } from "../shopify.server";
-import { syncSingleProduct, syncMetafieldDefinitions } from "../models/sync.server";
+import { syncSingleProduct } from "../models/sync.server";
 import { logWebhookEvent } from "../models/webhook-logger.server.js";
 
 export const action = async ({ request }) => {
@@ -27,10 +27,6 @@ export const action = async ({ request }) => {
       await syncSingleProduct(admin, shop, productId);
       console.log(`Successfully synced product ${productId} after creation`);
     }
-
-    // Sincronizează metafield definitions
-    await syncMetafieldDefinitions(admin, shop);
-    console.log(`Successfully synced metafield definitions after product creation`);
 
     const responseTime = Math.round(performance.now() - startTime);
     await logWebhookEvent(shop, topic, "success", null, { productId }, responseTime);

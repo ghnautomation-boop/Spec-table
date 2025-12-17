@@ -43,6 +43,19 @@ api_version = "2026-01"
   topics = [ "collections/delete" ]
   uri = "/webhooks/collections/delete"
 
+  # Metafield Definitions (există webhook-uri pentru definitions în Shopify)
+  [[webhooks.subscriptions]]
+  topics = [ "metafield_definitions/create" ]
+  uri = "/webhooks/metafield_definitions/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "metafield_definitions/update" ]
+  uri = "/webhooks/metafield_definitions/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "metafield_definitions/delete" ]
+  uri = "/webhooks/metafield_definitions/delete"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_products,write_products,read_collection_listings,read_themes"

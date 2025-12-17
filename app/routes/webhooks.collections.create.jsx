@@ -1,6 +1,7 @@
 import { authenticate } from "../shopify.server";
 import { syncSingleCollection } from "../models/sync.server";
 import { logWebhookEvent } from "../models/webhook-logger.server.js";
+import { normalizeShopifyId } from "../models/template-lookup.server.js";
 
 export const action = async ({ request }) => {
   const startTime = performance.now();
@@ -20,7 +21,10 @@ export const action = async ({ request }) => {
 
   try {
     // Obține collection ID din payload
-    const collectionId = payload?.admin_graphql_api_id || payload?.id;
+    const collectionIdRaw = payload?.admin_graphql_api_id || payload?.id;
+    const normalized = collectionIdRaw ? normalizeShopifyId(String(collectionIdRaw)) : null;
+    // syncSingleCollection așteaptă un ID Shopify valid (GID). Dacă primim numeric, îl convertim.
+    const collectionId = normalized ? `gid://shopify/Collection/${normalized}` : null;
 
     if (collectionId) {
       // Sincronizează colecția în DB
@@ -29,7 +33,7 @@ export const action = async ({ request }) => {
     }
 
     const responseTime = Math.round(performance.now() - startTime);
-    await logWebhookEvent(shop, topic, "success", null, { collectionId }, responseTime);
+    await logWebhookEvent(shop, topic, "success", null, { collectionId: collectionIdRaw }, responseTime);
   } catch (error) {
     const responseTime = Math.round(performance.now() - startTime);
     const errorMessage = error.message || "Unknown error";

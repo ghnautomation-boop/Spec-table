@@ -1,6 +1,5 @@
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server.js";
-import { syncMetafieldDefinitions } from "../models/sync.server";
 import { logWebhookEvent } from "../models/webhook-logger.server.js";
 import { normalizeShopifyId } from "../models/template-lookup.server.js";
 
@@ -32,22 +31,51 @@ export const action = async ({ request }) => {
       });
 
       if (shopRecord) {
-        const normalizedId = normalizeShopifyId(productId);
+        // IMPORTANT: În DB `Product.shopifyId` este stocat ca GID (ex: gid://shopify/Product/123),
+        // dar uneori payload-ul poate conține și ID numeric. Ștergem folosind ambele variante.
+        const candidates = new Set();
+        const raw = String(productId);
+        candidates.add(raw);
+
+        const normalizedId = normalizeShopifyId(raw);
         if (normalizedId) {
-          await prisma.product.deleteMany({
+          candidates.add(normalizedId);
+          candidates.add(`gid://shopify/Product/${normalizedId}`);
+        }
+
+        const deleteResult = await prisma.product.deleteMany({
+          where: {
+            shopId: shopRecord.id,
+            shopifyId: { in: Array.from(candidates) },
+          },
+        });
+
+        // Curăță lookup-urile care referă produsul (TemplateLookup stochează ID-ul normalizat numeric).
+        if (normalizedId) {
+          await prisma.templateLookup.deleteMany({
             where: {
-              shopifyId: normalizedId,
               shopId: shopRecord.id,
+              productId: normalizedId,
             },
           });
-          console.log(`Successfully deleted product ${productId} from DB`);
         }
+
+        // Curăță target-urile din assignment-uri care referă produsul șters (altfel rămân "dangling").
+        await prisma.templateAssignmentTarget.deleteMany({
+          where: {
+            targetType: "PRODUCT",
+            targetShopifyId: { in: Array.from(candidates) },
+            assignment: { shopId: shopRecord.id },
+          },
+        });
+
+        console.log(
+          `Deleted ${deleteResult.count} product row(s) for ${raw} (candidates=${Array.from(
+            candidates
+          ).join(", ")})`
+        );
       }
     }
-
-    // Sincronizează metafield definitions
-    await syncMetafieldDefinitions(admin, shop);
-    console.log(`Successfully synced metafield definitions after product deletion`);
 
     const responseTime = Math.round(performance.now() - startTime);
     await logWebhookEvent(shop, topic, "success", null, { productId }, responseTime);

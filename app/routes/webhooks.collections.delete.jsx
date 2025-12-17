@@ -31,16 +31,60 @@ export const action = async ({ request }) => {
       });
 
       if (shopRecord) {
-        const normalizedId = normalizeShopifyId(collectionId);
+        // IMPORTANT: În DB `Collection.shopifyId` este stocat ca GID (ex: gid://shopify/Collection/123),
+        // dar payload-ul poate conține și ID numeric. Ștergem folosind ambele variante.
+        const raw = String(collectionId);
+        const candidates = new Set();
+        candidates.add(raw);
+
+        const normalizedId = normalizeShopifyId(raw);
         if (normalizedId) {
-          await prisma.collection.deleteMany({
+          candidates.add(normalizedId);
+          candidates.add(`gid://shopify/Collection/${normalizedId}`);
+        }
+
+        const deleteResult = await prisma.collection.deleteMany({
+          where: {
+            shopId: shopRecord.id,
+            shopifyId: { in: Array.from(candidates) },
+          },
+        });
+
+        // Curăță target-urile din assignment-uri care referă colecția ștearsă.
+        await prisma.templateAssignmentTarget.deleteMany({
+          where: {
+            targetType: "COLLECTION",
+            targetShopifyId: { in: Array.from(candidates) },
+            assignment: { shopId: shopRecord.id },
+          },
+        });
+
+        // IMPORTANT:
+        // - `TemplateLookup.collectionId` stochează ID-ul normalizat numeric
+        // - pentru assignment-uri de tip COLLECTION, rebuild-ul poate introduce rânduri cu `productId` și `collectionId=null`
+        //   (fără să păstreze "originea" colecției). Din cauza asta, NU putem curăța complet doar prin deleteMany.
+        // Soluția corectă: rebuild lookup table după ce ștergem target-ul colecției.
+        if (normalizedId) {
+          await prisma.templateLookup.deleteMany({
             where: {
-              shopifyId: normalizedId,
               shopId: shopRecord.id,
+              collectionId: normalizedId,
             },
           });
-          console.log(`Successfully deleted collection ${collectionId} from DB`);
         }
+
+        try {
+          const { rebuildTemplateLookup } = await import("../models/template-lookup.server.js");
+          await rebuildTemplateLookup(shopRecord.id, shop, admin);
+        } catch (e) {
+          console.error("Error rebuilding template lookup after collection delete:", e);
+        }
+
+        console.log(
+          `Deleted ${deleteResult.count} collection row(s) for ${raw} (candidates=${Array.from(
+            candidates
+          ).join(", ")})`
+        );
       }
     }
 
