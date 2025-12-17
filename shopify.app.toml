@@ -2,7 +2,7 @@
 
 client_id = "ca91204f3bbed9d75fb64d69bea21264"
 name = "description-container-v1"
-application_url = "https://webcams-yours-miles-pmc.trycloudflare.com"
+application_url = "https://someone-breaks-carrying-bread.trycloudflare.com"
 embedded = true
 
 [build]
@@ -48,7 +48,7 @@ api_version = "2026-01"
 scopes = "read_products,write_products,read_collection_listings,read_themes"
 
 [auth]
-redirect_urls = [ "https://webcams-yours-miles-pmc.trycloudflare.com/api/auth" ]
+redirect_urls = [ "https://someone-breaks-carrying-bread.trycloudflare.com/api/auth" ]
 
 
 [app_proxy]

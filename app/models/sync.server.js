@@ -1,4 +1,5 @@
 import prisma from "../db.server.js";
+import { randomUUID } from "crypto";
 
 /**
  * Sincronizează toate produsele dintr-un shop
@@ -18,6 +19,13 @@ export async function syncProducts(admin, shopDomain) {
       data: { shopDomain },
     });
   }
+
+  // OPTIMIZARE: pentru shop-uri noi (fără produse în DB) inserăm în batch (250 / request)
+  // Folosim `createMany` + id generat (createMany nu aplică @default(uuid()) în mod fiabil).
+  const existingCount = await prisma.product.count({
+    where: { shopId: shop.id },
+  });
+  const isInitialSync = existingCount === 0;
 
   while (hasNextPage) {
     const query = `
@@ -47,26 +55,43 @@ export async function syncProducts(admin, shopDomain) {
     const products = data.data.products.nodes;
     const pageInfo = data.data.products.pageInfo;
 
-    // Upsert products
-    for (const product of products) {
-      await prisma.product.upsert({
-        where: {
-          shopifyId_shopId: {
+    if (isInitialSync) {
+      const rows = products.map((product) => ({
+        id: randomUUID(),
+        shopifyId: product.id,
+        title: product.title,
+        handle: product.handle || null,
+        shopId: shop.id,
+      }));
+
+      if (rows.length > 0) {
+        await prisma.product.createMany({
+          data: rows,
+          skipDuplicates: true,
+        });
+      }
+    } else {
+      // Upsert products (pentru re-sync / update)
+      for (const product of products) {
+        await prisma.product.upsert({
+          where: {
+            shopifyId_shopId: {
+              shopifyId: product.id,
+              shopId: shop.id,
+            },
+          },
+          update: {
+            title: product.title,
+            handle: product.handle || null,
+          },
+          create: {
             shopifyId: product.id,
+            title: product.title,
+            handle: product.handle || null,
             shopId: shop.id,
           },
-        },
-        update: {
-          title: product.title,
-          handle: product.handle || null,
-        },
-        create: {
-          shopifyId: product.id,
-          title: product.title,
-          handle: product.handle || null,
-          shopId: shop.id,
-        },
-      });
+        });
+      }
     }
 
     totalSynced += products.length;
@@ -651,4 +676,3 @@ export async function getShopAppUrl(admin) {
 
   return data.data?.shop?.metafield?.value || null;
 }
-

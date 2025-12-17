@@ -240,3 +240,5 @@ WHERE ta."shopId" = '1c5cb175-869d-4a9a-99b5-5fb86d3850a7';
 
 
 
+
+
