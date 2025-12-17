@@ -113,25 +113,20 @@ export default function PlansRoute() {
   return (
     <s-page heading="Plans">
       <s-section>
-        <s-stack direction="block" gap="base">
+        <s-stack direction="block" gap="base" alignItems="center">
           <s-paragraph>
             Choose the plan that fits your store. We’ll connect billing and plan
             eligibility next.
           </s-paragraph>
           <s-text tone="subdued">
-            <span style={{ fontSize: "14px", fontWeight: 700}}>Products in your store: </span><span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "0.06em" }}>{productsCount}</span>
+            <span style={{ fontSize: "18px", fontWeight: 700}}>Products in your store: </span><span style={{ fontSize: "18px", fontWeight: 700, letterSpacing: "0.06em" }}>{productsCount}</span>
           </s-text>
         </s-stack>
       </s-section>
 
       <s-section>
-        <s-grid
-          // NOTE: evităm `repeat()/minmax()` deoarece unele versiuni ale `s-grid` nu le parsează.
-          // De asemenea, breakpoint-ul 900px e prea mare pentru embedded admin (poate forța 1 coloană).
-          gridTemplateColumns="@container (inline-size <= 600px) 1fr, 1fr 1fr 1fr 1fr 1fr"
-          gap="base"
-        >
-          {PLANS.map((p, idx) => (
+        <div className="plansGrid">
+          {PLANS.map((p) => (
             (() => {
               const isRecommended = p.key === recommendedPlanKey;
               const isEligible = Number(productsCount ?? 0) <= p.maxProducts;
@@ -153,12 +148,13 @@ export default function PlansRoute() {
                 </s-stack>
 
                 {/* Price */}
-                <s-stack direction="inline" gap="tight" alignment="center">
+                <s-stack direction="inline" gap="tight" alignItems="center">
                     <div ><span style={{ fontSize: "27px", fontWeight: 700, lineHeight: 1 }}>{p.currency}</span><span style={{ fontSize: "32px", fontWeight: 700, lineHeight: 1 }}>{Number.isInteger(p.price) ? p.price : p.price.toFixed(2)}</span></div>
                   <s-text tone="subdued">{p.per}</s-text>
                 </s-stack>
 
                 {/* CTA */}
+                <s-stack alignItems="center" alignContent="center">
                 <s-button
                   variant={isRecommended ? "primary" : "secondary"}
                   disabled={isTooSmall}
@@ -168,14 +164,15 @@ export default function PlansRoute() {
                     })
                   }
                 >
+                    <s-icon type="collection-featured" size="small" />
                   {p.cta}
                 </s-button>
-
+                </s-stack>
                 <s-divider />
 
                 {/* Quantities */}
                 <s-stack direction="block" gap="tight">
-                   <div style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "0.06em" , marginBottom: "10px"}}>QUANTITIES</div> 
+                   <span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "0.06em" , marginBottom: "10px",color: "#942929"}}>QUANTITIES</span> 
                   <s-unordered-list>
                     {p.quantities.map((q) => (
                       <s-list-item key={q}>{q}</s-list-item>
@@ -188,7 +185,7 @@ export default function PlansRoute() {
                 {/* Features */}
                 <s-stack direction="block" gap="tight">
                   <s-text>
-                    <div style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "0.06em" , marginBottom: "10px"}}>FEATURES</div>
+                    <div style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "0.06em" , marginBottom: "10px",color: "#942929"}}>FEATURES</div>
                   </s-text>
                   <s-unordered-list>
                     {p.features.map((f) => (
@@ -201,10 +198,24 @@ export default function PlansRoute() {
               );
             })()
           ))}
-        </s-grid>
+        </div>
       </s-section>
     </s-page>
   );
 }
 
 export const headers = (headersArgs) => boundary.headers(headersArgs);
+
+// NOTE: folosim media query clasic în loc de `@container` pentru compatibilitate în embedded webviews.
+// Desktop: 5 coloane. Mobile: 1 coloană (listă pe rând).
+export const links = () => [
+  {
+    rel: "stylesheet",
+    href:
+      "data:text/css," +
+      encodeURIComponent(`
+        .plansGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+        @media (max-width: 600px) { .plansGrid { grid-template-columns: 1fr; } }
+      `),
+  },
+];
