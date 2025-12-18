@@ -15,8 +15,29 @@ export const loader = async ({ request }) => {
   const { getTemplates } = await import("../../models/template.server.js");
   const prisma = (await import("../../db.server.js")).default;
 
+  // Gating: dacă nu există plan selectat, redirect la /app/plans
+  const shop = await prisma.shop.upsert({
+    where: { shopDomain },
+    update: {},
+    create: { shopDomain },
+    select: { id: true },
+  });
+
+  const planRows = await prisma.$queryRaw`
+    SELECT "planKey" FROM "ShopPlan" WHERE "shopId" = ${shop.id} LIMIT 1
+  `;
+  const hasPlan = Array.isArray(planRows) && planRows.length > 0;
+
+  if (!hasPlan) {
+    const url = new URL(request.url);
+    throw new Response("", {
+      status: 302,
+      headers: { Location: `/app/plans${url.search ? `?${url.searchParams.toString()}` : ""}` },
+    });
+  }
+
   // Obține shop-ul cu statistici
-  const shop = await prisma.shop.findUnique({
+  const shopWithStats = await prisma.shop.findUnique({
     where: { shopDomain },
     include: {
       _count: {
@@ -63,11 +84,11 @@ export const loader = async ({ request }) => {
     progress: updatedProgress,
     templates,
     shopDomain,
-    stats: shop
+    stats: shopWithStats
       ? {
-          products: shop._count.products || 0,
-          metafieldDefinitions: shop._count.metafieldDefinitions || 0,
-          templates: shop._count.templates || 0,
+          products: shopWithStats._count.products || 0,
+          metafieldDefinitions: shopWithStats._count.metafieldDefinitions || 0,
+          templates: shopWithStats._count.templates || 0,
         }
       : {
           products: 0,

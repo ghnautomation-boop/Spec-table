@@ -2,7 +2,7 @@
 
 client_id = "ca91204f3bbed9d75fb64d69bea21264"
 name = "description-container-v1"
-application_url = "https://disposal-declared-wonder-benjamin.trycloudflare.com"
+application_url = "https://description-container-v1.fly.dev"
 embedded = true
 
 [build]
@@ -61,7 +61,11 @@ api_version = "2026-01"
 scopes = "read_products,write_products,read_collection_listings,read_themes,read_content"
 
 [auth]
-redirect_urls = [ "https://disposal-declared-wonder-benjamin.trycloudflare.com/api/auth" ]
+redirect_urls = [
+  "https://description-container-v1.fly.dev/auth/callback",
+  "https://description-container-v1.fly.dev/auth/shopify/callback",
+  "https://description-container-v1.fly.dev/api/auth/callback"
+]
 
 
 [app_proxy]

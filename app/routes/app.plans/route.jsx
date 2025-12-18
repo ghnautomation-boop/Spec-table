@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
@@ -7,17 +7,11 @@ import prisma from "../../db.server.js";
 import { syncAll } from "../../models/sync.server.js";
 
 export const loader = async ({ request }) => {
+  // Autentificarea se face complet aici - dacă eșuează, va returna redirect automat
   const { admin, session } = await authenticate.admin(request);
   const shopDomain = session.shop;
-
-  const query = `
-    query {
-      productsCount { count }
-    }
-  `;
-  const res = await admin.graphql(query);
-  const data = await res.json();
-  const productsCount = data?.data?.productsCount?.count ?? 0;
+  
+  console.log(`[app.plans] Loader called for shop: ${shopDomain}, has accessToken: ${!!session.accessToken}`);
 
   // Verifică dacă există deja plan selectat
   const shop = await prisma.shop.upsert({
@@ -34,7 +28,49 @@ export const loader = async ({ request }) => {
     ? planRows[0].planKey
     : null;
 
-  return { shopDomain, productsCount, existingPlan };
+  // Obține productsCount - autentificarea este deja completă aici
+  // Dacă query-ul eșuează, continuăm cu productsCount = 0 și hasError = true
+  let productsCount = 0;
+  let hasError = false;
+  
+  // Obține productsCount - autentificarea este deja completă aici
+  // Dacă query-ul eșuează, continuăm cu productsCount = 0 și hasError = true
+  if (session.accessToken) {
+    try {
+      const query = `
+        query {
+          productsCount { count }
+        }
+      `;
+      const res = await admin.graphql(query);
+      const data = await res.json();
+      
+      if (data?.data?.productsCount?.count !== undefined) {
+        productsCount = data.data.productsCount.count;
+      } else if (data?.errors) {
+        console.error("[app.plans] GraphQL errors:", data.errors);
+        hasError = true;
+      } else {
+        // Dacă nu avem date, probabil autentificarea nu este completă
+        console.warn("[app.plans] No products count in response");
+        hasError = true;
+      }
+    } catch (error) {
+      // Nu logăm ca eroare fatală - este normal la instalare când autentificarea nu este completă
+      console.warn("[app.plans] Could not fetch products count:", error.message);
+      hasError = true;
+    }
+  } else {
+    console.warn("[app.plans] No access token available");
+    hasError = true;
+  }
+
+  return { 
+    shopDomain, 
+    existingPlan, 
+    productsCount,
+    hasError 
+  };
 };
 
 export const action = async ({ request }) => {
@@ -176,9 +212,25 @@ const PLANS = [
 ];
 
 export default function PlansRoute() {
-  const { shopDomain, productsCount, existingPlan } = useLoaderData();
+  const loaderData = useLoaderData();
+  const { shopDomain, existingPlan, productsCount: initialProductsCount, hasError } = loaderData;
   const shopify = useAppBridge();
   const fetcher = useFetcher();
+  const revalidator = useRevalidator();
+
+  // Dacă nu avem productsCount sau avem eroare, reîncercăm
+  useEffect(() => {
+    if (hasError || initialProductsCount === undefined) {
+      // Reîncearcă după 1 secundă
+      const timer = setTimeout(() => {
+        revalidator.revalidate();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasError, initialProductsCount, revalidator]);
+
+  const productsCount = initialProductsCount ?? 0;
+  const isLoading = hasError || initialProductsCount === undefined;
 
   const recommendedPlanKey = (() => {
     const count = Number(productsCount ?? 0);
@@ -195,6 +247,33 @@ export default function PlansRoute() {
     }
   }, [fetcher.data, shopify]);
 
+  // Dacă încă se încarcă datele, afișează spinner
+  if (isLoading) {
+    return (
+      <s-page heading="Plans">
+        <s-section>
+          <s-box
+            padding="loose"
+            borderWidth="base"
+            borderRadius="base"
+            background="surface"
+            style={{ textAlign: "center" }}
+          >
+            <s-stack direction="block" gap="base" blockAlignment="center">
+              <s-spinner size="large" />
+              <s-text emphasis="strong" style={{ fontSize: "18px" }}>
+                Please wait a few seconds
+              </s-text>
+              <s-paragraph tone="subdued">
+                We're retrieving data from your store...
+              </s-paragraph>
+            </s-stack>
+          </s-box>
+        </s-section>
+      </s-page>
+    );
+  }
+
   return (
     <s-page heading="Plans">
       <s-section>
@@ -208,7 +287,8 @@ export default function PlansRoute() {
             </s-banner>
           )}
           <s-text tone="subdued">
-            <span style={{ fontSize: "18px", fontWeight: 700}}>Products in your store: </span><span style={{ fontSize: "18px", fontWeight: 700, letterSpacing: "0.06em" }}>{productsCount}</span>
+            <span style={{ fontSize: "18px", fontWeight: 700}}>Products in your store: </span>
+            <span style={{ fontSize: "18px", fontWeight: 700, letterSpacing: "0.06em" }}>{productsCount}</span>
           </s-text>
         </s-stack>
       </s-section>

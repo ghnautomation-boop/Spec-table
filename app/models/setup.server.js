@@ -22,16 +22,23 @@ export async function getThemes(admin) {
 
   try {
     const response = await admin.graphql(query);
+    
+    // Verifică dacă răspunsul este un redirect (302) - autentificarea nu este completă
+    if (response.status === 302 || response.redirected) {
+      console.warn("[getThemes] GraphQL request was redirected, authentication may not be complete");
+      return []; // Returnează array gol în loc să arunce eroare
+    }
+
     const data = await response.json();
 
     if (data.errors) {
       console.error("[getThemes] GraphQL errors:", JSON.stringify(data.errors, null, 2));
-      throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+      return []; // Returnează array gol în loc să arunce eroare
     }
 
     if (!data.data || !data.data.themes) {
       console.error("[getThemes] Invalid response structure:", JSON.stringify(data, null, 2));
-      throw new Error("Invalid response structure from GraphQL API");
+      return []; // Returnează array gol în loc să arunce eroare
     }
 
     return data.data.themes.edges.map((edge) => ({
@@ -43,7 +50,8 @@ export async function getThemes(admin) {
     }));
   } catch (error) {
     console.error("[getThemes] Error fetching themes:", error);
-    throw error;
+    // Returnează array gol în loc să arunce eroare pentru a nu bloca aplicația
+    return [];
   }
 }
 
