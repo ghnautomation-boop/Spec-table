@@ -1,0 +1,78 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "0016f30db22fa84f9b5068900f240d15"
+name = "description-container-v1"
+application_url = "https://fork-sci-expression-nissan.trycloudflare.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-01"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/create" ]
+  uri = "/webhooks/products/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/update" ]
+  uri = "/webhooks/products/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/delete" ]
+  uri = "/webhooks/products/delete"
+
+  [[webhooks.subscriptions]]
+  topics = [ "collections/create" ]
+  uri = "/webhooks/collections/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "collections/update" ]
+  uri = "/webhooks/collections/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "collections/delete" ]
+  uri = "/webhooks/collections/delete"
+
+  # Metafield Definitions (există webhook-uri pentru definitions în Shopify)
+  [[webhooks.subscriptions]]
+  topics = [ "metafield_definitions/create" ]
+  uri = "/webhooks/metafield_definitions/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "metafield_definitions/update" ]
+  uri = "/webhooks/metafield_definitions/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "metafield_definitions/delete" ]
+  uri = "/webhooks/metafield_definitions/delete"
+
+  [[webhooks.subscriptions]]
+  topics = ["app_subscriptions/update" ]
+  uri = "/webhooks/app_subscription"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,write_products,read_collection_listings,read_themes,read_content"
+
+[auth]
+redirect_urls = [
+  "https://fork-sci-expression-nissan.trycloudflare.com/auth/callback",
+  "https://fork-sci-expression-nissan.trycloudflare.com/auth/shopify/callback",
+  "https://fork-sci-expression-nissan.trycloudflare.com/api/auth/callback"
+]
+
+
+[app_proxy]
+url = "/api/template"         # ruta pentru template
+prefix = "apps"               # prefixul din storefront
+subpath = "description-container-v1"

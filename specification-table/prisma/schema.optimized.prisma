@@ -1,0 +1,96 @@
+// Schema optimizată cu toate indexurile necesare pentru performanță
+// Compară cu schema.prisma actuală pentru a vedea diferențele
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"  // Schimbat de la sqlite
+  url      = env("DATABASE_URL")
+}
+
+// ... toate modelele rămân la fel până la TemplateAssignment ...
+
+model TemplateAssignment {
+  id            String         @id @default(uuid())
+  templateId   String
+  assignmentType AssignmentType
+  shopId       String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  template     SpecificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  shop         Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  targets      TemplateAssignmentTarget[]
+  
+  // INDEXURI OPTIMIZATE:
+  @@index([shopId])                                    // Există deja
+  @@index([templateId])                                // Există deja
+  @@index([shopId, assignmentType])                    // NOU: Pentru query-uri după shop + type
+  @@index([shopId, templateId, assignmentType])       // NOU: Pentru query-uri complexe
+}
+
+model TemplateAssignmentTarget {
+  id            String   @id @default(uuid())
+  assignmentId  String
+  targetShopifyId String
+  targetType    String
+  isExcluded    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  
+  assignment    TemplateAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  
+  // INDEXURI OPTIMIZATE:
+  @@index([assignmentId])                              // Există deja
+  @@index([targetShopifyId])                            // Există deja
+  @@index([assignmentId, targetShopifyId, isExcluded])  // NOU: Pentru lookup rapid
+  @@index([targetShopifyId, targetType])                // NOU: Pentru căutare directă
+}
+
+model SpecificationTemplate {
+  id            String   @id @default(uuid())
+  name          String
+  shopId        String
+  styling       String
+  isActive      Boolean  @default(true)
+  isAccordion   Boolean  @default(false)
+  seeMoreEnabled Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  sections    TemplateSection[]
+  assignments TemplateAssignment[]
+  
+  // INDEXURI OPTIMIZATE:
+  @@index([shopId])                    // Există deja
+  @@index([shopId, isActive])         // NOU: Pentru query-uri active
+}
+
+model TemplateSectionMetafield {
+  id                    String   @id @default(uuid())
+  sectionId             String
+  metafieldDefinitionId String
+  order                 Int      @default(0)
+  customName            String?
+  tooltipEnabled        Boolean  @default(false)
+  tooltipText           String?
+  createdAt             DateTime @default(now())
+  
+  section               TemplateSection      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  metafieldDefinition   MetafieldDefinition @relation(fields: [metafieldDefinitionId], references: [id], onDelete: Cascade)
+  
+  // INDEXURI OPTIMIZATE:
+  @@unique([sectionId, metafieldDefinitionId])  // Există deja
+  @@index([sectionId])                          // Există deja
+  @@index([sectionId, order])                   // NOU: Pentru ordering eficient
+}
+
+// Restul modelelor rămân la fel...
+
+
+
+
+
+

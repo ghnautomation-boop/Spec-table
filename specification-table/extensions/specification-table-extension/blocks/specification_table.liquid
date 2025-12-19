@@ -1,0 +1,1325 @@
+{% comment %}
+  Block pentru afișarea tabelului de specificații
+  Se conectează la API-ul app-ului pentru a obține template-ul
+{% endcomment %}
+
+<link rel="stylesheet" href="{{ 'specification-table.css' | asset_url }}">
+
+{% assign product_id = product.id | default: block.settings.product.id %}
+{% assign collection_id = collection.id | default: block.settings.collection.id %}
+{% assign shop_domain = shop.permanent_domain %}
+
+{% comment %} Container pentru template {% endcomment %}
+{% assign max_width = block.settings.max_width | default: 1200 %}
+{% assign alignment = block.settings.alignment | default: 'left' %}
+{% assign margin_top = block.settings.margin_top | default: 0 %}
+{% assign margin_left = block.settings.margin_left | default: 0 %}
+{% assign first_column_width = block.settings.first_column_width | default: 40 %}
+{% assign image_height = block.settings.image_height | default: 100 %}
+
+<div id="specification-table-container-{{ block.id }}" 
+     data-product-id="{{ product_id }}" 
+     data-collection-id="{{ collection_id }}" 
+     data-shop="{{ shop_domain }}"
+     data-max-width="{{ max_width }}"
+     data-alignment="{{ alignment }}"
+     data-margin-top="{{ margin_top }}"
+     data-margin-left="{{ margin_left }}"
+     data-first-column-width="{{ first_column_width }}"
+     data-image-height="{{ image_height }}"
+     style="max-width: {{ max_width }}px; margin-top: {{ margin_top }}px; {% if alignment == 'center' %}margin-left: auto; margin-right: auto;{% elsif alignment == 'right' %}margin-left: auto; margin-right: {{ margin_left }}px;{% else %}margin-left: {{ margin_left }}px;{% endif %}">
+  <div class="spec-loading" style="text-align: center; padding: 20px;">
+    Loading specifications...
+  </div>
+</div>
+
+{% comment %} 
+  Construiește obiectul JavaScript cu toate metafield-urile disponibile din Liquid
+  Folosește informațiile din baza de date (toate metafield definitions) pentru a construi dinamic codul Liquid
+  Template-ul ne spune ce metafield-uri să afișăm, iar valorile le obținem direct din Liquid
+{% endcomment %}
+{% if product %}
+<script>
+  // Inițializează obiectele pentru metafield-uri
+  window.productMetafieldsData = {};
+  window.variantMetafieldsData = {};
+  
+  // Funcție helper pentru a construi obiectul JavaScript cu metafield-urile din Liquid
+  // Folosește informațiile din template pentru a accesa valorile direct din Liquid
+  // NOTĂ: Valorile sunt deja construite în Liquid mai jos, această funcție doar le filtrează
+  window.buildMetafieldsFromTemplate = function(template, allMetafieldDefinitions) {
+    // Creează un map pentru a găsi rapid tipul unui metafield
+    const metafieldTypeMap = {};
+    if (allMetafieldDefinitions) {
+      allMetafieldDefinitions.forEach(mf => {
+        const key = `${mf.namespace}.${mf.key}.${mf.ownerType}`;
+        metafieldTypeMap[key] = mf.type;
+      });
+    }
+    
+    // Filtrează doar metafield-urile care sunt în template din obiectul global construit în Liquid
+    const filteredProductMetafields = {};
+    const filteredVariantMetafields = {};
+    
+    // Folosește obiectul global construit în Liquid (mai jos)
+    const allProductMetafields = window.allProductMetafieldsFromLiquid || {};
+    const allVariantMetafields = window.allVariantMetafieldsFromLiquid || {};
+    
+    if (template && template.sections) {
+      template.sections.forEach(section => {
+        section.metafields.forEach(mf => {
+          const metafieldKey = `${mf.namespace}.${mf.key}.${mf.ownerType}`;
+          const metafieldType = mf.type || metafieldTypeMap[metafieldKey] || 'single_line_text_field';
+          
+          if (mf.ownerType === 'PRODUCT') {
+            if (allProductMetafields[mf.namespace] && allProductMetafields[mf.namespace][mf.key] !== undefined) {
+              if (!filteredProductMetafields[mf.namespace]) {
+                filteredProductMetafields[mf.namespace] = {};
+              }
+              let value = allProductMetafields[mf.namespace][mf.key];
+              
+              // Procesează special file_reference, product_reference și collection_reference
+              if (metafieldType === 'file_reference' && value) {
+                // Pentru file_reference, valoarea este deja procesată în Liquid cu image_url
+                // Trebuie să folosim valoarea directă din obiectul construit în Liquid
+                filteredProductMetafields[mf.namespace][mf.key] = value;
+              } else if (metafieldType === 'product_reference' && value && typeof value === 'object') {
+                // Pentru product_reference, valoarea este deja un obiect Product
+                filteredProductMetafields[mf.namespace][mf.key] = value;
+              } else if (metafieldType === 'collection_reference' && value && typeof value === 'object') {
+                // Pentru collection_reference, valoarea este deja un obiect Collection
+                filteredProductMetafields[mf.namespace][mf.key] = value;
+              } else {
+                filteredProductMetafields[mf.namespace][mf.key] = value;
+              }
+            }
+          } else if (mf.ownerType === 'VARIANT') {
+            // Pentru variante, copiem toate variantele (vor fi filtrate la afișare)
+            Object.keys(allVariantMetafields).forEach(variantId => {
+              if (allVariantMetafields[variantId][mf.namespace] && allVariantMetafields[variantId][mf.namespace][mf.key] !== undefined) {
+                if (!filteredVariantMetafields[variantId]) {
+                  filteredVariantMetafields[variantId] = {};
+                }
+                if (!filteredVariantMetafields[variantId][mf.namespace]) {
+                  filteredVariantMetafields[variantId][mf.namespace] = {};
+                }
+                let value = allVariantMetafields[variantId][mf.namespace][mf.key];
+                
+                // Procesează special file_reference, product_reference și collection_reference
+                if (metafieldType === 'file_reference' && value) {
+                  // Pentru file_reference, valoarea este deja procesată în Liquid cu image_url
+                  filteredVariantMetafields[variantId][mf.namespace][mf.key] = value;
+                } else if (metafieldType === 'product_reference' && value && typeof value === 'object') {
+                  // Pentru product_reference, valoarea este deja un obiect Product
+                  filteredVariantMetafields[variantId][mf.namespace][mf.key] = value;
+                } else if (metafieldType === 'collection_reference' && value && typeof value === 'object') {
+                  // Pentru collection_reference, valoarea este deja un obiect Collection
+                  filteredVariantMetafields[variantId][mf.namespace][mf.key] = value;
+                } else {
+                  filteredVariantMetafields[variantId][mf.namespace][mf.key] = value;
+                }
+              }
+            });
+          }
+        });
+      });
+    }
+    
+    window.productMetafieldsData = filteredProductMetafields;
+    window.variantMetafieldsData = filteredVariantMetafields;
+    
+    console.log('Built metafields from template:', {
+      filteredProductMetafields,
+      filteredVariantMetafields,
+      allProductMetafields,
+      allVariantMetafields
+    });
+    
+    return { productMetafields: filteredProductMetafields, variantMetafields: filteredVariantMetafields };
+  };
+  
+  // Construiește obiectul JavaScript cu TOATE metafield-urile disponibile din Liquid
+  // Acest obiect este construit direct în Liquid folosind toate metafield-urile disponibile
+  // Pentru file_reference, folosim image_url filter pentru a obține URL-ul imaginii
+  window.allProductMetafieldsFromLiquid = {
+    {% comment %} Construiește pentru namespace-ul 'custom' {% endcomment %}
+    {% if product.metafields.custom %}
+    custom: {
+      {% for metafield_pair in product.metafields.custom %}
+        {% assign mf_key = metafield_pair[0] %}
+        {% assign mf_value = metafield_pair[1] %}
+        {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+        {% if mf_value.type == 'file_reference' %}
+          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %},
+        {% elsif mf_value.type == 'product_reference' %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+        {% elsif mf_value.type == 'collection_reference' %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+        {% elsif mf_value.type == 'dimension' %}
+          '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+        {% else %}
+          '{{ mf_key }}': {{ mf_value.value | json }},
+        {% endif %}
+      {% endfor %}
+    },
+    {% endif %}
+    {% comment %} Construiește pentru alte namespace-uri cunoscute {% endcomment %}
+    {% if product.metafields.test_data %}
+    test_data: {
+      {% for metafield_pair in product.metafields.test_data %}
+        {% assign mf_key = metafield_pair[0] %}
+        {% assign mf_value = metafield_pair[1] %}
+        {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+        {% if mf_value.type == 'file_reference' %}
+          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %},
+        {% elsif mf_value.type == 'product_reference' %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+        {% elsif mf_value.type == 'collection_reference' %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+        {% elsif mf_value.type == 'dimension' %}
+          '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+        {% else %}
+          '{{ mf_key }}': {{ mf_value.value | json }},
+        {% endif %}
+      {% endfor %}
+    },
+    {% endif %}
+  };
+  
+  // Construiește obiectul JavaScript cu TOATE metafield-urile VARIANT disponibile din Liquid
+  // Folosim varianta curentă (selected_or_first_available_variant) pentru a obține metafield-urile
+  // Pentru file_reference, folosim image_url filter pentru a obține URL-ul imaginii
+  window.allVariantMetafieldsFromLiquid = {};
+  {% assign current_variant = product.selected_or_first_available_variant %}
+  {% if current_variant %}
+    {% assign current_variant_id = current_variant.id | split: '/' | last %}
+    window.allVariantMetafieldsFromLiquid['{{ current_variant_id }}'] = {
+      {% if current_variant.metafields.custom %}
+      custom: {
+        {% for variant_mf_pair in current_variant.metafields.custom %}
+          {% assign variant_mf_key = variant_mf_pair[0] %}
+          {% assign variant_mf_value = variant_mf_pair[1] %}
+          {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+          {% if variant_mf_value.type.name == 'file_reference' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %},
+          {% elsif variant_mf_value.type.name == 'product_reference' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+          {% elsif variant_mf_value.type.name == 'collection_reference' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+          {% elsif variant_mf_value.type.name == 'dimension' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+          {% else %}
+            '{{ variant_mf_key }}': {{ variant_mf_value.value | json }},
+          {% endif %}
+        {% endfor %}
+      },
+      {% endif %}
+    };
+    
+    // Construiește și pentru toate celelalte variante (pentru actualizare în timp real)
+    {% for variant in product.variants %}
+      {% assign variant_id = variant.id | split: '/' | last %}
+      {% if variant_id != current_variant_id %}
+        window.allVariantMetafieldsFromLiquid['{{ variant_id }}'] = {
+          {% if variant.metafields.custom %}
+          custom: {
+            {% for variant_mf_pair in variant.metafields.custom %}
+              {% assign variant_mf_key = variant_mf_pair[0] %}
+              {% assign variant_mf_value = variant_mf_pair[1] %}
+              {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+              {% if variant_mf_value.type == 'file_reference' %}
+                '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %},
+              {% elsif variant_mf_value.type == 'product_reference' %}
+                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+              {% elsif variant_mf_value.type == 'collection_reference' %}
+                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+              {% elsif variant_mf_value.type == 'dimension' %}
+                '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+              {% else %}
+                '{{ variant_mf_key }}': {{ variant_mf_value.value | json }},
+              {% endif %}
+            {% endfor %}
+          },
+          {% endif %}
+        };
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</script>
+
+<script>
+(function() {
+  const container = document.getElementById('specification-table-container-{{ block.id }}');
+  if (!container) return;
+  
+  const productId = container.dataset.productId;
+  const collectionId = container.dataset.collectionId;
+  const shopDomain = container.dataset.shop;
+  
+  // Folosește app proxy pentru a accesa API-urile
+  // App proxy URL: https://{shop-domain}/apps/{subpath}
+  // Configurat în shopify.app.toml
+  function getAppProxyUrl(subpath) {
+    // Construiește URL-ul app proxy
+    // Format: https://{shop-domain}/apps/{subpath}
+    // Notă: shopDomain este deja în formatul corect (ex: description-container.myshopify.com)
+    const proxyUrl = 'https://' + shopDomain + '/apps/' + subpath;
+    console.log('Building app proxy URL:', { shopDomain, subpath, proxyUrl });
+    return proxyUrl;
+  }
+  
+  
+  // Nu mai este nevoie de funcția buildLiquidMetafieldsFromTemplate
+  // Valorile metafield-urilor sunt deja disponibile în Liquid prin product.metafields.namespace.key
+  // Template-ul din API ne spune doar ce metafield-uri să afișăm și cum să le stilizăm
+
+  // Stochează template-ul global
+  let currentTemplate = null;
+  
+  // Funcție pentru a obține ID-ul variantei curente din URL
+  function getCurrentVariantId() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('variant');
+  }
+  
+  // Funcție pentru a actualiza valorile metafield-urilor în tabel
+  // Folosește obiectul JavaScript construit în Liquid (window.productMetafieldsData și window.variantMetafieldsData)
+  function updateMetafieldValuesFromLiquid(container) {
+    const templateContainer = container.querySelector('[id^="specification-table-"]');
+    if (!templateContainer) return;
+    
+    const metafieldCells = templateContainer.querySelectorAll('td[data-namespace][data-key]');
+    const currentVariantId = getCurrentVariantId();
+    
+    // Obține setarea pentru înălțimea imaginilor
+    const imageHeight = container.dataset.imageHeight || '100';
+    
+    // Obține obiectele cu metafield-uri din Liquid
+    const productMetafields = window.productMetafieldsData || {};
+    const variantMetafields = window.variantMetafieldsData || {};
+    
+    metafieldCells.forEach(cell => {
+      const namespace = cell.dataset.namespace;
+      const key = cell.dataset.key;
+      const ownerType = cell.dataset.ownerType || 'PRODUCT';
+      const metafieldType = cell.dataset.type || 'single_line_text_field';
+      const valueElement = cell.querySelector('[data-metafield-value]');
+      if (!valueElement) return;
+      
+      let value = null;
+      
+      // Prioritizează metafield-urile VARIANT dacă există pentru varianta curentă
+      // Folosim varianta din URL sau varianta implicită (selected_or_first_available_variant)
+      if (ownerType === 'VARIANT') {
+        // Încearcă să găsească metafield-ul pentru varianta curentă
+        if (currentVariantId && variantMetafields[currentVariantId] && 
+            variantMetafields[currentVariantId][namespace] && 
+            variantMetafields[currentVariantId][namespace][key] !== undefined) {
+          value = variantMetafields[currentVariantId][namespace][key];
+        } else {
+          // Dacă nu găsește pentru varianta din URL, folosește prima variantă disponibilă
+          const firstVariantId = Object.keys(variantMetafields)[0];
+          if (firstVariantId && variantMetafields[firstVariantId] && 
+              variantMetafields[firstVariantId][namespace] && 
+              variantMetafields[firstVariantId][namespace][key] !== undefined) {
+            value = variantMetafields[firstVariantId][namespace][key];
+          }
+        }
+      }
+      
+      // Dacă nu am găsit valoarea pentru VARIANT, folosește PRODUCT metafield
+      if (value === null && ownerType === 'PRODUCT' && productMetafields[namespace] && productMetafields[namespace][key] !== undefined) {
+        value = productMetafields[namespace][key];
+      } else if (value === null && productMetafields[namespace] && productMetafields[namespace][key] !== undefined) {
+        // Fallback la PRODUCT metafield dacă nu există variant
+        value = productMetafields[namespace][key];
+      }
+      
+      // Randare diferită în funcție de tipul metafield-ului
+      renderMetafieldValue(valueElement, value, metafieldType, ownerType, namespace, key, imageHeight);
+    });
+  }
+  
+  // Funcție pentru a randa valoarea metafield-ului în funcție de tip
+  function renderMetafieldValue(element, value, metafieldType, ownerType, namespace, key, imageHeight) {
+    if (value === null || value === undefined || value === '') {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    // Folosește înălțimea setată sau default 100px
+    const height = imageHeight || '100';
+    
+    // Pentru multi_line_text_field și single_line_text_field - randare text simplă
+    if (metafieldType === 'multi_line_text_field' || metafieldType === 'single_line_text_field') {
+      if (typeof value === 'object') {
+        element.textContent = JSON.stringify(value);
+      } else {
+        element.textContent = String(value);
+      }
+    }
+    // Pentru file_reference - randare imagine
+    // Valoarea este deja procesată în Liquid cu image_url, deci este un string cu URL-ul
+    else if (metafieldType === 'file_reference') {
+      if (value && value !== '' && value !== 'null') {
+        element.innerHTML = '<img src="' + escapeHtml(String(value)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+      } else {
+        element.innerHTML = 'N/A';
+      }
+    }
+    // Pentru product_reference - randare produs cu imagine și titlu
+    // Valoarea este deja procesată în Liquid și este un obiect cu title și featured_image
+    else if (metafieldType === 'product_reference') {
+      if (value && typeof value === 'object') {
+        const productImage = value.featured_image || value.image || '';
+        const productTitle = value.title || '';
+        let html = '';
+        if (productImage && productImage !== 'null') {
+          html += '<div style="display:flex;align-items:center;"><img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+        }
+        if (productTitle) {
+          html +=  '<span style="font-weight:bold;margin-left:30px">' + escapeHtml(productTitle) + '</span></div>';
+        }
+        element.innerHTML = html || 'N/A';
+      } else {
+        element.innerHTML = 'N/A';
+      }
+    }
+    // Pentru collection_reference - randare colecție cu imagine și titlu
+    // Valoarea este deja procesată în Liquid și este un obiect cu title și featured_image
+    else if (metafieldType === 'collection_reference') {
+      if (value && typeof value === 'object') {
+        const collectionImage = value.featured_image || value.image || '';
+        const collectionTitle = value.title || '';
+        let html = '';
+        if (collectionImage && collectionImage !== 'null') {
+          html += '<div><img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" /></div>';
+        }
+        if (collectionTitle) {
+          html += '<div style="font-weight:bold;text-align:center;">' + escapeHtml(collectionTitle) + '</div>';
+        }
+        element.innerHTML = html || 'N/A';
+      } else {
+        element.innerHTML = 'N/A';
+      }
+    }
+    // Pentru dimension - randare valoare dinamică bazată pe namespace și key
+    else if (metafieldType === 'dimension') {
+      // Valoarea este deja procesată în Liquid și este valoarea metafield-ului curent
+      if (typeof value === 'object') {
+        element.textContent = JSON.stringify(value);
+      } else {
+        element.textContent = String(value);
+      }
+    }
+    // Pentru alte tipuri - randare text simplă
+    else {
+      if (typeof value === 'object') {
+        element.textContent = JSON.stringify(value);
+      } else {
+        element.textContent = String(value);
+      }
+    }
+  }
+  
+  // Folosește app proxy pentru a accesa API-ul template
+  // App proxy URL: https://{shop-domain}/apps/description-container-v1
+  const templateProxyUrl = getAppProxyUrl('description-container-v1');
+  let templateApiUrl = templateProxyUrl + '?shop=' + encodeURIComponent(shopDomain);
+  if (productId) {
+    templateApiUrl += '&productId=' + encodeURIComponent(productId);
+  } else if (collectionId) {
+    templateApiUrl += '&collectionId=' + encodeURIComponent(collectionId);
+  }
+  
+  console.log('Template API URL (app proxy):', templateApiUrl);
+  console.log('Shop domain:', shopDomain);
+  console.log('Product ID:', productId);
+  console.log('Collection ID:', collectionId);
+  
+  // Face request către API prin app proxy
+  fetch(templateApiUrl, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+    .then(response => {
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(async data => {
+      console.log('Template data:', data);
+      if (data.template) {
+        currentTemplate = data.template;
+        
+        // Construiește obiectul cu metafield-urile din Liquid folosind template-ul și toate metafield definitions
+        if (window.buildMetafieldsFromTemplate) {
+          window.buildMetafieldsFromTemplate(data.template, data.allMetafieldDefinitions);
+        }
+        
+        // Renderizează template-ul - valorile metafield-urilor vor fi populate direct din Liquid
+        renderTemplate(container, data.template);
+        
+        // Populează valorile metafield-urilor din obiectul JavaScript construit în Liquid
+        updateMetafieldValuesFromLiquid(container);
+        
+        // Adaugă listener pentru schimbarea variantei (pentru actualizare în timp real)
+        setupVariantChangeListener(container, data.template);
+      } else {
+        console.warn('No template found in response');
+        container.innerHTML = '';
+      }
+    })
+    .catch(error => {
+      console.error('Error loading template:', error);
+        console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        shopDomain: shopDomain,
+        productId: productId,
+        collectionId: collectionId
+      });
+      container.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">Unable to load specifications. Check console for details.</div>';
+    });
+  
+  // Funcție pentru a asculta schimbările de variantă
+  function setupVariantChangeListener(container, template) {
+    let currentVariantId = null;
+    
+    // Funcție pentru a obține ID-ul variantei din URL
+    function getVariantIdFromUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const variantParam = urlParams.get('variant');
+      return variantParam;
+    }
+    
+    // Funcție pentru a actualiza metafield-urile variant
+    // Actualizează valorile din obiectul JavaScript construit în Liquid
+    function updateVariantMetafields(variantId) {
+      // Reconstruiește obiectul cu metafield-urile pentru varianta curentă
+      // Folosim varianta din URL pentru a obține metafield-urile corecte
+      if (variantId && window.allVariantMetafieldsFromLiquid && window.allVariantMetafieldsFromLiquid[variantId]) {
+        // Actualizează valorile metafield-urilor din obiectul JavaScript
+        updateMetafieldValuesFromLiquid(container);
+      } else {
+        // Dacă nu găsim varianta, folosim varianta implicită
+        updateMetafieldValuesFromLiquid(container);
+      }
+    }
+    
+    // Verifică inițial varianta din URL
+    currentVariantId = getVariantIdFromUrl();
+    if (currentVariantId) {
+      updateVariantMetafields(currentVariantId);
+    }
+    
+    // Ascultă schimbările în URL (când se schimbă varianta)
+    let lastVariantId = currentVariantId;
+    setInterval(() => {
+      const newVariantId = getVariantIdFromUrl();
+      if (newVariantId !== lastVariantId) {
+        lastVariantId = newVariantId;
+        currentVariantId = newVariantId;
+        updateVariantMetafields(newVariantId);
+      }
+    }, 100); // Verifică la fiecare 100ms
+    
+    // Ascultă evenimentele de schimbare a variantei (dacă există)
+    document.addEventListener('variant:change', (event) => {
+      if (event.detail && event.detail.variantId) {
+        currentVariantId = event.detail.variantId;
+        updateVariantMetafields(currentVariantId);
+      }
+    });
+    
+    // Ascultă schimbările în DOM (când Shopify actualizează varianta)
+    const observer = new MutationObserver(() => {
+      const newVariantId = getVariantIdFromUrl();
+      if (newVariantId !== currentVariantId) {
+        currentVariantId = newVariantId;
+        updateVariantMetafields(newVariantId);
+      }
+    });
+    
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-variant-id', 'data-selected-variant']
+    });
+  }
+  
+  function renderTemplate(container, template) {
+    const styling = template.styling;
+    // Citește setările din container
+    const firstColumnWidth = container.dataset.firstColumnWidth || '40';
+    
+    // Debug: verifică dacă template-ul conține flag-urile hideFromPC/hideFromMobile
+    console.log('renderTemplate - Template sections:', template.sections?.map(s => ({
+      heading: s.heading,
+      metafields: s.metafields?.map(mf => ({
+        namespace: mf.namespace,
+        key: mf.key,
+        hideFromPC: mf.hideFromPC,
+        hideFromMobile: mf.hideFromMobile,
+        hideFromPCType: typeof mf.hideFromPC,
+        hideFromMobileType: typeof mf.hideFromMobile
+      }))
+    })));
+    
+    // Construiește CSS variables pentru stilurile dinamice
+    let cssVars = '--dc-bg-color: ' + (styling.backgroundColor || '#ffffff') + '; ';
+    cssVars += '--dc-text-color: ' + (styling.textColor || '#000000') + '; ';
+    cssVars += '--dc-heading-color: ' + (styling.headingColor || '#000000') + '; ';
+    cssVars += '--dc-heading-font-size: ' + (styling.headingFontSize || '18px') + '; ';
+    cssVars += '--dc-heading-font-weight: ' + (styling.headingFontWeight || 'bold') + '; ';
+    cssVars += '--dc-heading-font-family: ' + (styling.headingFontFamily || 'inherit') + '; ';
+    cssVars += '--dc-text-font-size: ' + (styling.textFontSize || '14px') + '; ';
+    cssVars += '--dc-text-font-family: ' + (styling.textFontFamily || 'inherit') + '; ';
+    cssVars += '--dc-text-transform: ' + (styling.textTransform || 'none') + '; ';
+    cssVars += '--dc-border-radius: ' + (styling.borderRadius || '0px') + '; ';
+    cssVars += '--dc-padding: ' + (styling.padding || '20px') + '; ';
+    cssVars += '--dc-first-column-width: ' + firstColumnWidth + '%; ';
+    if (styling.sectionBorderEnabled) {
+      cssVars += '--dc-border: ' + (styling.sectionBorderWidth || '1px') + ' ' + (styling.sectionBorderStyle || 'solid') + ' ' + (styling.sectionBorderColor || '#000000') + '; ';
+    } else {
+      cssVars += '--dc-border: none; ';
+    }
+    cssVars += '--dc-row-border: ' + (styling.rowBorderEnabled ? (styling.rowBorderWidth || '1px') + ' ' + (styling.rowBorderStyle || 'solid') + ' ' + (styling.rowBorderColor || '#000000') : 'none') + '; ';
+    cssVars += '--dc-odd-row-bg: ' + (styling.oddRowBackgroundColor || '#f0f0f0') + '; ';
+    cssVars += '--dc-even-row-bg: ' + (styling.evenRowBackgroundColor || '#ffffff') + '; ';
+    cssVars += '--dc-td-bg: ' + (styling.tdBackgroundColor || 'transparent') + '; ';
+    cssVars += '--dc-row-bg-enabled: ' + (styling.rowBackgroundEnabled ? '1' : '0') + '; ';
+    
+    let html = '<div id="specification-table-' + template.id + '" class="dc_container" style="' + cssVars + '">';
+    
+    // Colectează toate metafields-urile din toate secțiunile cu informații despre secțiune
+    const allMetafieldsWithSection = [];
+    template.sections.forEach((section, sectionIndex) => {
+      if (section.metafields && section.metafields.length > 0) {
+        section.metafields.forEach((metafield, mfIndex) => {
+          // Asigură-te că toate proprietățile sunt copiate, inclusiv hideFromPC și hideFromMobile
+          allMetafieldsWithSection.push({
+            namespace: metafield.namespace,
+            key: metafield.key,
+            ownerType: metafield.ownerType,
+            name: metafield.name,
+            type: metafield.type,
+            customName: metafield.customName,
+            tooltipEnabled: metafield.tooltipEnabled,
+            tooltipText: metafield.tooltipText,
+            hideFromPC: metafield.hideFromPC !== undefined ? metafield.hideFromPC : false,
+            hideFromMobile: metafield.hideFromMobile !== undefined ? metafield.hideFromMobile : false,
+            sectionIndex: sectionIndex,
+            sectionHeading: section.heading,
+            mfIndex: mfIndex
+          });
+        });
+      }
+    });
+    
+    const seeMoreEnabled = template.seeMoreEnabled || false;
+    const seeMoreHideFromPC = template.seeMoreHideFromPC === true || template.seeMoreHideFromPC === 'true';
+    const seeMoreHideFromMobile = template.seeMoreHideFromMobile === true || template.seeMoreHideFromMobile === 'true';
+    const totalRows = allMetafieldsWithSection.length;
+    
+    // Determină ce rânduri să afișeze pe baza flag-urilor
+    // Dacă seeMoreHideFromPC este true: pe PC afișează toate, pe mobile primele 10 + buton
+    // Dacă seeMoreHideFromMobile este true: pe mobile afișează toate, pe PC primele 10 + buton
+    // Dacă ambele sunt false: funcționează normal (primele 10 + buton peste tot)
+    let displayRowsPC = allMetafieldsWithSection;
+    let displayRowsMobile = allMetafieldsWithSection;
+    let hasMorePC = false;
+    let hasMoreMobile = false;
+    
+    if (seeMoreEnabled) {
+      if (seeMoreHideFromPC) {
+        // Pe PC: toate rândurile, pe mobile: primele 10 + buton
+        displayRowsPC = allMetafieldsWithSection;
+        displayRowsMobile = allMetafieldsWithSection.slice(0, 10);
+        hasMorePC = false;
+        hasMoreMobile = totalRows > 10;
+      } else if (seeMoreHideFromMobile) {
+        // Pe mobile: toate rândurile, pe PC: primele 10 + buton
+        displayRowsPC = allMetafieldsWithSection.slice(0, 10);
+        displayRowsMobile = allMetafieldsWithSection;
+        hasMorePC = totalRows > 10;
+        hasMoreMobile = false;
+      } else {
+        // Normal: primele 10 + buton peste tot
+        displayRowsPC = allMetafieldsWithSection.slice(0, 10);
+        displayRowsMobile = allMetafieldsWithSection.slice(0, 10);
+        hasMorePC = totalRows > 10;
+        hasMoreMobile = totalRows > 10;
+      }
+    }
+    
+    // Grupează toate rândurile pe secțiuni (pentru a ști ce secțiuni există)
+    const allGroupedBySection = {};
+    allMetafieldsWithSection.forEach(item => {
+      if (!allGroupedBySection[item.sectionIndex]) {
+        allGroupedBySection[item.sectionIndex] = {
+          heading: item.sectionHeading,
+          allMetafields: [],
+          displayMetafieldsPC: [],
+          displayMetafieldsMobile: [],
+          hiddenMetafieldsPC: [],
+          hiddenMetafieldsMobile: []
+        };
+      }
+      allGroupedBySection[item.sectionIndex].allMetafields.push(item);
+    });
+    
+    // Separe rândurile pentru PC și mobile
+    displayRowsPC.forEach(item => {
+      allGroupedBySection[item.sectionIndex].displayMetafieldsPC.push(item);
+    });
+    displayRowsMobile.forEach(item => {
+      allGroupedBySection[item.sectionIndex].displayMetafieldsMobile.push(item);
+    });
+    
+    // Separe rândurile ascunse pentru PC și mobile
+    if (hasMorePC) {
+      const hiddenRowsPC = allMetafieldsWithSection.slice(10);
+      hiddenRowsPC.forEach(item => {
+        allGroupedBySection[item.sectionIndex].hiddenMetafieldsPC.push(item);
+      });
+    }
+    if (hasMoreMobile) {
+      const hiddenRowsMobile = allMetafieldsWithSection.slice(10);
+      hiddenRowsMobile.forEach(item => {
+        allGroupedBySection[item.sectionIndex].hiddenMetafieldsMobile.push(item);
+      });
+    }
+    
+    // SVG pentru săgeată modernă
+    const arrowDownSvg = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease;"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    
+    // Renderizează secțiunile cu rândurile afișate
+    Object.keys(allGroupedBySection).forEach(sectionIndex => {
+      const sectionIdx = parseInt(sectionIndex);
+      const sectionData = allGroupedBySection[sectionIndex];
+      
+      // Skip secțiunile care nu au rânduri de afișat și nu au rânduri ascunse
+      if (sectionData.displayMetafieldsPC.length === 0 && sectionData.displayMetafieldsMobile.length === 0 && 
+          sectionData.hiddenMetafieldsPC.length === 0 && sectionData.hiddenMetafieldsMobile.length === 0) {
+        return;
+      }
+      
+      // Verifică flag-urile pentru accordion
+      const isAccordionHideFromPC = template.isAccordionHideFromPC === true || template.isAccordionHideFromPC === 'true';
+      const isAccordionHideFromMobile = template.isAccordionHideFromMobile === true || template.isAccordionHideFromMobile === 'true';
+      
+      // Determină ce versiune să afișeze pe PC și mobile
+      const showAccordionPC = template.isAccordion && !isAccordionHideFromPC;
+      const showAccordionMobile = template.isAccordion && !isAccordionHideFromMobile;
+      
+      // Dacă secțiunea nu are rânduri de afișat dar are rânduri ascunse, afișează doar heading-ul
+      // (rândurile vor fi adăugate când se face click pe "See more")
+      if (sectionData.displayMetafieldsPC.length === 0 && sectionData.displayMetafieldsMobile.length === 0 && 
+          (sectionData.hiddenMetafieldsPC.length > 0 || sectionData.hiddenMetafieldsMobile.length > 0)) {
+        html += '<div class="dc_section">';
+        
+        // Versiunea pentru PC
+        html += '<div class="dc_accordion_pc_version">';
+        if (showAccordionPC) {
+          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'pc\')">';
+          html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+          html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+          html += '</div>';
+          html += '<div id="spec-section-pc-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+          html += '<div id="spec-table-pc-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-pc-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-pc-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
+          html += '</div>';
+        } else {
+          html += '<h3 class="dc_heading">';
+          html += escapeHtml(sectionData.heading);
+          html += '</h3>';
+          html += '<div id="spec-table-pc-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-pc-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-pc-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
+        }
+        html += '</div>';
+        
+        // Versiunea pentru mobile
+        html += '<div class="dc_accordion_mobile_version">';
+        if (showAccordionMobile) {
+          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'mobile\')">';
+          html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+          html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+          html += '</div>';
+          html += '<div id="spec-section-mobile-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+          html += '<div id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-mobile-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
+          html += '</div>';
+        } else {
+          html += '<h3 class="dc_heading">';
+          html += escapeHtml(sectionData.heading);
+          html += '</h3>';
+          html += '<div id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-mobile-' + template.id + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '</table>';
+          html += '</div>';
+        }
+        html += '</div>';
+        
+        html += '</div>';
+        return;
+      }
+      
+      // Generează două versiuni: una pentru PC, una pentru mobile
+      html += '<div class="dc_section">';
+      
+      // Versiunea pentru PC
+      html += '<div class="dc_accordion_pc_version">';
+      if (showAccordionPC) {
+        // Pe PC: accordion
+        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'pc\')">';
+        html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+        html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+        html += '</div>';
+        html += '<div id="spec-section-pc-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc');
+        html += '</div>';
+      } else {
+        // Pe PC: normal (fără accordion)
+        html += '<h3 class="dc_heading">';
+        html += escapeHtml(sectionData.heading);
+        html += '</h3>';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc');
+      }
+      html += '</div>';
+      
+      // Versiunea pentru mobile
+      html += '<div class="dc_accordion_mobile_version">';
+      if (showAccordionMobile) {
+        // Pe mobile: accordion
+        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'mobile\')">';
+        html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+        html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+        html += '</div>';
+        html += '<div id="spec-section-mobile-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile');
+        html += '</div>';
+      } else {
+        // Pe mobile: normal (fără accordion)
+        html += '<h3 class="dc_heading">';
+        html += escapeHtml(sectionData.heading);
+        html += '</h3>';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile');
+      }
+      html += '</div>';
+      
+      html += '</div>';
+    });
+    
+    // Adaugă butonul "See more" pentru PC și mobile separat, dacă este necesar
+    if (hasMorePC || hasMoreMobile) {
+      // Butonul pentru PC
+      if (hasMorePC) {
+        html += '<div class="dc_see_more dc_see_more_pc">';
+        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'pc\')">';
+        html += '<span id="see-more-arrow-pc-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        html += '</button>';
+        html += '</div>';
+      }
+      
+      // Butonul pentru mobile
+      if (hasMoreMobile) {
+        html += '<div class="dc_see_more dc_see_more_mobile">';
+        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'mobile\')">';
+        html += '<span id="see-more-arrow-mobile-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        html += '</button>';
+        html += '</div>';
+      }
+      
+      // Adaugă rândurile ascunse organizate pe secțiuni (ca tabele complete)
+      html += '<div id="spec-table-hidden-' + template.id + '" class="dc_hidden">';
+      Object.keys(allGroupedBySection).forEach(sectionIndex => {
+        const sectionIdx = parseInt(sectionIndex);
+        const sectionData = allGroupedBySection[sectionIndex];
+        
+        // Container pentru rândurile ascunse PC
+        if (sectionData.hiddenMetafieldsPC.length > 0) {
+          html += '<div id="spec-hidden-section-pc-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="pc">';
+          html += '<table style="display: none;"><tbody>';
+          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsPC, styling, template.id, sectionIdx, allMetafieldsWithSection);
+          html += '</tbody></table>';
+          html += '</div>';
+        }
+        
+        // Container pentru rândurile ascunse mobile
+        if (sectionData.hiddenMetafieldsMobile.length > 0) {
+          html += '<div id="spec-hidden-section-mobile-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="mobile">';
+          html += '<table style="display: none;"><tbody>';
+          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsMobile, styling, template.id, sectionIdx, allMetafieldsWithSection);
+          html += '</tbody></table>';
+          html += '</div>';
+        }
+      });
+      html += '</div>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+  }
+  
+  function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields, device) {
+    // Generează ID-uri unice pentru PC și mobile
+    const deviceSuffix = device ? '-' + device : '';
+    const tableId = 'spec-table' + deviceSuffix + '-' + templateId + '-' + sectionIndex;
+    
+    let html = '<div id="' + tableId + '-container" class="dc_table_container">';
+    html += '<table class="dc_table" id="' + tableId + '">';
+    html += '<tbody id="' + tableId + '-tbody">';
+    
+    // Obține metafield-urile cu valori din obiectele construite în Liquid
+    const productMetafields = window.productMetafieldsData || {};
+    const variantMetafields = window.variantMetafieldsData || {};
+    
+    // Renderizează fiecare metafield din lista de afișat
+    displayMetafields.forEach((metafield, index) => {
+      // Verifică dacă metafield-ul are valoare
+      let hasValue = false;
+      let value = null;
+      
+      if (metafield.ownerType === 'PRODUCT') {
+        if (productMetafields[metafield.namespace] && 
+            productMetafields[metafield.namespace][metafield.key] !== undefined) {
+          value = productMetafields[metafield.namespace][metafield.key];
+          // Verifică dacă valoarea nu este goală, null, undefined sau "N/A"
+          hasValue = value !== null && 
+                    value !== undefined && 
+                    value !== '' && 
+                    (typeof value !== 'string' || value.trim() !== '') &&
+                    value !== 'null' && 
+                    value !== 'undefined' &&
+                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+          
+          // Pentru obiecte (product_reference, collection_reference), verifică dacă au cel puțin title sau image
+          if (hasValue && typeof value === 'object') {
+            hasValue = value.title || value.featured_image || value.image;
+          }
+        }
+      } else if (metafield.ownerType === 'VARIANT') {
+        // Pentru variante, verifică dacă există cel puțin o variantă cu valoare
+        Object.keys(variantMetafields).forEach(variantId => {
+          if (!hasValue && variantMetafields[variantId] && 
+              variantMetafields[variantId][metafield.namespace] && 
+              variantMetafields[variantId][metafield.namespace][metafield.key] !== undefined) {
+            value = variantMetafields[variantId][metafield.namespace][metafield.key];
+            hasValue = value !== null && 
+                      value !== undefined && 
+                      value !== '' && 
+                      (typeof value !== 'string' || value.trim() !== '') &&
+                      value !== 'null' && 
+                      value !== 'undefined' &&
+                      (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+            
+            // Pentru obiecte, verifică dacă au cel puțin title sau image
+            if (hasValue && typeof value === 'object') {
+              hasValue = value.title || value.featured_image || value.image;
+            }
+          }
+        });
+      }
+      
+      // Calculează indexul global pentru colorarea corectă a rândurilor
+      const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+      const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
+      
+      // Construiește stiluri inline doar pentru background (dinamic bazat pe index)
+      let rowStyle = '';
+      if (styling.rowBackgroundEnabled) {
+        rowStyle = 'background-color: ' + (isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff')) + '; ';
+      } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
+        rowStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+      }
+      
+      // Adaugă clasele pentru hide from PC/Mobile
+      // Verifică dacă valorile sunt true (boolean sau string "true")
+      const hideFromPC = metafield.hideFromPC === true || metafield.hideFromPC === 'true';
+      const hideFromMobile = metafield.hideFromMobile === true || metafield.hideFromMobile === 'true';
+      
+      let rowClasses = 'dc_table_tr';
+      if (hideFromPC) {
+        rowClasses += ' dc_hide_from_pc';
+      }
+      if (hideFromMobile) {
+        rowClasses += ' dc_hide_from_mobile';
+      }
+      
+      // Dacă metafield-ul nu are valoare, adaugă clasa dc_hidden
+      if (!hasValue) {
+        rowClasses += ' dc_hidden';
+      }
+      
+      // Debug logging (doar în development)
+      if (hideFromPC || hideFromMobile) {
+        console.log('Metafield hide flags:', {
+          namespace: metafield.namespace,
+          key: metafield.key,
+          hideFromPC: metafield.hideFromPC,
+          hideFromMobile: metafield.hideFromMobile,
+          hideFromPCBool: hideFromPC,
+          hideFromMobileBool: hideFromMobile,
+          rowClasses: rowClasses
+        });
+      }
+      
+      html += '<tr class="' + rowClasses + '"' + (rowStyle ? ' style="' + rowStyle + '"' : '') + '>';
+      html += '<td class="dc_table_td_label">';
+      // Folosește customName dacă există, altfel name sau namespace.key
+      const displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
+      let nameHtml = escapeHtml(displayName);
+      
+      // Adaugă tooltip dacă este activat
+      if (metafield.tooltipEnabled && metafield.tooltipText) {
+        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '">i</span>';
+      }
+      
+      html += nameHtml + '  :';
+      html += '</td>';
+      html += '<td class="dc_table_td_value" data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
+      // Valoarea va fi populată din obiectul JavaScript construit în Liquid
+      // Folosim un placeholder care va fi înlocuit după ce se construiește obiectul
+      html += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">Loading...</span>';
+      html += '</td>';
+      html += '</tr>';
+    });
+    
+    html += '</tbody></table>';
+    html += '</div>';
+    
+    return html;
+  }
+  
+  function renderHiddenRowsAsTable(metafields, styling, templateId, sectionIndex, allMetafieldsWithSection) {
+    // Generează rândurile HTML pentru metafield-urile ascunse
+    let rowsHtml = '';
+    
+    // Obține metafield-urile cu valori din obiectele construite în Liquid
+    const productMetafields = window.productMetafieldsData || {};
+    const variantMetafields = window.variantMetafieldsData || {};
+    
+    metafields.forEach((metafield, index) => {
+      // Verifică dacă metafield-ul are valoare
+      let hasValue = false;
+      let value = null;
+      
+      if (metafield.ownerType === 'PRODUCT') {
+        if (productMetafields[metafield.namespace] && 
+            productMetafields[metafield.namespace][metafield.key] !== undefined) {
+          value = productMetafields[metafield.namespace][metafield.key];
+          // Verifică dacă valoarea nu este goală, null, undefined sau "N/A"
+          hasValue = value !== null && 
+                    value !== undefined && 
+                    value !== '' && 
+                    (typeof value !== 'string' || value.trim() !== '') &&
+                    value !== 'null' && 
+                    value !== 'undefined' &&
+                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+          
+          // Pentru obiecte (product_reference, collection_reference), verifică dacă au cel puțin title sau image
+          if (hasValue && typeof value === 'object') {
+            hasValue = value.title || value.featured_image || value.image;
+          }
+        }
+      } else if (metafield.ownerType === 'VARIANT') {
+        // Pentru variante, verifică dacă există cel puțin o variantă cu valoare
+        Object.keys(variantMetafields).forEach(variantId => {
+          if (!hasValue && variantMetafields[variantId] && 
+              variantMetafields[variantId][metafield.namespace] && 
+              variantMetafields[variantId][metafield.namespace][metafield.key] !== undefined) {
+            value = variantMetafields[variantId][metafield.namespace][metafield.key];
+            hasValue = value !== null && 
+                      value !== undefined && 
+                      value !== '' && 
+                      (typeof value !== 'string' || value.trim() !== '') &&
+                      value !== 'null' && 
+                      value !== 'undefined' &&
+                      (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+            
+            // Pentru obiecte, verifică dacă au cel puțin title sau image
+            if (hasValue && typeof value === 'object') {
+              hasValue = value.title || value.featured_image || value.image;
+            }
+          }
+        });
+      }
+      
+      // Calculează indexul global pentru colorarea corectă a rândurilor
+      const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+      const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
+      
+      // Construiește stiluri inline doar pentru background (dinamic bazat pe index)
+      let rowStyle = '';
+      if (styling.rowBackgroundEnabled) {
+        rowStyle = 'background-color: ' + (isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff')) + '; ';
+      } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
+        rowStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+      }
+      
+      // Adaugă clasele pentru hide from PC/Mobile
+      const hideFromPC = metafield.hideFromPC === true || metafield.hideFromPC === 'true';
+      const hideFromMobile = metafield.hideFromMobile === true || metafield.hideFromMobile === 'true';
+      
+      let rowClasses = 'dc_table_tr';
+      if (hideFromPC) {
+        rowClasses += ' dc_hide_from_pc';
+      }
+      if (hideFromMobile) {
+        rowClasses += ' dc_hide_from_mobile';
+      }
+      
+      // Dacă metafield-ul nu are valoare, adaugă clasa dc_hidden
+      if (!hasValue) {
+        rowClasses += ' dc_hidden';
+      }
+      
+      rowsHtml += '<tr class="' + rowClasses + '"' + (rowStyle ? ' style="' + rowStyle + '"' : '') + '>';
+      rowsHtml += '<td class="dc_table_td_label">';
+      const displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
+      let nameHtml = escapeHtml(displayName);
+      
+      if (metafield.tooltipEnabled && metafield.tooltipText) {
+        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '">i</span>';
+      }
+      
+      rowsHtml += nameHtml + '  :';
+      rowsHtml += '</td>';
+      rowsHtml += '<td class="dc_table_td_value" data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
+      rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">Loading...</span>';
+      rowsHtml += '</td>';
+      rowsHtml += '</tr>';
+    });
+    
+    // Returnează doar rândurile (fără tabel), pentru a le adăuga în tabelul existent
+    return rowsHtml;
+  }
+  
+  window.showAllTableRows = function(templateId, event, device) {
+    // Previne comportamentul implicit
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    const hiddenContainer = document.getElementById('spec-table-hidden-' + templateId);
+    if (!hiddenContainer) {
+      console.log('Hidden container not found:', 'spec-table-hidden-' + templateId);
+      return;
+    }
+    
+    // Găsește toate containerele cu rânduri ascunse pentru device-ul specificat
+    const selector = '[id^="spec-hidden-section-' + device + '-' + templateId + '-"]';
+    const hiddenSections = hiddenContainer.querySelectorAll(selector);
+    
+    console.log('Found hidden sections for device', device, ':', hiddenSections.length);
+    
+    hiddenSections.forEach(sectionContainer => {
+      const sectionIndex = sectionContainer.getAttribute('data-section-index');
+      const tableId = 'spec-table-' + device + '-' + templateId + '-' + sectionIndex;
+      
+      // Găsește containerul corespunzător device-ului (PC sau mobile)
+      // Încearcă mai întâi în versiunea seeMore
+      const seeMoreVersionClass = device === 'pc' ? 'dc_see_more_pc_version' : 'dc_see_more_mobile_version';
+      let deviceContainer = document.querySelector('.' + seeMoreVersionClass + ' #' + tableId + '-container');
+      
+      // Dacă nu găsește, încearcă în versiunea accordion
+      if (!deviceContainer) {
+        const accordionVersionClass = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+        deviceContainer = document.querySelector('.' + accordionVersionClass + ' #' + tableId + '-container');
+      }
+      
+      if (!deviceContainer) {
+        console.log('Device container not found for', device, 'tableId:', tableId);
+        return;
+      }
+      
+      const tbody = deviceContainer.querySelector('#' + tableId + '-tbody');
+      
+      if (!tbody) {
+        console.log('Tbody not found for', device, 'tableId:', tableId);
+        return;
+      }
+      
+      // Găsește tabelul temporar din containerul ascuns
+      const tempTable = sectionContainer.querySelector('table');
+      if (tempTable) {
+        const tempTbody = tempTable.querySelector('tbody');
+        if (tempTbody) {
+          // Mută toate rândurile din tbody-ul temporar în tbody-ul tabelului existent
+          const rows = Array.from(tempTbody.querySelectorAll('tr'));
+          console.log('Moving', rows.length, 'rows to', device, 'tableId:', tableId);
+          rows.forEach(row => {
+            tbody.appendChild(row);
+          });
+        }
+      }
+    });
+    
+    // Ascunde butonul "See more" pentru device-ul specificat
+    const button = event ? event.target.closest('button') : document.querySelector('.dc_see_more_' + device + ' .dc_see_more_button');
+    if (button) {
+      button.style.display = 'none';
+    }
+    
+    // Rotirește săgeata pentru device-ul specificat
+    const arrow = document.getElementById('see-more-arrow-' + device + '-' + templateId);
+    if (arrow) {
+      arrow.style.transform = 'rotate(180deg)';
+    }
+    
+    // Actualizează valorile metafield-urilor pentru rândurile nou afișate
+    const container = document.getElementById('specification-table-container-' + templateId);
+    if (container) {
+      updateMetafieldValuesFromLiquid(container);
+    }
+  }
+  
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // Funcție globală pentru toggle accordion
+  window.toggleSpecSection = function(sectionIndex, templateId, device) {
+    // Dacă device nu este specificat, încercă să-l detecteze sau folosește versiunea veche pentru compatibilitate
+    if (!device) {
+      // Versiunea veche (fără device) - pentru compatibilitate
+      const section = document.getElementById('spec-section-' + templateId + '-' + sectionIndex);
+      const arrow = document.getElementById('spec-arrow-' + templateId + '-' + sectionIndex);
+      if (section) {
+        const isHidden = section.style.display === 'none' || section.style.display === '';
+        section.style.display = isHidden ? 'block' : 'none';
+        if (arrow) {
+          arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+      }
+      return;
+    }
+    
+    // Versiunea nouă cu device
+    const section = document.getElementById('spec-section-' + device + '-' + templateId + '-' + sectionIndex);
+    const arrow = document.getElementById('spec-arrow-' + device + '-' + templateId + '-' + sectionIndex);
+    if (section) {
+      const isHidden = section.style.display === 'none' || section.style.display === '';
+      section.style.display = isHidden ? 'block' : 'none';
+      if (arrow) {
+        arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+      }
+    }
+  };
+  
+  // După ce template-ul este renderat, obține metafield-urile din Liquid
+  // Aceasta este o limitare - trebuie să obții metafield-urile din Liquid și să le pasezi la JavaScript
+})();
+</script>
+
+{% comment %} Funcție helper pentru a obține metafield-uri din Liquid {% endcomment %}
+<script>
+(function() {
+  const container = document.getElementById('specification-table-container-{{ block.id }}');
+  if (!container) return;
+  
+  // Nu mai este nevoie de funcția getMetafieldValue și updateMetafieldValues
+  // pentru că valorile sunt deja populate când se renderizează template-ul
+})();
+</script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Specification Table",
+  "target": "section",
+  "settings": [
+
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Max Width",
+      "min": 100,
+      "max": 2000,
+      "step": 100,
+      "unit": "px",
+      "default": 1200
+    },
+    {
+      "type": "select",
+      "id": "alignment",
+      "label": "Align",
+      "options": [
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
+      ],
+      "default": "left"
+    },
+    {
+      "type": "range",
+      "id": "first_column_width",
+      "label": "First column width",
+      "min": 10,
+      "max": 90,
+      "step": 10,
+      "unit": "%",
+      "default": 40
+    },
+    {
+      "type": "range",
+      "id": "margin_top",
+      "label": "Top Gap",
+      "min": 0,
+      "max": 200,
+      "step": 10,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "margin_left",
+      "label": "Left Gap",
+      "min": 0,
+      "max": 200,
+      "step": 10,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "image_height",
+      "label": "Image Height",
+      "min": 40,
+      "max": 300,
+      "step": 20,
+      "unit": "px",
+      "default": 100
+    }
+  ]
+}
+{% endschema %}
