@@ -1,5 +1,5 @@
 import { authenticate } from "../shopify.server";
-import { syncSingleMetafieldDefinition } from "../models/sync.server";
+import { publishWebhookByTopic } from "../models/pubsub.server.js";
 import { logWebhookEvent } from "../models/webhook-logger.server.js";
 
 export const action = async ({ request }) => {
@@ -14,27 +14,32 @@ export const action = async ({ request }) => {
     // ignore
   }
 
-  const { shop, topic, admin } = await authenticate.webhook(request);
-  console.log(`Received ${topic} webhook for ${shop}`);
+  const { shop, topic } = await authenticate.webhook(request);
+  console.log(`[webhook] Received ${topic} webhook for ${shop}`);
 
   try {
-    // Pentru metafield definition webhook, payload-ul conține definition data.
-    if (payload) {
-      await syncSingleMetafieldDefinition(admin, shop, payload);
-    }
-
+    // Publică webhook-ul în Pub/Sub pentru procesare asincronă cu debouncing
+    const messageId = await publishWebhookByTopic(shop, topic, payload);
+    
+    console.log(`[webhook] Published to Pub/Sub: ${messageId} for ${shop}`);
+    
+    // Log event-ul (doar recepția, procesarea se face în worker)
     const responseTime = Math.round(performance.now() - startTime);
-    await logWebhookEvent(shop, topic, "success", null, { id: payload?.id }, responseTime);
+    await logWebhookEvent(shop, topic, "queued", null, { 
+      id: payload?.id,
+      pubsubMessageId: messageId 
+    }, responseTime);
+    
+    // Returnează 200 imediat - worker-ul va procesa webhook-ul cu debouncing
+    return new Response();
   } catch (error) {
     const responseTime = Math.round(performance.now() - startTime);
     const errorMessage = error.message || "Unknown error";
-    console.error("Error processing webhook:", error);
+    console.error(`[webhook] Error publishing to Pub/Sub:`, error);
     await logWebhookEvent(shop, topic, "error", errorMessage, { id: payload?.id }, responseTime);
-    // Returnăm 200 ca să evităm retry în buclă (procesarea o putem repara prin reconcile).
-    return new Response("Error processing webhook", { status: 200 });
+    // Returnăm 200 ca să evităm retry în buclă
+    return new Response("Error publishing webhook", { status: 200 });
   }
-
-  return new Response();
 };
 
 

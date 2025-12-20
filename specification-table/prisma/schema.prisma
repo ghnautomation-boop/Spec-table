@@ -231,10 +231,12 @@ model WebhookEvent {
   id            String   @id @default(uuid())
   shopId        String
   topic         String   // "products/create", "collections/update", etc.
-  status        String   // "success" sau "error"
+  status        String   // "success", "error", "failed_permanently"
   errorMessage  String?  // Mesajul de eroare dacă status = "error"
   payload       String?  // Payload-ul webhook-ului (JSON string, opțional pentru debugging)
   responseTime  Int?     // Timpul de răspuns în ms
+  retryCount    Int      @default(0) // Numărul de încercări de retry
+  lastRetryAt   DateTime? // Data ultimei încercări de retry
   createdAt     DateTime @default(now())
   
   shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -244,6 +246,7 @@ model WebhookEvent {
   @@index([shopId, status])
   @@index([shopId, createdAt])
   @@index([topic, status])
+  @@index([status, retryCount]) // Pentru query-uri de retry
 }
 
 /**
@@ -297,6 +300,9 @@ model SyncStatus {
   lastWebhookAt       DateTime?
   lastComparisonOk    Boolean?
   lastMismatchDetails String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 

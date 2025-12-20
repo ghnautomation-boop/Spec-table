@@ -3,8 +3,11 @@ import { randomUUID } from "crypto";
 
 /**
  * Sincronizează toate produsele dintr-un shop
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @param {string} shopDomain - Domain-ul shop-ului
+ * @param {string|null} updatedAfter - ISO date string (opțional) - sincronizează doar produsele actualizate după această dată
  */
-export async function syncProducts(admin, shopDomain) {
+export async function syncProducts(admin, shopDomain, updatedAfter = null) {
   let hasNextPage = true;
   let cursor = null;
   let totalSynced = 0;
@@ -27,24 +30,69 @@ export async function syncProducts(admin, shopDomain) {
   });
   const isInitialSync = existingCount === 0;
 
+  // Dacă avem updatedAfter, folosim query incremental, altfel sync complet
+  const useIncrementalSync = updatedAfter && !isInitialSync;
+
   while (hasNextPage) {
-    const query = `
-      query getProducts($cursor: String) {
-        products(first: 250, after: $cursor) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          nodes {
-            id
-            title
-            handle
+    let query;
+    let variables = {};
+
+    if (useIncrementalSync) {
+      // Query incremental - doar produsele actualizate după updatedAfter
+      query = `
+        query ProductsUpdatedAfter($cursor: String, $updatedAfter: String!) {
+          products(
+            first: 250
+            after: $cursor
+            query: $updatedAfter
+            sortKey: UPDATED_AT
+          ) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              cursor
+              node {
+                id
+                title
+                handle
+                updatedAt
+              }
+            }
           }
         }
+      `;
+      
+      // Formatăm query string-ul pentru Shopify: "updated_at:>'2025-12-19T16:33:11Z'"
+      const queryString = `updated_at:>'${updatedAfter}'`;
+      variables = { updatedAfter: queryString };
+      if (cursor) {
+        variables.cursor = cursor;
       }
-    `;
+    } else {
+      // Query complet - toate produsele
+      query = `
+        query getProducts($cursor: String) {
+          products(first: 250, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              title
+              handle
+            }
+          }
+        }
+      `;
+      
+      if (cursor) {
+        variables.cursor = cursor;
+      }
+    }
 
-    const variables = cursor ? { cursor } : {};
     const response = await admin.graphql(query, { variables });
     const data = await response.json();
 
@@ -52,7 +100,10 @@ export async function syncProducts(admin, shopDomain) {
       throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
     }
 
-    const products = data.data.products.nodes;
+    // Pentru query incremental folosim edges, pentru query complet folosim nodes
+    const products = useIncrementalSync 
+      ? data.data.products.edges.map(edge => edge.node)
+      : data.data.products.nodes;
     const pageInfo = data.data.products.pageInfo;
 
     if (isInitialSync) {
@@ -104,8 +155,11 @@ export async function syncProducts(admin, shopDomain) {
 
 /**
  * Sincronizează toate colecțiile dintr-un shop
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @param {string} shopDomain - Domain-ul shop-ului
+ * @param {string|null} updatedAfter - ISO date string (opțional) - sincronizează doar colecțiile actualizate după această dată
  */
-export async function syncCollections(admin, shopDomain) {
+export async function syncCollections(admin, shopDomain, updatedAfter = null) {
   let hasNextPage = true;
   let cursor = null;
   let totalSynced = 0;
@@ -121,24 +175,71 @@ export async function syncCollections(admin, shopDomain) {
     });
   }
 
+  const existingCount = await prisma.collection.count({
+    where: { shopId: shop.id },
+  });
+  const isInitialSync = existingCount === 0;
+  const useIncrementalSync = updatedAfter && !isInitialSync;
+
   while (hasNextPage) {
-    const query = `
-      query getCollections($cursor: String) {
-        collections(first: 250, after: $cursor) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          nodes {
-            id
-            title
-            handle
+    let query;
+    let variables = {};
+
+    if (useIncrementalSync) {
+      // Query incremental - doar colecțiile actualizate după updatedAfter
+      query = `
+        query CollectionsUpdatedAfter($cursor: String, $updatedAfter: String!) {
+          collections(
+            first: 250
+            after: $cursor
+            query: $updatedAfter
+            sortKey: UPDATED_AT
+          ) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              cursor
+              node {
+                id
+                title
+                handle
+                updatedAt
+              }
+            }
           }
         }
+      `;
+      
+      const queryString = `updated_at:>'${updatedAfter}'`;
+      variables = { updatedAfter: queryString };
+      if (cursor) {
+        variables.cursor = cursor;
       }
-    `;
+    } else {
+      // Query complet - toate colecțiile
+      query = `
+        query getCollections($cursor: String) {
+          collections(first: 250, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              title
+              handle
+            }
+          }
+        }
+      `;
+      
+      if (cursor) {
+        variables.cursor = cursor;
+      }
+    }
 
-    const variables = cursor ? { cursor } : {};
     const response = await admin.graphql(query, { variables });
     const data = await response.json();
 
@@ -146,7 +247,10 @@ export async function syncCollections(admin, shopDomain) {
       throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
     }
 
-    const collections = data.data.collections.nodes;
+    // Pentru query incremental folosim edges, pentru query complet folosim nodes
+    const collections = useIncrementalSync
+      ? data.data.collections.edges.map(edge => edge.node)
+      : data.data.collections.nodes;
     const pageInfo = data.data.collections.pageInfo;
 
     // Upsert collections
@@ -301,8 +405,13 @@ export async function syncSingleCollection(admin, shopDomain, collectionId) {
 
 /**
  * Sincronizează toate definițiile metafield-urilor pentru produse și variante
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @param {string} shopDomain - Domain-ul shop-ului
+ * @param {string|null} updatedAfter - ISO date string (opțional) - sincronizează doar metafield-urile actualizate după această dată
+ * NOTĂ: Shopify nu suportă direct `updated_at` pentru metafield definitions în query-uri,
+ * dar putem folosi `updatedAfter` pentru a face sync complet doar când este necesar
  */
-export async function syncMetafieldDefinitions(admin, shopDomain) {
+export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter = null) {
   let hasNextPage = true;
   let cursor = null;
   let totalSynced = 0;
@@ -317,6 +426,10 @@ export async function syncMetafieldDefinitions(admin, shopDomain) {
       data: { shopDomain },
     });
   }
+
+  // NOTĂ: Shopify nu suportă `updatedAt` pentru metafield definitions în GraphQL API
+  // Deci facem întotdeauna sync complet (toate metafield-urile), indiferent de `updatedAfter`
+  // Parametrul `updatedAfter` este ignorat pentru metafield definitions
 
   // Sincronizează metafield-urile pentru PRODUCT
   hasNextPage = true;
@@ -354,6 +467,10 @@ export async function syncMetafieldDefinitions(admin, shopDomain) {
 
     const definitions = data.data.metafieldDefinitions.nodes;
     const pageInfo = data.data.metafieldDefinitions.pageInfo;
+
+    // NOTĂ: Shopify nu suportă `updatedAt` pentru metafield definitions în GraphQL API
+    // Deci nu putem face sync incremental bazat pe `updatedAt` - facem sync complet
+    // Dacă `updatedAfter` este setat, ignorăm-l și facem sync complet pentru siguranță
 
     // Upsert metafield definitions
     for (const definition of definitions) {
@@ -429,6 +546,10 @@ export async function syncMetafieldDefinitions(admin, shopDomain) {
 
     const definitions = data.data.metafieldDefinitions.nodes;
     const pageInfo = data.data.metafieldDefinitions.pageInfo;
+
+    // NOTĂ: Shopify nu suportă `updatedAt` pentru metafield definitions în GraphQL API
+    // Deci nu putem face sync incremental bazat pe `updatedAt` - facem sync complet
+    // Dacă `updatedAfter` este setat, ignorăm-l și facem sync complet pentru siguranță
 
     // Upsert metafield definitions pentru variante
     for (const definition of definitions) {

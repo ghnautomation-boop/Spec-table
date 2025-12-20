@@ -2,8 +2,15 @@ import prisma from "../db.server.js";
 
 /**
  * Loggează un eveniment webhook în baza de date pentru monitorizare
+ * @param {string} shopDomain - Domain-ul shop-ului
+ * @param {string} topic - Topic-ul webhook-ului
+ * @param {string} status - Status-ul ("success", "error", "failed_permanently")
+ * @param {string|null} errorMessage - Mesajul de eroare dacă există
+ * @param {object|null} payload - Payload-ul webhook-ului (va fi serializat ca JSON)
+ * @param {number|null} responseTime - Timpul de răspuns în ms
+ * @param {number} retryCount - Numărul de încercări de retry (default 0)
  */
-export async function logWebhookEvent(shopDomain, topic, status, errorMessage = null, payload = null, responseTime = null) {
+export async function logWebhookEvent(shopDomain, topic, status, errorMessage = null, payload = null, responseTime = null, retryCount = 0) {
   try {
     // Găsește shop-ul
     const shop = await prisma.shop.findUnique({
@@ -21,15 +28,17 @@ export async function logWebhookEvent(shopDomain, topic, status, errorMessage = 
       data: {
         shopId: shop.id,
         topic,
-        status, // "success" sau "error"
+        status, // "success", "error", "failed_permanently"
         errorMessage,
         payload: payload ? JSON.stringify(payload) : null,
         responseTime,
+        retryCount,
+        lastRetryAt: retryCount > 0 ? new Date() : null,
       },
     });
 
     if (process.env.NODE_ENV === "development") {
-      console.log(`[Webhook Logger] ${status.toUpperCase()}: ${topic} for ${shopDomain}${responseTime ? ` (${responseTime}ms)` : ""}`);
+      console.log(`[Webhook Logger] ${status.toUpperCase()}: ${topic} for ${shopDomain}${responseTime ? ` (${responseTime}ms)` : ""}${retryCount > 0 ? ` (retry ${retryCount})` : ""}`);
     }
   } catch (error) {
     // Nu vrem să blocheze webhook-ul dacă logging-ul eșuează

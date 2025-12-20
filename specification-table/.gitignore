@@ -13,6 +13,10 @@ database.sqlite
 .env
 .env.*
 
+# Google Cloud Service Account Keys (SECURITY: Never commit these!)
+*service-account*.json
+shopify-webhooks-*.json
+
 
 
 
