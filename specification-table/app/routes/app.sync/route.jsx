@@ -67,6 +67,20 @@ export const loader = async ({ request }) => {
           },
         },
       },
+      syncStatus: {
+        select: {
+          lastComparisonOk: true,
+          lastMismatchDetails: true,
+          appProducts: true,
+          appCollections: true,
+          appProductMetafields: true,
+          appVariantMetafields: true,
+          shopifyProducts: true,
+          shopifyCollections: true,
+          shopifyProductMetafields: true,
+          shopifyVariantMetafields: true,
+        },
+      },
     },
   });
 
@@ -139,8 +153,58 @@ export const loader = async ({ request }) => {
     // Continue with null values if there's an error
   }
 
+  // Calculează dacă există mismatch-uri comparând count-urile
+  let hasMismatch = false;
+  if (shop && shop.syncStatus) {
+    const appCounts = {
+      products: shop._count.products || 0,
+      collections: shop._count.collections || 0,
+      productMetafields: productMetafieldsCount,
+      variantMetafields: variantMetafieldsCount,
+    };
+    
+    const shopifyCountsForComparison = {
+      products: shopifyCounts.products,
+      collections: shopifyCounts.collections,
+      productMetafields: shopifyCounts.productMetafields,
+      variantMetafields: shopifyCounts.variantMetafields,
+    };
+    
+    // Verifică mismatch-uri doar dacă avem count-uri din Shopify
+    if (
+      shopifyCountsForComparison.products !== null &&
+      shopifyCountsForComparison.collections !== null &&
+      shopifyCountsForComparison.productMetafields !== null &&
+      shopifyCountsForComparison.variantMetafields !== null
+    ) {
+      hasMismatch =
+        appCounts.products !== shopifyCountsForComparison.products ||
+        appCounts.collections !== shopifyCountsForComparison.collections ||
+        appCounts.productMetafields !== shopifyCountsForComparison.productMetafields ||
+        appCounts.variantMetafields !== shopifyCountsForComparison.variantMetafields;
+    } else {
+      // Dacă nu avem count-uri din Shopify, verificăm lastComparisonOk din SyncStatus
+      hasMismatch = shop.syncStatus.lastComparisonOk === false;
+    }
+  } else if (shop) {
+    // Dacă shop-ul există dar nu are SyncStatus, verificăm manual
+    if (
+      shopifyCounts.products !== null &&
+      shopifyCounts.collections !== null &&
+      shopifyCounts.productMetafields !== null &&
+      shopifyCounts.variantMetafields !== null
+    ) {
+      hasMismatch =
+        (shop._count.products || 0) !== shopifyCounts.products ||
+        (shop._count.collections || 0) !== shopifyCounts.collections ||
+        productMetafieldsCount !== shopifyCounts.productMetafields ||
+        variantMetafieldsCount !== shopifyCounts.variantMetafields;
+    }
+  }
+
   return {
     isSynced: !!shop,
+    hasMismatch,
     counts: shop
       ? {
           products: shop._count.products || 0,
@@ -190,13 +254,16 @@ export const action = async ({ request }) => {
 
 export default function SyncPage() {
   const loaderData = useLoaderData();
-  const { isSynced, counts, shopifyCounts } = loaderData || {};
+  const { isSynced, hasMismatch, counts, shopifyCounts } = loaderData || {};
   const fetcher = useFetcher();
   const shopify = useAppBridge();
   const [isLoadingShopifyData, setIsLoadingShopifyData] = useState(true);
   const isLoading =
     ["loading", "submitting"].includes(fetcher.state) &&
     fetcher.formMethod === "POST";
+  
+  // Butonul este activ doar dacă există mismatch-uri sau dacă nu a fost făcut sync niciodată
+  const isButtonEnabled = !isSynced || hasMismatch;
 
   // Simulate loading state for Shopify data (it's already loaded in loader, but we show spinner briefly)
   useEffect(() => {
@@ -458,18 +525,35 @@ export default function SyncPage() {
             </s-heading>
             <s-paragraph>
               {isSynced
-                ? "Click the button below to re-synchronize all data from your store. This will update existing records and add any new products, collections, or metafield definitions."
+                ? hasMismatch
+                  ? "There are differences between your store data and the application database. Click the button below to re-synchronize data. This will sync only products, collections, and metafield definitions that have been updated since the last sync, making it much faster for large stores."
+                  : "Your data is synchronized and up to date. No action needed."
                 : "Click the button below to synchronize all data from your store. This may take a few moments depending on the size of your store."}
             </s-paragraph>
+            
+            {isSynced && !hasMismatch && (
+              <s-banner tone="success">
+                <s-text emphasis="strong">
+                  All data is synchronized. No mismatches detected.
+                </s-text>
+              </s-banner>
+            )}
             
             <s-button
               onClick={handleSync}
               variant="primary"
               size="large"
+              disabled={!isButtonEnabled}
               {...(isLoading ? { loading: true } : {})}
             >
               {isSynced ? "Re-sync All Data" : "Start Synchronization"}
             </s-button>
+            
+            {isSynced && !hasMismatch && (
+              <s-text tone="subdued" size="small">
+                The sync button is disabled because your data is already synchronized. If you need to force a full sync, wait for the reconciliation job to detect any mismatches, or contact support.
+              </s-text>
+            )}
           </s-stack>
         </s-section>
 
