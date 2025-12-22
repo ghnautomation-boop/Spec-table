@@ -90,6 +90,8 @@ export async function loader({ request }) {
           // Asigură-te că valorile sunt boolean, nu string sau undefined
           hideFromPC: mf.hideFromPC === true,
           hideFromMobile: mf.hideFromMobile === true,
+          prefix: mf.prefix || null,
+          suffix: mf.suffix || null,
         };
       }),
     }));

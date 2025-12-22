@@ -354,6 +354,11 @@
       const valueElement = cell.querySelector('[data-metafield-value]');
       if (!valueElement) return;
       
+      // Extrage prefix și suffix din data-attributes
+      // Folosim getAttribute pentru a obține valoarea exactă (dataset poate transforma caracterele)
+      const prefix = valueElement.getAttribute('data-prefix') || '';
+      const suffix = valueElement.getAttribute('data-suffix') || '';
+      
       let value = null;
       
       // Prioritizează metafield-urile VARIANT dacă există pentru varianta curentă
@@ -384,12 +389,12 @@
       }
       
       // Randare diferită în funcție de tipul metafield-ului
-      renderMetafieldValue(valueElement, value, metafieldType, ownerType, namespace, key, imageHeight);
+      renderMetafieldValue(valueElement, value, metafieldType, ownerType, namespace, key, imageHeight, prefix, suffix);
     });
   }
   
   // Funcție pentru a randa valoarea metafield-ului în funcție de tip
-  function renderMetafieldValue(element, value, metafieldType, ownerType, namespace, key, imageHeight) {
+  function renderMetafieldValue(element, value, metafieldType, ownerType, namespace, key, imageHeight, prefix, suffix) {
     if (value === null || value === undefined || value === '') {
       element.innerHTML = 'N/A';
       return;
@@ -398,12 +403,27 @@
     // Folosește înălțimea setată sau default 100px
     const height = imageHeight || '100';
     
+    // Funcție helper pentru a aplica prefix și suffix doar la text (nu la imagini sau obiecte)
+    function applyPrefixSuffix(textValue, prefixValue, suffixValue) {
+      if (!textValue) return textValue;
+      let result = String(textValue);
+      if (prefixValue && prefixValue.trim() !== '') {
+        result = prefixValue.trim() + ' ' + result;
+      }
+      if (suffixValue && suffixValue.trim() !== '') {
+        result = result + ' ' + suffixValue.trim();
+      }
+      return result;
+    }
+    
     // Pentru multi_line_text_field și single_line_text_field - randare text simplă
     if (metafieldType === 'multi_line_text_field' || metafieldType === 'single_line_text_field') {
       if (typeof value === 'object') {
         element.textContent = JSON.stringify(value);
       } else {
-        element.textContent = String(value);
+        // Aplică prefix și suffix pentru text
+        const formattedValue = applyPrefixSuffix(value, prefix, suffix);
+        element.textContent = formattedValue;
       }
     }
     // Pentru file_reference - randare imagine
@@ -457,7 +477,9 @@
       if (typeof value === 'object') {
         element.textContent = JSON.stringify(value);
       } else {
-        element.textContent = String(value);
+        // Aplică prefix și suffix pentru dimension
+        const formattedValue = applyPrefixSuffix(value, prefix, suffix);
+        element.textContent = formattedValue;
       }
     }
     // Pentru alte tipuri - randare text simplă
@@ -465,7 +487,9 @@
       if (typeof value === 'object') {
         element.textContent = JSON.stringify(value);
       } else {
-        element.textContent = String(value);
+        // Aplică prefix și suffix pentru alte tipuri text
+        const formattedValue = applyPrefixSuffix(value, prefix, suffix);
+        element.textContent = formattedValue;
       }
     }
   }
@@ -686,6 +710,8 @@
             tooltipText: metafield.tooltipText,
             hideFromPC: metafield.hideFromPC !== undefined ? metafield.hideFromPC : false,
             hideFromMobile: metafield.hideFromMobile !== undefined ? metafield.hideFromMobile : false,
+            prefix: metafield.prefix || null,
+            suffix: metafield.suffix || null,
             sectionIndex: sectionIndex,
             sectionHeading: section.heading,
             mfIndex: mfIndex
@@ -1157,7 +1183,11 @@
       html += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
       // Valoarea va fi populată din obiectul JavaScript construit în Liquid
       // Folosim un placeholder care va fi înlocuit după ce se construiește obiectul
-      html += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">Loading...</span>';
+      // IMPORTANT: Adăugăm prefix și suffix la data-attributes pentru a le putea aplica în JavaScript
+      // Asigură-te că prefix și suffix sunt string-uri goale dacă sunt null sau undefined
+      const prefixValue = (metafield.prefix !== null && metafield.prefix !== undefined) ? String(metafield.prefix) : '';
+      const suffixValue = (metafield.suffix !== null && metafield.suffix !== undefined) ? String(metafield.suffix) : '';
+      html += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
       html += '</td>';
       html += '</tr>';
     });
@@ -1274,7 +1304,10 @@
       rowsHtml += nameHtml + '  :';
       rowsHtml += '</td>';
       rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
-      rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">Loading...</span>';
+      // Asigură-te că prefix și suffix sunt string-uri goale dacă sunt null sau undefined
+      const prefixValue = (metafield.prefix !== null && metafield.prefix !== undefined) ? String(metafield.prefix) : '';
+      const suffixValue = (metafield.suffix !== null && metafield.suffix !== undefined) ? String(metafield.suffix) : '';
+      rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
       rowsHtml += '</td>';
       rowsHtml += '</tr>';
     });
@@ -1356,7 +1389,7 @@
       arrow.style.transform = 'rotate(180deg)';
     }
     
-    // Actualizează valorile metafield-urilor pentru rândurile nou afișate
+    // Actualizează valorile metafield-urilor pentru rândurile nou afișate (inclusiv prefix și suffix)
     const container = document.getElementById('specification-table-container-' + templateId);
     if (container) {
       updateMetafieldValuesFromLiquid(container);

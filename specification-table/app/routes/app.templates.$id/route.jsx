@@ -259,6 +259,10 @@ export const action = async ({ request, params }) => {
         const hideFromPC = hideFromPCRaw === "true";
         const hideFromMobileRaw = formData.get(`section_${i}_metafield_${j}_hideFromMobile`);
         const hideFromMobile = hideFromMobileRaw === "true";
+        const prefixRaw = formData.get(`section_${i}_metafield_${j}_prefix`);
+        const prefix = prefixRaw && prefixRaw.trim() !== "" ? prefixRaw.trim() : null;
+        const suffixRaw = formData.get(`section_${i}_metafield_${j}_suffix`);
+        const suffix = suffixRaw && suffixRaw.trim() !== "" ? suffixRaw.trim() : null;
         
         console.log(`Metafield ${j} in section ${i}:`, {
           metafieldId,
@@ -267,6 +271,8 @@ export const action = async ({ request, params }) => {
           tooltipText,
           hideFromPC,
           hideFromMobile,
+          prefix,
+          suffix,
         });
         
         metafields.push({
@@ -276,6 +282,8 @@ export const action = async ({ request, params }) => {
           tooltipText,
           hideFromPC,
           hideFromMobile,
+          prefix,
+          suffix,
         });
       }
     }
@@ -368,6 +376,8 @@ export default function TemplateEditorPage() {
           tooltipText: mf.tooltipText !== undefined && mf.tooltipText !== null ? mf.tooltipText : null,
           hideFromPC: mf.hideFromPC === true,
           hideFromMobile: mf.hideFromMobile === true,
+          prefix: mf.prefix !== undefined && mf.prefix !== null ? mf.prefix : null,
+          suffix: mf.suffix !== undefined && mf.suffix !== null ? mf.suffix : null,
         };
       })
     }));
@@ -408,7 +418,9 @@ export default function TemplateEditorPage() {
     tooltipEnabled: false, 
     tooltipText: "",
     hideFromPC: false,
-    hideFromMobile: false
+    hideFromMobile: false,
+    prefix: "",
+    suffix: ""
   });
   const [formKey, setFormKey] = useState(0); // Counter pentru a forța re-renderizarea formularului
   const isInitialMount = useRef(true); // Flag pentru a detecta prima încărcare
@@ -488,6 +500,8 @@ export default function TemplateEditorPage() {
         const tooltipTextInput = document.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_tooltipText"]`);
         const hideFromPCInput = document.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_hideFromPC"]`);
         const hideFromMobileInput = document.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_hideFromMobile"]`);
+        const prefixInput = document.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_prefix"]`);
+        const suffixInput = document.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_suffix"]`);
         
         if (customNameInput) {
           customNameInput.value = metafield.customName || "";
@@ -503,6 +517,12 @@ export default function TemplateEditorPage() {
         }
         if (hideFromMobileInput) {
           hideFromMobileInput.value = metafield.hideFromMobile ? "true" : "false";
+        }
+        if (prefixInput) {
+          prefixInput.value = metafield.prefix || "";
+        }
+        if (suffixInput) {
+          suffixInput.value = metafield.suffix || "";
         }
       });
     });
@@ -756,7 +776,9 @@ export default function TemplateEditorPage() {
             currentMf.tooltipEnabled !== initialMf.tooltipEnabled ||
             currentMf.tooltipText !== initialMf.tooltipText ||
             currentMf.hideFromPC !== initialMf.hideFromPC ||
-            currentMf.hideFromMobile !== initialMf.hideFromMobile) {
+            currentMf.hideFromMobile !== initialMf.hideFromMobile ||
+            currentMf.prefix !== initialMf.prefix ||
+            currentMf.suffix !== initialMf.suffix) {
           return true;
         }
       }
@@ -1059,6 +1081,8 @@ export default function TemplateEditorPage() {
       customName: null,
       tooltipEnabled: false,
       tooltipText: null,
+      prefix: null,
+      suffix: null,
     });
     setSections(newSections);
   };
@@ -1084,15 +1108,17 @@ export default function TemplateEditorPage() {
       newSections[sectionIndex].metafields = [];
     }
 
-    selectedIds.forEach((id) => {
-      newSections[sectionIndex].metafields.push({
-        metafieldDefinitionId: id,
-        customName: null,
-        tooltipEnabled: false,
-        tooltipText: null,
-        hideFromPC: false,
-        hideFromMobile: false,
-      });
+      selectedIds.forEach((id) => {
+        newSections[sectionIndex].metafields.push({
+          metafieldDefinitionId: id,
+          customName: null,
+          tooltipEnabled: false,
+          tooltipText: null,
+          hideFromPC: false,
+          hideFromMobile: false,
+          prefix: null,
+          suffix: null,
+        });
       // Șterge selecția după adăugare
       delete selectedMetafieldsForSection[`${sectionIndex}_${id}`];
     });
@@ -1118,6 +1144,8 @@ export default function TemplateEditorPage() {
     // Tratează valorile goale corect
     const customName = data.customName && data.customName.trim() !== "" ? data.customName.trim() : null;
     const tooltipText = data.tooltipText && data.tooltipText.trim() !== "" ? data.tooltipText.trim() : null;
+    const prefix = data.prefix && data.prefix.trim() !== "" ? data.prefix.trim() : null;
+    const suffix = data.suffix && data.suffix.trim() !== "" ? data.suffix.trim() : null;
     
     console.log("Updating metafield data:", {
       sectionIndex,
@@ -1125,6 +1153,8 @@ export default function TemplateEditorPage() {
       customName,
       tooltipEnabled: data.tooltipEnabled,
       tooltipText,
+      prefix,
+      suffix,
     });
     
     // Logica mutually exclusive: dacă unul este true, celălalt devine false
@@ -1147,12 +1177,14 @@ export default function TemplateEditorPage() {
       tooltipText,
       hideFromPC,
       hideFromMobile,
+      prefix,
+      suffix,
     };
     setSections(newSections);
     // Incrementează formKey pentru a forța re-renderizarea formularului și hidden inputs-urilor
     setFormKey(prev => prev + 1);
     setEditingMetafield(null);
-    setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false });
+    setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false, prefix: "", suffix: "" });
   };
 
   const getAvailableMetafields = (sectionIndex) => {
@@ -1586,6 +1618,8 @@ export default function TemplateEditorPage() {
                   const tooltipTextInput = e.currentTarget.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_tooltipText"]`);
                   const hideFromPCInput = e.currentTarget.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_hideFromPC"]`);
                   const hideFromMobileInput = e.currentTarget.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_hideFromMobile"]`);
+                  const prefixInput = e.currentTarget.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_prefix"]`);
+                  const suffixInput = e.currentTarget.querySelector(`input[name="section_${sectionIndex}_metafield_${mfIndex}_suffix"]`);
                   
                   if (customNameInput) {
                     customNameInput.value = metafield.customName || "";
@@ -1601,6 +1635,12 @@ export default function TemplateEditorPage() {
                   }
                   if (hideFromMobileInput) {
                     hideFromMobileInput.value = metafield.hideFromMobile ? "true" : "false";
+                  }
+                  if (prefixInput) {
+                    prefixInput.value = metafield.prefix || "";
+                  }
+                  if (suffixInput) {
+                    suffixInput.value = metafield.suffix || "";
                   }
                 });
               });
@@ -1779,6 +1819,16 @@ export default function TemplateEditorPage() {
                         name={`section_${sectionIndex}_metafield_${mfIndex}_hideFromMobile`}
                         value={mf.hideFromMobile ? "true" : "false"}
                         />
+                        <input
+                        type="hidden"
+                        name={`section_${sectionIndex}_metafield_${mfIndex}_prefix`}
+                        value={mf.prefix || ""}
+                        />
+                        <input
+                        type="hidden"
+                        name={`section_${sectionIndex}_metafield_${mfIndex}_suffix`}
+                        value={mf.suffix || ""}
+                        />
                     </div>
                     ))}
                 </div>
@@ -1873,7 +1923,7 @@ export default function TemplateEditorPage() {
                                 (mf) => mf.id === metafield.metafieldDefinitionId
                               );
                               // Forțează re-renderizarea când se schimbă valorile
-                              const metafieldKey = `${sectionIndex}-${mfIndex}-${metafield.customName || ""}-${metafield.tooltipEnabled}-${metafield.tooltipText || ""}`;
+                              const metafieldKey = `${sectionIndex}-${mfIndex}-${metafield.customName || ""}-${metafield.tooltipEnabled}-${metafield.tooltipText || ""}-${metafield.prefix || ""}-${metafield.suffix || ""}`;
                               return (
                                 <tr 
                                   key={metafieldKey}
@@ -1977,6 +2027,8 @@ export default function TemplateEditorPage() {
                                             tooltipText: metafield.tooltipText || "",
                                             hideFromPC: metafield.hideFromPC || false,
                                             hideFromMobile: metafield.hideFromMobile || false,
+                                            prefix: metafield.prefix || "",
+                                            suffix: metafield.suffix || "",
                                           });
                                         }}
                                       >
@@ -3217,7 +3269,7 @@ export default function TemplateEditorPage() {
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setEditingMetafield(null);
-                setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "" });
+                setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false, prefix: "", suffix: "" });
               }
             }}
           >
@@ -3281,6 +3333,56 @@ export default function TemplateEditorPage() {
                 )}
 
                 <s-stack direction="block" gap="base" style={{ marginTop: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <s-text emphasis="strong">Value Formatting:</s-text>
+                    <span 
+                      title="Prefix and Suffix allow you to add text before or after the metafield value. For example, if your metafield value is '50' and you add suffix 'cm', it will display as '50 cm'. Prefix adds text before the value (e.g., '$50'), while Suffix adds text after the value (e.g., '50 cm'). A space is automatically added between the value and the prefix/suffix."
+                      style={{ 
+                        cursor: "help",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "16px",
+                        height: "16px",
+                        borderRadius: "50%",
+                        backgroundColor: "#202223",
+                        color: "#ffffff",
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                        lineHeight: "1",
+                        verticalAlign: "middle"
+                      }}
+                    >
+                      i
+                    </span>
+                  </div>
+                  <s-text-field
+                    label="Prefix"
+                    value={metafieldEditData.prefix}
+                    onChange={(e) =>
+                      setMetafieldEditData({
+                        ...metafieldEditData,
+                        prefix: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., $, €, etc."
+                    helpText="Text to add before the value. Example: prefix '$' with value '50' displays as '$ 50'"
+                  />
+                  <s-text-field
+                    label="Suffix"
+                    value={metafieldEditData.suffix}
+                    onChange={(e) =>
+                      setMetafieldEditData({
+                        ...metafieldEditData,
+                        suffix: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., cm, kg, etc."
+                    helpText="Text to add after the value. Example: suffix 'cm' with value '50' displays as '50 cm'"
+                  />
+                </s-stack>
+
+                <s-stack direction="block" gap="base" style={{ marginTop: "16px" }}>
                   <s-text emphasis="strong">Display Options:</s-text>
                   <s-switch
                     label="Hide from PC"
@@ -3332,7 +3434,7 @@ export default function TemplateEditorPage() {
                     variant="tertiary"
                     onClick={() => {
                       setEditingMetafield(null);
-                      setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false });
+                      setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false, prefix: "", suffix: "" });
                     }}
                   >
                     Cancel

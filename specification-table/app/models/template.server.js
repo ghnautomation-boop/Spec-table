@@ -52,6 +52,8 @@ export async function getTemplates(shopDomain) {
               tooltipText: true,
               hideFromPC: true,
               hideFromMobile: true,
+              prefix: true,
+              suffix: true,
               metafieldDefinition: {
                 select: {
                   id: true,
@@ -176,6 +178,8 @@ export async function createTemplate(data, shopDomain) {
             create: section.metafields?.map((metafield, metafieldIndex) => {
               const customName = metafield.customName && metafield.customName.trim() !== "" ? metafield.customName.trim() : null;
               const tooltipText = metafield.tooltipText && metafield.tooltipText.trim() !== "" ? metafield.tooltipText.trim() : null;
+              const prefix = metafield.prefix && metafield.prefix.trim() !== "" ? metafield.prefix.trim() : null;
+              const suffix = metafield.suffix && metafield.suffix.trim() !== "" ? metafield.suffix.trim() : null;
               
               return {
                 metafieldDefinitionId: metafield.metafieldDefinitionId,
@@ -185,6 +189,8 @@ export async function createTemplate(data, shopDomain) {
                 tooltipText,
                 hideFromPC: metafield.hideFromPC || false,
                 hideFromMobile: metafield.hideFromMobile || false,
+                prefix,
+                suffix,
               };
             }) || [],
           },
@@ -270,6 +276,8 @@ export async function duplicateTemplate(templateId, shopDomain) {
               tooltipText: metafield.tooltipText,
               hideFromPC: metafield.hideFromPC,
               hideFromMobile: metafield.hideFromMobile,
+              prefix: metafield.prefix,
+              suffix: metafield.suffix,
             })),
           },
         })),
@@ -397,6 +405,8 @@ export async function updateTemplate(templateId, data, shopDomain) {
             create: section.metafields?.map((metafield, metafieldIndex) => {
               const customName = metafield.customName && metafield.customName.trim() !== "" ? metafield.customName.trim() : null;
               const tooltipText = metafield.tooltipText && metafield.tooltipText.trim() !== "" ? metafield.tooltipText.trim() : null;
+              const prefix = metafield.prefix && metafield.prefix.trim() !== "" ? metafield.prefix.trim() : null;
+              const suffix = metafield.suffix && metafield.suffix.trim() !== "" ? metafield.suffix.trim() : null;
               
               return {
                 metafieldDefinitionId: metafield.metafieldDefinitionId,
@@ -406,6 +416,8 @@ export async function updateTemplate(templateId, data, shopDomain) {
                 tooltipText,
                 hideFromPC: metafield.hideFromPC || false,
                 hideFromMobile: metafield.hideFromMobile || false,
+                prefix,
+                suffix,
               };
             }) || [],
           },
@@ -819,6 +831,8 @@ async function getTemplateWithRelations(templateId) {
               tooltipText: true,
               hideFromPC: true,
               hideFromMobile: true,
+              prefix: true,
+              suffix: true,
               metafieldDefinition: {
                 select: {
                   id: true,
@@ -1101,6 +1115,8 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
       tooltipText: true,
       hideFromPC: true,
       hideFromMobile: true,
+      prefix: true,
+      suffix: true,
       metafieldDefinition: {
         select: {
           id: true,

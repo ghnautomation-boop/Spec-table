@@ -146,6 +146,8 @@ model TemplateSectionMetafield {
   tooltipText           String?  // Textul tooltip-ului
   hideFromPC           Boolean  @default(false) // Ascunde metafield-ul pe desktop
   hideFromMobile        Boolean  @default(false) // Ascunde metafield-ul pe mobile
+  prefix                String?  // Prefix pentru valoarea metafield-ului (ex: "cm" -> "cm 50")
+  suffix                String?  // Suffix pentru valoarea metafield-ului (ex: "cm" -> "50 cm")
   createdAt             DateTime @default(now())
   
   section               TemplateSection      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
