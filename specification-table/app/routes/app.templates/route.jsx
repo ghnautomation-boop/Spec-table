@@ -464,6 +464,9 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         type: 'product',
         multiple: true,
         selectionIds: preselectedIds.length > 0 ? preselectedIds.map(id => ({ id })) : undefined,
+        filter: {
+          variants: false, // Nu afișa variantele, doar produsele principale
+        },
       });
       
       console.log('[Resource Picker] Result:', result);

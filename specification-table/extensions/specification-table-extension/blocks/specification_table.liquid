@@ -1149,7 +1149,7 @@
       
       // Adaugă tooltip dacă este activat
       if (metafield.tooltipEnabled && metafield.tooltipText) {
-        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '">i</span>';
+        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '" data-tooltip-text="' + escapeHtml(metafield.tooltipText) + '" data-metafield-name="' + escapeHtml(displayName) + '">i</span>';
       }
       
       html += nameHtml + '  :';
@@ -1268,7 +1268,7 @@
       let nameHtml = escapeHtml(displayName);
       
       if (metafield.tooltipEnabled && metafield.tooltipText) {
-        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '">i</span>';
+        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '" data-tooltip-text="' + escapeHtml(metafield.tooltipText) + '" data-metafield-name="' + escapeHtml(displayName) + '">i</span>';
       }
       
       rowsHtml += nameHtml + '  :';
@@ -1397,6 +1397,72 @@
       }
     }
   };
+  
+  // Funcție pentru afișarea tooltip-ului pe mobil (click)
+  function showTooltipOnMobile(tooltipText, metafieldName, event) {
+    // Creează overlay-ul
+    const overlay = document.createElement('div');
+    overlay.className = 'dc_tooltip_overlay';
+    overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    
+    // Creează popup-ul
+    const popup = document.createElement('div');
+    popup.className = 'dc_tooltip_popup';
+    popup.style.cssText = 'background-color: #ffffff; border-radius: 8px; padding: 20px; max-width: 90%; max-height: 80%; overflow-y: auto; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); position: relative;';
+    
+    // Adaugă numele metafield-ului sus în mijloc, urmat de ":"
+    const nameElement = document.createElement('div');
+    nameElement.style.cssText = 'text-align: center; font-weight: bold; font-size: 16px; color: #202223; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e1e3e5;';
+    nameElement.textContent = metafieldName + ':';
+    popup.appendChild(nameElement);
+    
+    // Adaugă textul tooltip-ului (explicația)
+    const textElement = document.createElement('div');
+    textElement.style.cssText = 'color: #202223; font-size: 14px; line-height: 1.5;';
+    textElement.textContent = tooltipText;
+    popup.appendChild(textElement);
+    
+    // Adaugă butonul de închidere
+    const closeButton = document.createElement('button');
+    closeButton.textContent = '×';
+    closeButton.style.cssText = 'position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 24px; color: #6d7175; cursor: pointer; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; padding: 0;';
+    closeButton.onclick = function() {
+      document.body.removeChild(overlay);
+    };
+    popup.appendChild(closeButton);
+    
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    
+    // Închide popup-ul când se dă click pe overlay
+    overlay.onclick = function(e) {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+      }
+    };
+    
+    // Previne propagarea evenimentului
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+  
+  // Adaugă event listener pentru click pe tooltip pe mobil
+  document.addEventListener('click', function(event) {
+    const tooltip = event.target.closest('.dc_tooltip');
+    if (tooltip) {
+      // Verifică dacă este pe mobil (touch device sau ecran mic)
+      const isMobile = 'ontouchstart' in window || window.innerWidth <= 768;
+      if (isMobile) {
+        const tooltipText = tooltip.getAttribute('data-tooltip-text') || tooltip.getAttribute('title');
+        const metafieldName = tooltip.getAttribute('data-metafield-name') || '';
+        if (tooltipText) {
+          showTooltipOnMobile(tooltipText, metafieldName, event);
+        }
+      }
+    }
+  });
   
   // După ce template-ul este renderat, obține metafield-urile din Liquid
   // Aceasta este o limitare - trebuie să obții metafield-urile din Liquid și să le pasezi la JavaScript
