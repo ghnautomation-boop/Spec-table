@@ -1,26 +1,71 @@
 import prisma from "../db.server.js";
 
+// Debounce pentru rebuild - evită rebuild-uri multiple simultane pentru același shop
+const rebuildDebounceMap = new Map();
+
 /**
  * Helper function pentru a normaliza ID-urile Shopify
  * Exportat pentru a fi folosit în alte module
  */
 export function normalizeShopifyId(id) {
-  if (!id || typeof id !== 'string') return null;
-  const gidMatch = id.match(/gid:\/\/shopify\/(?:Product|Collection|Variant)\/(\d+)/);
+  if (!id) return null;
+  // Convertește la string pentru a putea lucra cu el (poate fi number sau string)
+  const idStr = String(id).trim();
+  if (!idStr) return null;
+  
+  // Dacă este în format GID (gid://shopify/Product/123), extrage doar partea numerică
+  const gidMatch = idStr.match(/gid:\/\/shopify\/(?:Product|Collection|Variant)\/(\d+)/);
   if (gidMatch) {
     return gidMatch[1];
   }
-  return String(id).trim() || null;
+  
+  // Dacă este deja numeric (doar cifre), returnează-l
+  if (/^\d+$/.test(idStr)) {
+    return idStr;
+  }
+  
+  // Altfel, returnează string-ul trimis (poate fi deja normalizat)
+  return idStr || null;
 }
 
 /**
  * Reconstruiește lookup table-ul pentru un shop
- * Această funcție recalculează toate mapping-urile bazate pe assignment-urile curente
+ * OPTIMIZAT: Nu mai stochează produsele din colecții - doar colecțiile în sine
+ * Collection.id vine din Shopify context (Liquid), nu din DB
+ * 
+ * Folosește debounce pentru a evita rebuild-uri multiple simultane pentru același shop
+ * 
  * @param {string} shopId - ID-ul shop-ului
- * @param {string} shopDomain - Domain-ul shop-ului (opțional, pentru a obține produsele din colecții)
- * @param {object} admin - Shopify Admin API client (opțional, pentru a obține produsele din colecții)
+ * @param {string} shopDomain - Domain-ul shop-ului (opțional, nu mai folosit pentru produse din colecții)
+ * @param {object} admin - Shopify Admin API client (opțional, nu mai folosit pentru produse din colecții)
  */
 export async function rebuildTemplateLookup(shopId, shopDomain = null, admin = null) {
+  // Debounce: dacă există deja un rebuild în curs pentru acest shop, așteaptă puțin și reîncearcă
+  const debounceKey = `rebuild-${shopId}`;
+  const existingRebuild = rebuildDebounceMap.get(debounceKey);
+  
+  if (existingRebuild) {
+    console.log(`[rebuildTemplateLookup] Debounce: Found existing rebuild for shop ${shopId}, waiting 200ms...`);
+    // Așteaptă puțin pentru ca assignment-urile să fie salvate
+    await new Promise(resolve => setTimeout(resolve, 200));
+    // Reîncearcă rebuild-ul
+    return rebuildTemplateLookup(shopId, shopDomain, admin);
+  }
+  
+  // Marchează că rebuild-ul este în curs
+  rebuildDebounceMap.set(debounceKey, true);
+  
+  try {
+    return await _rebuildTemplateLookupInternal(shopId, shopDomain, admin);
+  } finally {
+    // Elimină flag-ul după un mic delay pentru a permite rebuild-uri ulterioare
+    setTimeout(() => {
+      rebuildDebounceMap.delete(debounceKey);
+    }, 300);
+  }
+}
+
+async function _rebuildTemplateLookupInternal(shopId, shopDomain = null, admin = null) {
   // Șterge toate lookup-urile existente pentru acest shop
   await prisma.templateLookup.deleteMany({
     where: { shopId },
@@ -36,29 +81,38 @@ export async function rebuildTemplateLookup(shopId, shopDomain = null, admin = n
       template: {
         select: { id: true, isActive: true },
       },
-      targets: true,
+      targets: {
+        orderBy: {
+          id: "asc", // Ordine consistentă pentru a evita duplicate-uri
+        },
+      },
     },
+    orderBy: {
+      createdAt: "asc", // Ordine consistentă pentru procesare
+    },
+  });
+  
+  console.log(`[rebuildTemplateLookup] Found ${assignments.length} active assignments for shop ${shopId}`);
+  assignments.forEach((assignment, index) => {
+    console.log(`[rebuildTemplateLookup] Assignment ${index + 1}:`, {
+      templateId: assignment.templateId,
+      assignmentType: assignment.assignmentType,
+      targetsCount: assignment.targets?.length || 0,
+      targets: assignment.targets?.map(t => ({
+        id: t.id,
+        targetShopifyId: t.targetShopifyId,
+        targetType: t.targetType,
+        isExcluded: t.isExcluded,
+      })) || [],
+    });
   });
 
   if (assignments.length === 0) {
     return { rebuilt: 0 };
   }
 
-  // Obține toate produsele și colecțiile din shop (pentru DEFAULT și EXCEPT)
-  const [allProducts, allCollections] = await Promise.all([
-    prisma.product.findMany({
-      where: { shopId },
-      select: { shopifyId: true },
-    }),
-    prisma.collection.findMany({
-      where: { shopId },
-      select: { shopifyId: true },
-    }),
-  ]);
-
-  const normalizedProducts = allProducts.map(p => normalizeShopifyId(p.shopifyId)).filter(Boolean);
-  const normalizedCollections = allCollections.map(c => normalizeShopifyId(c.shopifyId)).filter(Boolean);
-
+  // NOUA LOGICĂ: Nu mai folosim PRODUCT_EXCEPT sau COLLECTION_EXCEPT
+  // Folosim doar produsele/colecțiile din DB (cele assignate)
   const lookupEntries = [];
 
   for (const assignment of assignments) {
@@ -66,15 +120,25 @@ export async function rebuildTemplateLookup(shopId, shopDomain = null, admin = n
     const assignmentType = assignment.assignmentType;
     const targets = assignment.targets || [];
 
-    // Determină dacă toate target-urile sunt excluse (EXCEPT logic)
-    const allExcluded = targets.length > 0 && targets.every(t => t.isExcluded);
-    const excludedIds = targets.filter(t => t.isExcluded).map(t => normalizeShopifyId(t.targetShopifyId));
-
     if (assignmentType === "PRODUCT") {
-      if (allExcluded) {
-        // PRODUCT_EXCEPT: toate produsele EXCEPT cele excluse
-        for (const productId of normalizedProducts) {
-          if (!excludedIds.includes(productId)) {
+      // PRODUCT direct: doar produsele specificate (care sunt deja în DB)
+      for (const target of targets) {
+        const productId = normalizeShopifyId(target.targetShopifyId);
+        if (productId) {
+          // Verifică dacă produsul există în DB (a fost sincronizat când s-a făcut assignment)
+          // Folosim normalizeShopifyId pentru a converti productId la format GID dacă e necesar
+          const productGid = productId.startsWith("gid://") ? productId : `gid://shopify/Product/${productId}`;
+          const productExists = await prisma.product.findFirst({
+            where: {
+              shopId,
+              OR: [
+                { shopifyId: productGid },
+                { shopifyId: productId },
+              ],
+            },
+          });
+          
+          if (productExists) {
             lookupEntries.push({
               shopId,
               productId,
@@ -82,213 +146,156 @@ export async function rebuildTemplateLookup(shopId, shopDomain = null, admin = n
               templateId,
               priority: 1, // PRODUCT priority
             });
-          }
-        }
-      } else {
-        // PRODUCT direct: doar produsele specificate
-        for (const target of targets) {
-          if (!target.isExcluded) {
-            const productId = normalizeShopifyId(target.targetShopifyId);
-            if (productId) {
-              lookupEntries.push({
-                shopId,
-                productId,
-                collectionId: null,
-                templateId,
-                priority: 1, // PRODUCT priority
-              });
-            }
+          } else {
+            console.warn(`[rebuildTemplateLookup] Product ${productId} not found in DB, skipping`);
           }
         }
       }
     } else if (assignmentType === "COLLECTION") {
-      if (allExcluded) {
-        // COLLECTION_EXCEPT: toate colecțiile EXCEPT cele excluse
-        for (const collectionId of normalizedCollections) {
-          if (!excludedIds.includes(collectionId)) {
-            // Adaugă intrarea pentru colecție
+      // COLLECTION direct: doar colecțiile specificate (care sunt deja în DB)
+      // Elimină duplicate-urile din targets înainte de procesare
+      const uniqueTargets = [];
+      const seenTargetIds = new Set();
+      for (const target of targets) {
+        const normalizedTargetId = normalizeShopifyId(target.targetShopifyId);
+        if (normalizedTargetId && !seenTargetIds.has(normalizedTargetId)) {
+          seenTargetIds.add(normalizedTargetId);
+          uniqueTargets.push(target);
+        }
+      }
+      
+      console.log(`[rebuildTemplateLookup] Processing ${uniqueTargets.length} unique collection targets (from ${targets.length} total)`);
+      
+      for (const target of uniqueTargets) {
+        const collectionId = normalizeShopifyId(target.targetShopifyId);
+        
+        if (collectionId) {
+          // Verifică dacă colecția există în DB (a fost sincronizată când s-a făcut assignment)
+          // Folosim normalizeShopifyId pentru a converti collectionId la format GID dacă e necesar
+          const collectionGid = collectionId.startsWith("gid://") ? collectionId : `gid://shopify/Collection/${collectionId}`;
+          const collectionExists = await prisma.collection.findFirst({
+            where: {
+              shopId,
+              OR: [
+                { shopifyId: collectionGid },
+                { shopifyId: collectionId },
+              ],
+            },
+          });
+          
+          if (collectionExists) {
+            // Asigură-te că collectionId este string pentru consistență în DB
+            const collectionIdStr = String(collectionId).trim();
+            
+            // Adaugă doar intrarea pentru colecție (fără produsele din ea)
             lookupEntries.push({
               shopId,
               productId: null,
-              collectionId,
+              collectionId: collectionIdStr,
               templateId,
               priority: 2, // COLLECTION priority
             });
-            
-            // Dacă avem acces la Shopify Admin API, obține produsele din colecție
-            if (admin && shopDomain) {
-              try {
-                const collectionGid = `gid://shopify/Collection/${collectionId}`;
-                const query = `
-                  query getCollectionProducts($id: ID!, $cursor: String) {
-                    collection(id: $id) {
-                      id
-                      products(first: 250, after: $cursor) {
-                        pageInfo {
-                          hasNextPage
-                          endCursor
-                        }
-                        nodes {
-                          id
-                        }
-                      }
-                    }
-                  }
-                `;
-                
-                let hasNextPage = true;
-                let cursor = null;
-                
-                while (hasNextPage) {
-                  const variables = { id: collectionGid, ...(cursor && { cursor }) };
-                  const response = await admin.graphql(query, { variables });
-                  const data = await response.json();
-                  
-                  if (data.errors) {
-                    console.error(`Error fetching products for collection ${collectionId}:`, data.errors);
-                    break;
-                  }
-                  
-                  const products = data.data?.collection?.products?.nodes || [];
-                  const pageInfo = data.data?.collection?.products?.pageInfo;
-                  
-                  // Adaugă produsele din colecție în lookup table cu priority 2 (COLLECTION priority)
-                  for (const product of products) {
-                    const normalizedProductId = normalizeShopifyId(product.id);
-                    if (normalizedProductId) {
-                      lookupEntries.push({
-                        shopId,
-                        productId: normalizedProductId,
-                        collectionId: null, // Nu setăm collectionId pentru a evita duplicate-urile
-                        templateId,
-                        priority: 2, // COLLECTION priority (mai mică decât PRODUCT direct)
-                      });
-                    }
-                  }
-                  
-                  hasNextPage = pageInfo?.hasNextPage || false;
-                  cursor = pageInfo?.endCursor || null;
-                }
-              } catch (error) {
-                console.error(`Error fetching products for collection ${collectionId}:`, error);
-                // Continuă fără produsele din colecție dacă există o eroare
-              }
-            }
+          } else {
+            console.warn(`[rebuildTemplateLookup] Collection ${collectionId} not found in DB, skipping`);
           }
-        }
-      } else {
-        // COLLECTION direct: doar colecțiile specificate
-        for (const target of targets) {
-          if (!target.isExcluded) {
-            const collectionId = normalizeShopifyId(target.targetShopifyId);
-            if (collectionId) {
-              // Adaugă intrarea pentru colecție
-              lookupEntries.push({
-                shopId,
-                productId: null,
-                collectionId,
-                templateId,
-                priority: 2, // COLLECTION priority
-              });
-              
-              // Dacă avem acces la Shopify Admin API, obține produsele din colecție
-              if (admin && shopDomain) {
-                try {
-                  const collectionGid = `gid://shopify/Collection/${collectionId}`;
-                  const query = `
-                    query getCollectionProducts($id: ID!, $cursor: String) {
-                      collection(id: $id) {
-                        id
-                        products(first: 250, after: $cursor) {
-                          pageInfo {
-                            hasNextPage
-                            endCursor
-                          }
-                          nodes {
-                            id
-                          }
-                        }
-                      }
-                    }
-                  `;
-                  
-                  let hasNextPage = true;
-                  let cursor = null;
-                  
-                  while (hasNextPage) {
-                    const variables = { id: collectionGid, ...(cursor && { cursor }) };
-                    const response = await admin.graphql(query, { variables });
-                    const data = await response.json();
-                    
-                    if (data.errors) {
-                      console.error(`Error fetching products for collection ${collectionId}:`, data.errors);
-                      break;
-                    }
-                    
-                    const products = data.data?.collection?.products?.nodes || [];
-                    const pageInfo = data.data?.collection?.products?.pageInfo;
-                    
-                    // Adaugă produsele din colecție în lookup table cu priority 2 (COLLECTION priority)
-                    for (const product of products) {
-                      const normalizedProductId = normalizeShopifyId(product.id);
-                      if (normalizedProductId) {
-                        lookupEntries.push({
-                          shopId,
-                          productId: normalizedProductId,
-                          collectionId: null, // Nu setăm collectionId pentru a evita duplicate-uri
-                          templateId,
-                          priority: 2, // COLLECTION priority (mai mică decât PRODUCT direct)
-                        });
-                      }
-                    }
-                    
-                    hasNextPage = pageInfo?.hasNextPage || false;
-                    cursor = pageInfo?.endCursor || null;
-                  }
-                } catch (error) {
-                  console.error(`Error fetching products for collection ${collectionId}:`, error);
-                  // Continuă fără produsele din colecție dacă există o eroare
-                }
-              }
-            }
-          }
+        } else {
+          console.warn(`[rebuildTemplateLookup] Failed to normalize collectionId:`, {
+            targetShopifyId: target.targetShopifyId,
+            targetType: target.targetType,
+          });
         }
       }
     } else if (assignmentType === "DEFAULT") {
-      // DEFAULT: toate produsele și colecțiile
-      for (const productId of normalizedProducts) {
-        lookupEntries.push({
-          shopId,
-          productId,
-          collectionId: null,
-          templateId,
-          priority: 3, // DEFAULT priority
-        });
-      }
-      for (const collectionId of normalizedCollections) {
-        lookupEntries.push({
-          shopId,
-          productId: null,
-          collectionId,
-          templateId,
-          priority: 3, // DEFAULT priority
-        });
-      }
+      // OPTIMIZAT: DEFAULT este doar 1 linie per shop cu isDefault=true
+      // Nu mai stocăm toate produsele și colecțiile - se aplică automat dacă nu găsești PRODUCT sau COLLECTION
+      lookupEntries.push({
+        shopId,
+        productId: null,
+        collectionId: null,
+        templateId,
+        priority: 3, // DEFAULT priority
+        isDefault: true, // Marchează ca DEFAULT pentru lookup rapid
+      });
     }
   }
 
   // Inserează lookup-urile în batch-uri pentru performanță
   if (lookupEntries.length > 0) {
-    // Folosim createMany pentru performanță, dar trebuie să gestionăm duplicate-urile
-    // PostgreSQL va ignora duplicate-urile datorită unique constraint
-    const batchSize = 1000;
-    for (let i = 0; i < lookupEntries.length; i += batchSize) {
-      const batch = lookupEntries.slice(i, i + batchSize);
-      await prisma.templateLookup.createMany({
-        data: batch,
-        skipDuplicates: true, // Ignoră duplicate-urile (datorită unique constraint)
-      });
+    // Elimină duplicate-urile înainte de salvare
+    // NOTĂ: Unique constraint este pe [shopId, productId, collectionId, priority] (FĂRĂ templateId)
+    // Asta înseamnă că pot exista doar UN template per combinație shopId/productId/collectionId/priority
+    // Dacă există duplicate-uri, păstrăm ultimul (cel mai recent procesat)
+    const uniqueEntriesMap = new Map();
+    for (const entry of lookupEntries) {
+      // Creează o cheie unică bazată pe unique constraint (FĂRĂ templateId)
+      const key = `${entry.shopId}|${entry.productId || 'null'}|${entry.collectionId || 'null'}|${entry.priority}`;
+      
+      if (!uniqueEntriesMap.has(key)) {
+        uniqueEntriesMap.set(key, entry);
+      } else {
+        // Dacă există deja o intrare cu aceeași cheie, înseamnă că avem un conflict
+        // Păstrăm ultimul (cel mai recent procesat) - asta înseamnă că ultimul template asignat va fi folosit
+        const existing = uniqueEntriesMap.get(key);
+        if (existing.templateId !== entry.templateId) {
+          console.warn(`[rebuildTemplateLookup] Duplicate entry found with different templateId (keeping latest):`, {
+            existing: existing.templateId,
+            new: entry.templateId,
+            key: key,
+            priority: entry.priority,
+          });
+        }
+        // Păstrăm ultimul (cel mai recent)
+        uniqueEntriesMap.set(key, entry);
+      }
     }
+    
+    const uniqueEntries = Array.from(uniqueEntriesMap.values());
+    
+    // Debug: afișează ce se va salva în DB
+    console.log(`[rebuildTemplateLookup] About to save ${uniqueEntries.length} unique lookup entries (from ${lookupEntries.length} total)`);
+    
+    // Debug: afișează toate entry-urile pentru debugging
+    const defaultEntries = uniqueEntries.filter(e => e.isDefault === true);
+    const collectionEntries = uniqueEntries.filter(e => e.collectionId !== null && e.isDefault !== true);
+    const productEntries = uniqueEntries.filter(e => e.productId !== null && e.isDefault !== true);
+    
+    if (defaultEntries.length > 0) {
+      console.log(`[rebuildTemplateLookup] DEFAULT entries to save:`, defaultEntries.map(e => ({
+        templateId: e.templateId,
+        priority: e.priority,
+        isDefault: e.isDefault,
+      })));
+    }
+    if (collectionEntries.length > 0) {
+      console.log(`[rebuildTemplateLookup] Collection entries to save:`, collectionEntries.map(e => ({
+        collectionId: e.collectionId,
+        collectionIdType: typeof e.collectionId,
+        templateId: e.templateId,
+        priority: e.priority,
+      })));
+    }
+    if (productEntries.length > 0) {
+      console.log(`[rebuildTemplateLookup] Product entries to save:`, productEntries.map(e => ({
+        productId: e.productId,
+        templateId: e.templateId,
+        priority: e.priority,
+      })));
+    }
+    
+    // Folosim createMany pentru performanță
+    // Nu mai avem nevoie de skipDuplicates pentru că am șters toate entry-urile vechi la începutul funcției
+    const batchSize = 1000;
+    let totalSaved = 0;
+    for (let i = 0; i < uniqueEntries.length; i += batchSize) {
+      const batch = uniqueEntries.slice(i, i + batchSize);
+      const result = await prisma.templateLookup.createMany({
+        data: batch,
+        skipDuplicates: false, // Nu mai avem nevoie de skipDuplicates
+      });
+      totalSaved += result.count;
+      console.log(`[rebuildTemplateLookup] Saved batch ${i / batchSize + 1}: ${result.count} entries`);
+    }
+    console.log(`[rebuildTemplateLookup] Total saved: ${totalSaved} entries`);
   }
 
   return { rebuilt: lookupEntries.length };
@@ -309,42 +316,56 @@ export async function getTemplateFromLookup(shopId, productId = null, collection
   const normalizedProductId = normalizeShopifyId(productId);
   const normalizedCollectionId = normalizeShopifyId(collectionId);
 
-  // Construiește condițiile WHERE pentru un singur query optimizat
-  const whereConditions = {
-    shopId,
-    OR: [],
-  };
-
-  // Adaugă condiția pentru productId dacă există
+  // OPTIMIZAT: Query-uri separate în ordinea priorității (mai eficient decât OR)
+  // 1. Caută după productId (priority 1) - PRODUCT assignment direct
   if (normalizedProductId) {
-    whereConditions.OR.push({
-      AND: [
-        { productId: normalizedProductId },
-        { productId: { not: null } },
-      ],
+    const lookup = await prisma.templateLookup.findFirst({
+      where: {
+        shopId,
+        productId: normalizedProductId,
+      },
+      orderBy: {
+        priority: "asc",
+      },
+      select: {
+        templateId: true,
+      },
     });
+    
+    if (lookup) {
+      return lookup.templateId;
+    }
   }
 
-  // Adaugă condiția pentru collectionId dacă există
+  // 2. Dacă nu s-a găsit, caută după collectionId (priority 2)
+  // NOTĂ: collectionId vine din parametru (Shopify context), nu din DB
   if (normalizedCollectionId) {
-    whereConditions.OR.push({
-      AND: [
-        { collectionId: normalizedCollectionId },
-        { collectionId: { not: null } },
-      ],
+    const lookup = await prisma.templateLookup.findFirst({
+      where: {
+        shopId,
+        collectionId: normalizedCollectionId,
+      },
+      orderBy: {
+        priority: "asc",
+      },
+      select: {
+        templateId: true,
+      },
     });
+    
+    if (lookup) {
+      return lookup.templateId;
+    }
   }
 
-  // Adaugă condiția pentru DEFAULT (isDefault = true)
-  whereConditions.OR.push({
-    isDefault: true,
-  });
-
-  // Un singur query optimizat cu OR pentru toate cazurile
+  // 3. Dacă nu s-a găsit, caută DEFAULT (priority 3) - 1 linie per shop
   const lookup = await prisma.templateLookup.findFirst({
-    where: whereConditions,
+    where: {
+      shopId,
+      isDefault: true,
+    },
     orderBy: {
-      priority: "asc", // Prioritatea cea mai mică (PRODUCT=1) este cea mai importantă
+      priority: "asc",
     },
     select: {
       templateId: true,

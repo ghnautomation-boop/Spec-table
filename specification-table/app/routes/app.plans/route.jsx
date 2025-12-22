@@ -364,14 +364,17 @@ export default function PlansRoute() {
               const isEligible = Number(productsCount ?? 0) <= p.maxProducts;
               const isTooSmall = !isEligible;
               const isActivated = p.key === existingPlan;
+              
+              // NOUA LOGICĂ: Evidențiază planul activ dacă există, altfel evidențiază planul recomandat
+              const isHighlighted = isActivated || (!existingPlan && isRecommended);
 
               return (
             <s-box
               key={p.key}
-              borderWidth={isRecommended ? "large" : "small"}
-              borderColor={isRecommended ? "strong" : "base"}
+              borderWidth={isHighlighted ? "large" : "small"}
+              borderColor={isHighlighted ? "strong" : "base"}
               borderRadius="base"
-              background={isRecommended ? "subdued" : "base"}
+              background={isHighlighted ? "subdued" : "base"}
               padding="base"
             >
               <s-stack direction="block" gap="base">
@@ -403,7 +406,7 @@ export default function PlansRoute() {
                   >
                     <input type="hidden" name="planKey" value={p.key} />
                     <s-button
-                      variant={isRecommended ? "primary" : "secondary"}
+                      variant={isHighlighted ? "primary" : "secondary"}
                       disabled={isTooSmall || isSubmitting || isActivated}
                       type="submit"
                       onClick={() => {

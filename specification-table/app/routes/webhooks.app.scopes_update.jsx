@@ -19,13 +19,14 @@ export const action = async ({ request }) => {
     });
   }
 
-  // Sincronizează datele când scopes-urile sunt actualizate (la reinstalare)
+  // Sincronizează metafield definitions când scopes-urile sunt actualizate (la reinstalare)
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai populăm products și collections la instalare)
   try {
-    console.log(`Syncing data for shop ${shop} after scopes update`);
+    console.log(`Syncing metafield definitions for shop ${shop} after scopes update`);
     await syncAll(admin, shop);
-    console.log(`Successfully synced data for shop ${shop}`);
+    console.log(`Successfully synced metafield definitions for shop ${shop}`);
   } catch (error) {
-    console.error("Error syncing data on scopes update:", error);
+    console.error("Error syncing metafield definitions on scopes update:", error);
   }
 
   return new Response();

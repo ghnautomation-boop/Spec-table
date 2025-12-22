@@ -53,13 +53,12 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
 
   // Check if data is already synced for this shop
+  // NOUA LOGICĂ: Nu mai verificăm products și collections (doar metafield definitions)
   const shop = await prisma.shop.findUnique({
     where: { shopDomain: session.shop },
     include: {
       _count: {
         select: {
-          products: true,
-          collections: true,
           metafieldDefinitions: {
             where: {
               ownerType: "PRODUCT",
@@ -71,12 +70,8 @@ export const loader = async ({ request }) => {
         select: {
           lastComparisonOk: true,
           lastMismatchDetails: true,
-          appProducts: true,
-          appCollections: true,
           appProductMetafields: true,
           appVariantMetafields: true,
-          shopifyProducts: true,
-          shopifyCollections: true,
           shopifyProductMetafields: true,
           shopifyVariantMetafields: true,
         },
@@ -97,46 +92,13 @@ export const loader = async ({ request }) => {
   const productMetafieldsCount = shop?._count?.metafieldDefinitions || 0;
 
   // Get counts from Shopify using GraphQL
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai verificăm products și collections)
   let shopifyCounts = {
-    products: null,
-    collections: null,
     productMetafields: null,
     variantMetafields: null,
   };
 
   try {
-    // Get products count
-    const productsCountQuery = `
-      query {
-        productsCount {
-          count
-        }
-      }
-    `;
-    const productsResponse = await admin.graphql(productsCountQuery);
-    const productsData = await productsResponse.json();
-    if (!productsData.errors && productsData.data?.productsCount) {
-      shopifyCounts.products = productsData.data.productsCount.count || 0;
-    } else {
-      console.error("Error getting products count:", productsData.errors);
-    }
-
-    // Get collections count
-    const collectionsCountQuery = `
-      query {
-        collectionsCount {
-          count
-        }
-      }
-    `;
-    const collectionsResponse = await admin.graphql(collectionsCountQuery);
-    const collectionsData = await collectionsResponse.json();
-    if (!collectionsData.errors && collectionsData.data?.collectionsCount) {
-      shopifyCounts.collections = collectionsData.data.collectionsCount.count || 0;
-    } else {
-      console.error("Error getting collections count:", collectionsData.errors);
-    }
-
     // Count metafield definitions (PRODUCT)
     const productMetafieldsCount = await countMetafieldDefinitions(admin, "PRODUCT");
     if (productMetafieldsCount !== null) {
@@ -154,32 +116,25 @@ export const loader = async ({ request }) => {
   }
 
   // Calculează dacă există mismatch-uri comparând count-urile
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai verificăm products și collections)
   let hasMismatch = false;
   if (shop && shop.syncStatus) {
     const appCounts = {
-      products: shop._count.products || 0,
-      collections: shop._count.collections || 0,
       productMetafields: productMetafieldsCount,
       variantMetafields: variantMetafieldsCount,
     };
     
     const shopifyCountsForComparison = {
-      products: shopifyCounts.products,
-      collections: shopifyCounts.collections,
       productMetafields: shopifyCounts.productMetafields,
       variantMetafields: shopifyCounts.variantMetafields,
     };
     
     // Verifică mismatch-uri doar dacă avem count-uri din Shopify
     if (
-      shopifyCountsForComparison.products !== null &&
-      shopifyCountsForComparison.collections !== null &&
       shopifyCountsForComparison.productMetafields !== null &&
       shopifyCountsForComparison.variantMetafields !== null
     ) {
       hasMismatch =
-        appCounts.products !== shopifyCountsForComparison.products ||
-        appCounts.collections !== shopifyCountsForComparison.collections ||
         appCounts.productMetafields !== shopifyCountsForComparison.productMetafields ||
         appCounts.variantMetafields !== shopifyCountsForComparison.variantMetafields;
     } else {
@@ -189,14 +144,10 @@ export const loader = async ({ request }) => {
   } else if (shop) {
     // Dacă shop-ul există dar nu are SyncStatus, verificăm manual
     if (
-      shopifyCounts.products !== null &&
-      shopifyCounts.collections !== null &&
       shopifyCounts.productMetafields !== null &&
       shopifyCounts.variantMetafields !== null
     ) {
       hasMismatch =
-        (shop._count.products || 0) !== shopifyCounts.products ||
-        (shop._count.collections || 0) !== shopifyCounts.collections ||
         productMetafieldsCount !== shopifyCounts.productMetafields ||
         variantMetafieldsCount !== shopifyCounts.variantMetafields;
     }
@@ -207,8 +158,6 @@ export const loader = async ({ request }) => {
     hasMismatch,
     counts: shop
       ? {
-          products: shop._count.products || 0,
-          collections: shop._count.collections || 0,
           productMetafields: productMetafieldsCount,
           variantMetafields: variantMetafieldsCount,
         }
@@ -226,16 +175,6 @@ export const action = async ({ request }) => {
     return {
       success: true,
       results: {
-        products: results.products
-          ? {
-              totalSynced: results.products.totalSynced,
-            }
-          : null,
-        collections: results.collections
-          ? {
-              totalSynced: results.collections.totalSynced,
-            }
-          : null,
         metafieldDefinitions: results.metafieldDefinitions
           ? {
               totalSynced: results.metafieldDefinitions.totalSynced,
@@ -262,7 +201,8 @@ export default function SyncPage() {
     ["loading", "submitting"].includes(fetcher.state) &&
     fetcher.formMethod === "POST";
   
-  // Butonul este activ doar dacă există mismatch-uri sau dacă nu a fost făcut sync niciodată
+  // Butonul este activ doar dacă există mismatch-uri pe metafields sau dacă nu a fost făcut sync niciodată
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai verificăm products și collections)
   const isButtonEnabled = !isSynced || hasMismatch;
 
   // Simulate loading state for Shopify data (it's already loaded in loader, but we show spinner briefly)
@@ -299,9 +239,8 @@ export default function SyncPage() {
           <s-stack direction="block" gap="base">
             <s-heading size="large">Sync Your Store Data</s-heading>
             <s-paragraph>
-              This page synchronizes all products, collections, and metafield definitions
-              from your store into the application database. This ensures your templates
-              have access to the latest store data.
+              This page synchronizes metafield definitions from your store into the application database.
+              This ensures your templates have access to the latest metafield definitions.
             </s-paragraph>
           </s-stack>
         </s-section>
@@ -346,84 +285,6 @@ export default function SyncPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {/* Products Row */}
-                    {(() => {
-                      const appValue = counts?.products ?? 0;
-                      const shopifyValue = shopifyCounts?.products ?? null;
-                      const isMatch = shopifyValue !== null && appValue === shopifyValue;
-                      return (
-                        <tr style={{ 
-                          borderTop: "1px solid #e1e3e5",
-                          backgroundColor: isMatch ? "#e8f5e9" : shopifyValue !== null ? "#fff3cd" : "transparent"
-                        }}>
-                          <td style={{ padding: "16px" }}>
-                            <s-stack direction="inline" gap="base" justifyContent="start">
-                              <s-text emphasis="strong" size="large">{appValue}</s-text>
-                              <s-text tone="subdued">Products</s-text>
-                            </s-stack>
-                          </td>
-                          <td style={{ padding: "16px", justifyContent: "center", display:"flex" }}>
-                            {shopifyValue !== null ? (
-                              isMatch ? (
-                                <s-badge tone="success">In Sync</s-badge>
-                              ) : (
-                                <s-badge tone="warning">Mismatch</s-badge>
-                              )
-                            ) : (
-                              <s-badge tone="subdued">—</s-badge>
-                            )}
-                          </td>
-                          <td style={{ padding: "16px", textAlign: "right" }}>
-                            <s-stack direction="inline" gap="base" justifyContent="end">
-                              <s-text emphasis="strong" size="large">
-                                {shopifyValue !== null ? shopifyValue : "—"}
-                              </s-text>
-                              <s-text tone="subdued">Products</s-text>
-                            </s-stack>
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                    
-                    {/* Collections Row */}
-                    {(() => {
-                      const appValue = counts?.collections ?? 0;
-                      const shopifyValue = shopifyCounts?.collections ?? null;
-                      const isMatch = shopifyValue !== null && appValue === shopifyValue;
-                      return (
-                        <tr style={{ 
-                          borderTop: "1px solid #e1e3e5",
-                          backgroundColor: isMatch ? "#e8f5e9" : shopifyValue !== null ? "#fff3cd" : "transparent"
-                        }}>
-                          <td style={{ padding: "16px" }}>
-                            <s-stack direction="inline" gap="base" blockAlignment="center">
-                              <s-text emphasis="strong" size="large">{appValue}</s-text>
-                              <s-text tone="subdued">Collections</s-text>
-                            </s-stack>
-                          </td>
-                          <td style={{ padding: "16px", justifyContent: "center", display:"flex" }}>
-                            {shopifyValue !== null ? (
-                              isMatch ? (
-                                <s-badge tone="success">In Sync</s-badge>
-                              ) : (
-                                <s-badge tone="warning">Mismatch</s-badge>
-                              )
-                            ) : (
-                              <s-badge tone="subdued">—</s-badge>
-                            )}
-                          </td>
-                          <td style={{ padding: "16px", textAlign: "right" }}>
-                            <s-stack direction="inline" gap="base" justifyContent="end">
-                              <s-text emphasis="strong" size="large">
-                                {shopifyValue !== null ? shopifyValue : "—"}
-                              </s-text>
-                              <s-text tone="subdued">Collections</s-text>
-                            </s-stack>
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                    
                     {/* Product Metafields Row */}
                     {(() => {
                       const appValue = counts?.productMetafields ?? 0;

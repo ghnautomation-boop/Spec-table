@@ -6,7 +6,39 @@
 <link rel="stylesheet" href="{{ 'specification-table.css' | asset_url }}">
 
 {% assign product_id = product.id | default: block.settings.product.id %}
-{% assign collection_id = collection.id | default: block.settings.collection.id %}
+{% comment %}
+  Extrage collection_id:
+  1. Dacă suntem pe o pagină de colecție → folosim collection.id
+  2. Dacă suntem pe o pagină de produs → folosim prima colecție din product.collections
+     NOTĂ: Pe paginile de produs, collection.id NU există în context
+     Trebuie să folosim product.collections pentru a obține colecțiile
+  3. Fallback la block.settings.collection.id
+{% endcomment %}
+{% assign collection_id = blank %}
+
+{% comment %} Verifică dacă suntem pe o pagină de colecție {% endcomment %}
+{% if collection and collection.id %}
+  {% assign collection_id = collection.id %}
+{% comment %} Verifică dacă suntem pe o pagină de produs și produsul are colecții {% endcomment %}
+{% elsif product and product.collections %}
+  {% comment %} 
+    Pe paginile de produs, collection.id NU există în context
+    Trebuie să iterăm prin product.collections pentru a obține prima colecție
+    NOTĂ: Folosim collection_item pentru a evita conflictul cu variabila globală collection
+  {% endcomment %}
+  {% for collection_item in product.collections limit: 1 %}
+    {% assign collection_id = collection_item.id %}
+  {% endfor %}
+{% elsif block.settings.collection and block.settings.collection.id %}
+  {% assign collection_id = block.settings.collection.id %}
+{% endif %}
+
+{% comment %} Debug: afișează collection_id pentru debugging {% endcomment %}
+{% if collection_id != blank %}
+  {% comment %} Collection ID found: {{ collection_id }} {% endcomment %}
+{% else %}
+  {% comment %} No collection ID found {% endcomment %}
+{% endif %}
 {% assign shop_domain = shop.permanent_domain %}
 
 {% comment %} Container pentru template {% endcomment %}
@@ -19,7 +51,7 @@
 
 <div id="specification-table-container-{{ block.id }}" 
      data-product-id="{{ product_id }}" 
-     data-collection-id="{{ collection_id }}" 
+     {% if collection_id != blank %}data-collection-id="{{ collection_id }}"{% endif %}
      data-shop="{{ shop_domain }}"
      data-max-width="{{ max_width }}"
      data-alignment="{{ alignment }}"
@@ -253,8 +285,24 @@
   if (!container) return;
   
   const productId = container.dataset.productId;
-  const collectionId = container.dataset.collectionId;
+  // IMPORTANT: dataset.collectionId poate fi undefined (dacă atributul nu există), empty string, sau string cu valoare
+  // Trebuie să normalizăm pentru a obține valoarea corectă
+  let collectionId = container.dataset.collectionId;
+  // Dacă atributul nu există sau este empty string sau "null", setăm la null
+  if (!collectionId || collectionId === "" || collectionId === "null" || collectionId === null || collectionId === undefined) {
+    collectionId = null;
+  }
   const shopDomain = container.dataset.shop;
+  
+  // Debug logging
+  console.log('[Liquid] Extracted values:', {
+    productId: productId,
+    collectionId: collectionId,
+    collectionIdType: typeof collectionId,
+    collectionIdRaw: container.dataset.collectionId,
+    hasCollectionIdAttr: container.hasAttribute('data-collection-id'),
+    shopDomain: shopDomain,
+  });
   
   // Folosește app proxy pentru a accesa API-urile
   // App proxy URL: https://{shop-domain}/apps/{subpath}
@@ -424,11 +472,14 @@
   
   // Folosește app proxy pentru a accesa API-ul template
   // App proxy URL: https://{shop-domain}/apps/description-container-v1
+  // IMPORTANT: Trimitem AMBELE productId și collectionId dacă există
+  // pentru ca lookup-ul să poată verifica priority 1 (PRODUCT) și priority 2 (COLLECTION)
   const templateProxyUrl = getAppProxyUrl('description-container-v1');
   let templateApiUrl = templateProxyUrl + '?shop=' + encodeURIComponent(shopDomain);
   if (productId) {
     templateApiUrl += '&productId=' + encodeURIComponent(productId);
-  } else if (collectionId) {
+  }
+  if (collectionId) {
     templateApiUrl += '&collectionId=' + encodeURIComponent(collectionId);
   }
   

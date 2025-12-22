@@ -215,11 +215,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
   const getAssignmentTypeFromAssignment = () => {
     if (!assignment) return "NONE";
     if (assignment.assignmentType === "DEFAULT") return "GLOBAL";
-    // Verifică dacă toate target-urile sunt excluded
-    const allExcluded = assignment.targets?.every(t => t.isExcluded) || false;
-    if (allExcluded && assignment.targets?.length > 0) {
-      return assignment.assignmentType === "PRODUCT" ? "PRODUCT_EXCEPT" : "COLLECTION_EXCEPT";
-    }
     return assignment.assignmentType;
   };
 
@@ -230,20 +225,12 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
   const [selectedCollections, setSelectedCollections] = useState(
     assignment?.targets?.filter(t => t.targetType === "COLLECTION" && !t.isExcluded).map(t => t.targetShopifyId) || []
   );
-  const [excludedProducts, setExcludedProducts] = useState(
-    assignment?.targets?.filter(t => t.targetType === "PRODUCT" && t.isExcluded).map(t => t.targetShopifyId) || []
-  );
-  const [excludedCollections, setExcludedCollections] = useState(
-    assignment?.targets?.filter(t => t.targetType === "COLLECTION" && t.isExcluded).map(t => t.targetShopifyId) || []
-  );
   
   // Logging pentru debugging
   useEffect(() => {
     console.log('[TemplateAssignment] Assignment loaded:', assignment);
     console.log('[TemplateAssignment] Selected products:', selectedProducts);
     console.log('[TemplateAssignment] Selected collections:', selectedCollections);
-    console.log('[TemplateAssignment] Excluded products:', excludedProducts);
-    console.log('[TemplateAssignment] Excluded collections:', excludedCollections);
   }, []);
   
   // Actualizează state-ul când assignment-ul se schimbă (după salvare)
@@ -255,17 +242,9 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
       const newSelectedCollections = assignment.targets
         .filter(t => t.targetType === "COLLECTION" && !t.isExcluded)
         .map(t => t.targetShopifyId) || [];
-      const newExcludedProducts = assignment.targets
-        .filter(t => t.targetType === "PRODUCT" && t.isExcluded)
-        .map(t => t.targetShopifyId) || [];
-      const newExcludedCollections = assignment.targets
-        .filter(t => t.targetType === "COLLECTION" && t.isExcluded)
-        .map(t => t.targetShopifyId) || [];
       
       setSelectedProducts(newSelectedProducts);
       setSelectedCollections(newSelectedCollections);
-      setExcludedProducts(newExcludedProducts);
-      setExcludedCollections(newExcludedCollections);
     }
   }, [assignment]);
   const [productSearch, setProductSearch] = useState("");
@@ -282,8 +261,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     assignmentType: getAssignmentTypeFromAssignment(),
     selectedProducts: assignment?.targets?.filter(t => t.targetType === "PRODUCT" && !t.isExcluded).map(t => t.targetShopifyId) || [],
     selectedCollections: assignment?.targets?.filter(t => t.targetType === "COLLECTION" && !t.isExcluded).map(t => t.targetShopifyId) || [],
-    excludedProducts: assignment?.targets?.filter(t => t.targetType === "PRODUCT" && t.isExcluded).map(t => t.targetShopifyId) || [],
-    excludedCollections: assignment?.targets?.filter(t => t.targetType === "COLLECTION" && t.isExcluded).map(t => t.targetShopifyId) || [],
   });
   
   // Flag pentru a preveni declanșarea Save Bar la prima încărcare
@@ -316,22 +293,8 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
       return true;
     }
 
-    // Compară excludedProducts
-    const currentExcludedProducts = JSON.stringify([...excludedProducts].sort());
-    const initialExcludedProducts = JSON.stringify([...initialFormState.current.excludedProducts].sort());
-    if (currentExcludedProducts !== initialExcludedProducts) {
-      return true;
-    }
-
-    // Compară excludedCollections
-    const currentExcludedCollections = JSON.stringify([...excludedCollections].sort());
-    const initialExcludedCollections = JSON.stringify([...initialFormState.current.excludedCollections].sort());
-    if (currentExcludedCollections !== initialExcludedCollections) {
-      return true;
-    }
-
     return false;
-  }, [assignmentType, selectedProducts, selectedCollections, excludedProducts, excludedCollections]);
+  }, [assignmentType, selectedProducts, selectedCollections]);
 
   // Ascunde Save Bar explicit la prima încărcare
   useEffect(() => {
@@ -371,7 +334,7 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     }, 150);
 
     return () => clearTimeout(timeoutId);
-  }, [assignmentType, selectedProducts, selectedCollections, excludedProducts, excludedCollections, template.id]);
+  }, [assignmentType, selectedProducts, selectedCollections, template.id]);
 
   // Previne navigarea când există schimbări nesalvate
   useEffect(() => {
@@ -435,23 +398,9 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     if (type === "GLOBAL") {
       setSelectedProducts([]);
       setSelectedCollections([]);
-      setExcludedProducts([]);
-      setExcludedCollections([]);
-    } else if (type === "PRODUCT_EXCEPT") {
-      setSelectedProducts([]);
-      setSelectedCollections([]);
-      setExcludedCollections([]);
-    } else if (type === "COLLECTION_EXCEPT") {
-      setSelectedProducts([]);
-      setSelectedCollections([]);
-      setExcludedProducts([]);
     } else if (type === "PRODUCT") {
-      setExcludedProducts([]);
-      setExcludedCollections([]);
       setSelectedCollections([]);
     } else if (type === "COLLECTION") {
-      setExcludedProducts([]);
-      setExcludedCollections([]);
       setSelectedProducts([]);
     }
   };
@@ -468,18 +417,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
       actualAssignmentType = "PRODUCT";
     } else if (assignmentType === "COLLECTION") {
       targetIds = selectedCollections;
-      actualAssignmentType = "COLLECTION";
-    } else if (assignmentType === "PRODUCT_EXCEPT") {
-      // Pentru EXCEPT, salvăm doar excluderile
-      // Server-ul va adăuga automat produsele deja assignate la alte template-uri
-      targetIds = excludedProducts;
-      isExcluded = true;
-      actualAssignmentType = "PRODUCT";
-    } else if (assignmentType === "COLLECTION_EXCEPT") {
-      // Pentru EXCEPT, salvăm doar excluderile
-      // Server-ul va adăuga automat colecțiile deja assignate la alte template-uri
-      targetIds = excludedCollections;
-      isExcluded = true;
       actualAssignmentType = "COLLECTION";
     } else if (assignmentType === "GLOBAL") {
       actualAssignmentType = "DEFAULT";
@@ -503,14 +440,12 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
       assignmentType: assignmentType,
       selectedProducts: [...selectedProducts],
       selectedCollections: [...selectedCollections],
-      excludedProducts: [...excludedProducts],
-      excludedCollections: [...excludedCollections],
     };
     isInitialMount.current = true;
     setTimeout(() => {
       isInitialMount.current = false;
     }, 100);
-  }, [assignmentType, selectedProducts, selectedCollections, excludedProducts, excludedCollections]);
+  }, [assignmentType, selectedProducts, selectedCollections]);
 
   // Funcție pentru deschiderea Resource Picker pentru produse
   const handleOpenProductPicker = useCallback(async () => {
@@ -686,85 +621,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     }
   }, [selectedCollections, shopify, collections]);
   
-  // Funcție pentru deschiderea Resource Picker pentru excluderea produselor
-  const handleOpenProductExcludePicker = useCallback(async () => {
-    try {
-      console.log('[Resource Picker] Current excludedProducts:', excludedProducts);
-      
-      const preselectedIds = excludedProducts
-        .map(id => shopifyIdToGraphQL(id, 'Product'))
-        .filter(Boolean);
-      
-      console.log('[Resource Picker] Opening product exclude picker with preselectedIds:', preselectedIds);
-      console.log('[Resource Picker] Formatted selectionIds:', preselectedIds.map(id => ({ id })));
-      
-      const result = await shopify.resourcePicker({
-        type: 'product',
-        multiple: true,
-        selectionIds: preselectedIds.length > 0 ? preselectedIds.map(id => ({ id })) : undefined,
-      });
-      
-      console.log('[Resource Picker] Result:', result);
-      
-      if (result && result.selection) {
-        // Convertește ID-urile din format GraphQL în shopifyId normalizat
-        // result.selection poate fi un array de obiecte {id: "gid://..."} sau un array de string-uri
-        const newExcludedIds = result.selection
-          .map(item => {
-            const gid = typeof item === 'string' ? item : (item.id || item);
-            return graphQLToShopifyId(gid);
-          })
-          .filter(Boolean);
-        
-        console.log('[Resource Picker] Converted excluded IDs:', newExcludedIds);
-        
-        setExcludedProducts(newExcludedIds);
-      }
-    } catch (error) {
-      console.error('Error opening product exclude picker:', error);
-      shopify.toast.show('Failed to open product picker. Please try again.', { isError: true });
-    }
-  }, [excludedProducts, shopify]);
-  
-  // Funcție pentru deschiderea Resource Picker pentru excluderea colecțiilor
-  const handleOpenCollectionExcludePicker = useCallback(async () => {
-    try {
-      console.log('[Resource Picker] Current excludedCollections:', excludedCollections);
-      
-      const preselectedIds = excludedCollections
-        .map(id => shopifyIdToGraphQL(id, 'Collection'))
-        .filter(Boolean);
-      
-      console.log('[Resource Picker] Opening collection exclude picker with preselectedIds:', preselectedIds);
-      console.log('[Resource Picker] Formatted selectionIds:', preselectedIds.map(id => ({ id })));
-      
-      const result = await shopify.resourcePicker({
-        type: 'collection',
-        multiple: true,
-        selectionIds: preselectedIds.length > 0 ? preselectedIds.map(id => ({ id })) : undefined,
-      });
-      
-      console.log('[Resource Picker] Result:', result);
-      
-      if (result && result.selection) {
-        // Convertește ID-urile din format GraphQL în shopifyId normalizat
-        // result.selection poate fi un array de obiecte {id: "gid://..."} sau un array de string-uri
-        const newExcludedIds = result.selection
-          .map(item => {
-            const gid = typeof item === 'string' ? item : (item.id || item);
-            return graphQLToShopifyId(gid);
-          })
-          .filter(Boolean);
-        
-        console.log('[Resource Picker] Converted excluded IDs:', newExcludedIds);
-        
-        setExcludedCollections(newExcludedIds);
-      }
-    } catch (error) {
-      console.error('Error opening collection exclude picker:', error);
-      shopify.toast.show('Failed to open collection picker. Please try again.', { isError: true });
-    }
-  }, [excludedCollections, shopify]);
 
   const handleProductSearch = (search) => {
     setProductSearch(search);
@@ -847,18 +703,12 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         {/* Hidden inputs pentru Save Bar */}
         <input type="hidden" name="action" value="assign" />
         <input type="hidden" name="templateId" value={template.id} />
-        <input type="hidden" name="assignmentType" value={assignmentType === "GLOBAL" ? "DEFAULT" : (assignmentType === "PRODUCT_EXCEPT" || assignmentType === "COLLECTION_EXCEPT" ? (assignmentType === "PRODUCT_EXCEPT" ? "PRODUCT" : "COLLECTION") : assignmentType)} />
-        <input type="hidden" name="isExcluded" value={assignmentType === "PRODUCT_EXCEPT" || assignmentType === "COLLECTION_EXCEPT" ? "true" : "false"} />
+        <input type="hidden" name="assignmentType" value={assignmentType === "GLOBAL" ? "DEFAULT" : assignmentType} />
+        <input type="hidden" name="isExcluded" value="false" />
         {assignmentType === "PRODUCT" && selectedProducts.map(id => (
           <input key={id} type="hidden" name="targetIds" value={id} />
         ))}
         {assignmentType === "COLLECTION" && selectedCollections.map(id => (
-          <input key={id} type="hidden" name="targetIds" value={id} />
-        ))}
-        {assignmentType === "PRODUCT_EXCEPT" && excludedProducts.map(id => (
-          <input key={id} type="hidden" name="targetIds" value={id} />
-        ))}
-        {assignmentType === "COLLECTION_EXCEPT" && excludedCollections.map(id => (
           <input key={id} type="hidden" name="targetIds" value={id} />
         ))}
 
@@ -893,19 +743,9 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
                 label="Assign to collections"
               />
               <s-checkbox
-                checked={assignmentType === "COLLECTION_EXCEPT"}
-                onChange={() => handleAssignmentTypeChange("COLLECTION_EXCEPT")}
-                label="Assign to collections, except:"
-              />
-              <s-checkbox
                 checked={assignmentType === "PRODUCT"}
                 onChange={() => handleAssignmentTypeChange("PRODUCT")}
                 label="Assign to products"
-              />
-              <s-checkbox
-                checked={assignmentType === "PRODUCT_EXCEPT"}
-                onChange={() => handleAssignmentTypeChange("PRODUCT_EXCEPT")}
-                label="Assign to products, except:"
               />
             </s-stack>
 
@@ -939,35 +779,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
               </s-stack>
             )}
 
-            {assignmentType === "PRODUCT_EXCEPT" && (
-              <s-stack direction="block" gap="base">
-                <s-button type="button" variant="secondary" onClick={handleOpenProductExcludePicker}>
-                  {excludedProducts.length > 0 
-                    ? `Select Products to Exclude (${excludedProducts.length} selected)` 
-                    : "Select Products to Exclude"}
-                </s-button>
-                {excludedProducts.length > 0 && (
-                  <s-text variant="bodyMd" tone="subdued">
-                    {excludedProducts.length} {excludedProducts.length === 1 ? 'product' : 'products'} will be excluded
-                  </s-text>
-                )}
-              </s-stack>
-            )}
-
-            {assignmentType === "COLLECTION_EXCEPT" && (
-              <s-stack direction="block" gap="base">
-                <s-button type="button" variant="secondary" onClick={handleOpenCollectionExcludePicker}>
-                  {excludedCollections.length > 0 
-                    ? `Select Collections to Exclude (${excludedCollections.length} selected)` 
-                    : "Select Collections to Exclude"}
-                </s-button>
-                {excludedCollections.length > 0 && (
-                  <s-text variant="bodyMd" tone="subdued">
-                    {excludedCollections.length} {excludedCollections.length === 1 ? 'collection' : 'collections'} will be excluded
-                  </s-text>
-                )}
-              </s-stack>
-            )}
           </s-stack>
         )}
       </s-stack>

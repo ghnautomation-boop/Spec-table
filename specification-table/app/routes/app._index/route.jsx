@@ -37,18 +37,37 @@ export const loader = async ({ request }) => {
   }
 
   // Obține shop-ul cu statistici
+  // NOUA LOGICĂ: Products count se obține direct din Shopify (nu din DB)
   const shopWithStats = await prisma.shop.findUnique({
     where: { shopDomain },
     include: {
       _count: {
         select: {
-          products: true,
           metafieldDefinitions: true,
           templates: true,
         },
       },
     },
   });
+
+  // Obține products count direct din Shopify GraphQL API
+  // NOUA LOGICĂ: Nu mai folosim count-ul din DB pentru products
+  let productsCount = 0;
+  try {
+    const query = `
+      query {
+        productsCount { count }
+      }
+    `;
+    const res = await admin.graphql(query);
+    const data = await res.json();
+    if (data?.data?.productsCount?.count !== undefined) {
+      productsCount = data.data.productsCount.count;
+    }
+  } catch (error) {
+    console.warn("[app._index] Could not fetch products count from Shopify:", error.message);
+    // Continuă cu 0 dacă nu poate obține count-ul
+  }
 
   // Obține temele și progresul setup-ului
   let themes = [];
@@ -86,12 +105,12 @@ export const loader = async ({ request }) => {
     shopDomain,
     stats: shopWithStats
       ? {
-          products: shopWithStats._count.products || 0,
+          products: productsCount, // Din Shopify GraphQL API
           metafieldDefinitions: shopWithStats._count.metafieldDefinitions || 0,
           templates: shopWithStats._count.templates || 0,
         }
       : {
-          products: 0,
+          products: productsCount, // Din Shopify GraphQL API
           metafieldDefinitions: 0,
           templates: 0,
         },

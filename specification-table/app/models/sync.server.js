@@ -647,10 +647,12 @@ export async function syncSingleMetafieldDefinition(admin, shopDomain, metafield
  * @param {string} shopDomain - Domain-ul shop-ului
  * @returns {Promise<Object>} Rezultatele sync-ului
  */
+/**
+ * Sincronizează toate metafield definitions pentru un shop
+ * NOUA LOGICĂ: Nu mai facem sync pentru products și collections (doar când se face assignment)
+ */
 export async function syncAll(admin, shopDomain) {
   const results = {
-    products: null,
-    collections: null,
     metafieldDefinitions: null,
     errors: [],
   };
@@ -668,55 +670,18 @@ export async function syncAll(admin, shopDomain) {
     });
   }
 
-  // Obține SyncStatus pentru a determina data ultimului sync
-  const syncStatus = await prisma.syncStatus.findUnique({
-    where: { shopId: shop.id },
-    select: {
-      lastFullSyncAt: true,
-      lastShopifyCheckAt: true,
-    },
-  });
-
-  // Folosim lastFullSyncAt dacă există, altfel lastShopifyCheckAt, altfel null (sync complet)
-  // Dacă nu există niciunul, facem sync complet (pentru prima dată)
-  const lastSyncDate = syncStatus?.lastFullSyncAt || syncStatus?.lastShopifyCheckAt;
-  const updatedAfter = lastSyncDate ? lastSyncDate.toISOString() : null;
-
-  if (updatedAfter) {
-    console.log(`[syncAll] Using incremental sync from ${updatedAfter} for ${shopDomain}`);
-  } else {
-    console.log(`[syncAll] No previous sync date found, performing full sync for ${shopDomain}`);
-  }
-
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai facem sync pentru products/collections)
   try {
-    // Sync products cu updatedAfter (dacă există)
-    results.products = await syncProducts(admin, shopDomain, updatedAfter);
-  } catch (error) {
-    console.error(`[syncAll] Error syncing products:`, error);
-    results.errors.push({ type: "products", error: error.message });
-  }
-
-  try {
-    // Sync collections cu updatedAfter (dacă există)
-    results.collections = await syncCollections(admin, shopDomain, updatedAfter);
-  } catch (error) {
-    console.error(`[syncAll] Error syncing collections:`, error);
-    results.errors.push({ type: "collections", error: error.message });
-  }
-
-  try {
-    // Sync metafield definitions (nu suportă updatedAfter, dar pasez pentru consistență)
-    // NOTĂ: syncMetafieldDefinitions face sync complet indiferent de updatedAfter
-    results.metafieldDefinitions = await syncMetafieldDefinitions(admin, shopDomain, updatedAfter);
+    // Sync metafield definitions (sync complet - Shopify nu suportă updatedAt pentru metafield definitions)
+    results.metafieldDefinitions = await syncMetafieldDefinitions(admin, shopDomain, null);
   } catch (error) {
     console.error(`[syncAll] Error syncing metafield definitions:`, error);
     results.errors.push({ type: "metafieldDefinitions", error: error.message });
   }
 
-  // Actualizează lastFullSyncAt după sync reușit (chiar dacă unele au eșuat)
-  // Dacă toate au eșuat, nu actualizăm lastFullSyncAt
-  const hasAnySuccess = results.products || results.collections || results.metafieldDefinitions;
-  if (hasAnySuccess) {
+  // Actualizează lastFullSyncAt după sync reușit
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai facem sync pentru products/collections)
+  if (results.metafieldDefinitions) {
     await prisma.syncStatus.upsert({
       where: { shopId: shop.id },
       update: {

@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "description-container-v1"
-application_url = "https://ohio-projectors-peoples-clips.trycloudflare.com"
+application_url = "https://competent-bonds-alike-theme.trycloudflare.com"
 embedded = true
 
 [build]
@@ -20,24 +20,8 @@ api_version = "2026-01"
   uri = "/webhooks/app/scopes_update"
 
   [[webhooks.subscriptions]]
-  topics = [ "products/create" ]
-  uri = "/webhooks/products/create"
-
-  [[webhooks.subscriptions]]
-  topics = [ "products/update" ]
-  uri = "/webhooks/products/update"
-
-  [[webhooks.subscriptions]]
   topics = [ "products/delete" ]
   uri = "/webhooks/products/delete"
-
-  [[webhooks.subscriptions]]
-  topics = [ "collections/create" ]
-  uri = "/webhooks/collections/create"
-
-  [[webhooks.subscriptions]]
-  topics = [ "collections/update" ]
-  uri = "/webhooks/collections/update"
 
   [[webhooks.subscriptions]]
   topics = [ "collections/delete" ]
@@ -66,9 +50,9 @@ scopes = "read_products,write_products,read_collection_listings,read_themes,read
 
 [auth]
 redirect_urls = [
-  "https://ohio-projectors-peoples-clips.trycloudflare.com/auth/callback",
-  "https://ohio-projectors-peoples-clips.trycloudflare.comauth/shopify/callback",
-  "https://ohio-projectors-peoples-clips.trycloudflare.com/api/auth/callback"
+  "https://competent-bonds-alike-theme.trycloudflare.com/auth/callback",
+  "https://competent-bonds-alike-theme.trycloudflare.comauth/shopify/callback",
+  "https://competent-bonds-alike-theme.trycloudflare.com/api/auth/callback"
 ]
 
 

@@ -87,7 +87,8 @@ export const action = async ({ request }) => {
 
     console.log(`[webhooks.app_subscription] Saved plan ${planKey} for shop ${shop}`);
 
-    // Rulează syncAll pentru a popula produsele în DB (fire-and-forget)
+    // Rulează syncAll pentru a popula metafield definitions în DB (fire-and-forget)
+    // NOUA LOGICĂ: Doar metafield definitions (nu mai populăm products și collections la instalare)
     Promise.resolve().then(async () => {
       try {
         console.log(`[webhooks.app_subscription] Starting sync for shop ${shop} after subscription`);

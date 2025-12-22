@@ -9,12 +9,23 @@ export async function loader({ request }) {
   const perfStart = performance.now();
   const url = new URL(request.url);
   const productId = url.searchParams.get("productId");
-  const collectionId = url.searchParams.get("collectionId");
+  // IMPORTANT: collectionId poate veni ca "null" (string) sau null (object)
+  // Trebuie să normalizăm pentru a obține valoarea corectă
+  let collectionId = url.searchParams.get("collectionId");
+  if (collectionId === "null" || collectionId === "" || collectionId === null) {
+    collectionId = null;
+  }
   const shop = url.searchParams.get("shop");
 
   // Log doar în development
   if (process.env.NODE_ENV === "development") {
-    console.log("📡 [API] Template Request received:", { productId, collectionId, shop });
+    console.log("📡 [API] Template Request received:", { 
+      productId, 
+      collectionId, 
+      shop,
+      collectionIdType: typeof collectionId,
+      collectionIdLength: collectionId?.length,
+    });
   }
 
   if (!shop) {

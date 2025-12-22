@@ -408,7 +408,8 @@ async function processWebhook(shop, topic, payload) {
         
         // Ștergem și din tabelele asociate
         if (deleted.count > 0) {
-          // Ștergem din TemplateLookup
+          // Ștergem din TemplateLookup (doar dacă produsul are template direct asignat)
+          // NOTĂ: Nu mai ștergem produsele din colecții - acestea nu mai sunt stocate în TemplateLookup
           await prisma.templateLookup.deleteMany({
             where: {
               shopId: shopRecord.id,
@@ -736,43 +737,17 @@ export async function startWorker() {
 /**
  * Obține count-urile din Shopify pentru un shop
  */
+/**
+ * Obține count-urile din Shopify pentru un shop
+ * NOUA LOGICĂ: Doar metafield definitions (nu mai facem reconciliation pentru products/collections)
+ */
 async function getShopifyCounts(admin) {
   const counts = {
-    products: null,
-    collections: null,
     productMetafields: null,
     variantMetafields: null,
   };
   
   try {
-    // Get products count
-    const productsCountQuery = `
-      query {
-        productsCount {
-          count
-        }
-      }
-    `;
-    const productsResponse = await admin.graphql(productsCountQuery);
-    const productsData = await productsResponse.json();
-    if (!productsData.errors && productsData.data?.productsCount) {
-      counts.products = productsData.data.productsCount.count || 0;
-    }
-    
-    // Get collections count
-    const collectionsCountQuery = `
-      query {
-        collectionsCount {
-          count
-        }
-      }
-    `;
-    const collectionsResponse = await admin.graphql(collectionsCountQuery);
-    const collectionsData = await collectionsResponse.json();
-    if (!collectionsData.errors && collectionsData.data?.collectionsCount) {
-      counts.collections = collectionsData.data.collectionsCount.count || 0;
-    }
-    
     // Count metafield definitions (PRODUCT)
     counts.productMetafields = await countMetafieldDefinitions(admin, "PRODUCT");
     
@@ -837,8 +812,6 @@ async function getAppCounts(shopId) {
     include: {
       _count: {
         select: {
-          products: true,
-          collections: true,
           metafieldDefinitions: {
             where: {
               ownerType: "PRODUCT",
@@ -861,8 +834,6 @@ async function getAppCounts(shopId) {
   });
   
   return {
-    products: shop._count.products || 0,
-    collections: shop._count.collections || 0,
     productMetafields: shop._count.metafieldDefinitions || 0,
     variantMetafields: variantMetafieldsCount || 0,
   };
@@ -876,14 +847,7 @@ async function updateSyncStatus(shopId, appCounts, shopifyCounts, updateLastChec
   const mismatchDetails = [];
   let lastComparisonOk = true;
   
-  if (appCounts.products !== shopifyCounts.products) {
-    mismatchDetails.push(`Products: App=${appCounts.products}, Shopify=${shopifyCounts.products}`);
-    lastComparisonOk = false;
-  }
-  if (appCounts.collections !== shopifyCounts.collections) {
-    mismatchDetails.push(`Collections: App=${appCounts.collections}, Shopify=${shopifyCounts.collections}`);
-    lastComparisonOk = false;
-  }
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai verificăm products/collections)
   if (appCounts.productMetafields !== shopifyCounts.productMetafields) {
     mismatchDetails.push(`ProductMetafields: App=${appCounts.productMetafields}, Shopify=${shopifyCounts.productMetafields}`);
     lastComparisonOk = false;
@@ -894,12 +858,8 @@ async function updateSyncStatus(shopId, appCounts, shopifyCounts, updateLastChec
   }
   
   const updateData = {
-    appProducts: appCounts.products,
-    appCollections: appCounts.collections,
     appProductMetafields: appCounts.productMetafields,
     appVariantMetafields: appCounts.variantMetafields,
-    shopifyProducts: shopifyCounts.products,
-    shopifyCollections: shopifyCounts.collections,
     shopifyProductMetafields: shopifyCounts.productMetafields,
     shopifyVariantMetafields: shopifyCounts.variantMetafields,
     lastAppUpdateAt: new Date(),
@@ -954,38 +914,7 @@ async function performDeltaSync(admin, shopDomain, mismatchDetails, shopId) {
     console.log(`[reconciliation] No previous sync date found, performing full sync`);
   }
   
-  // Dacă există mismatch la produse, sincronizează produsele
-  if (mismatchDetails.some(d => d.includes("Products"))) {
-    console.log(`[reconciliation] Syncing products for ${shopDomain}${updatedAfter ? ` (updated after ${updatedAfter})` : ' (full sync)'}`);
-    try {
-      await syncProducts(admin, shopDomain, updatedAfter);
-      // Actualizează lastFullSyncAt după sync reușit
-      await prisma.syncStatus.update({
-        where: { shopId },
-        data: { lastFullSyncAt: new Date() },
-      });
-      console.log(`[reconciliation] Products sync completed, updated lastFullSyncAt`);
-    } catch (error) {
-      console.error(`[reconciliation] Error syncing products:`, error);
-    }
-  }
-  
-  // Dacă există mismatch la colecții, sincronizează colecțiile
-  if (mismatchDetails.some(d => d.includes("Collections"))) {
-    console.log(`[reconciliation] Syncing collections for ${shopDomain}${updatedAfter ? ` (updated after ${updatedAfter})` : ' (full sync)'}`);
-    try {
-      await syncCollections(admin, shopDomain, updatedAfter);
-      // Actualizează lastFullSyncAt după sync reușit
-      await prisma.syncStatus.update({
-        where: { shopId },
-        data: { lastFullSyncAt: new Date() },
-      });
-      console.log(`[reconciliation] Collections sync completed, updated lastFullSyncAt`);
-    } catch (error) {
-      console.error(`[reconciliation] Error syncing collections:`, error);
-    }
-  }
-  
+  // NOUA LOGICĂ: Doar metafield definitions (nu mai facem sync pentru products/collections)
   // Dacă există mismatch la metafield-uri, sincronizează metafield-urile
   // NOTĂ: Shopify nu suportă `updatedAt` pentru metafield definitions în GraphQL API,
   // deci facem întotdeauna sync complet (toate metafield-urile), indiferent de `updatedAfter`

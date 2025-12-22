@@ -651,42 +651,9 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     }
   }
 
-  // Pentru EXCEPT assignments, trebuie să adăugăm automat în excluderi
-  // toate produsele/colecțiile care sunt deja assignate la alte template-uri
-  let autoAddedCount = 0;
-  if (isExcluded && assignmentType !== "DEFAULT") {
-    // Găsește toate produsele/colecțiile care sunt deja assignate la alte template-uri
-    const alreadyAssignedTargets = new Set();
-    allAssignments.forEach(assignment => {
-      if (assignment.assignmentType === assignmentType) {
-        assignment.targets.forEach(target => {
-          // Include doar target-urile care NU sunt excluded (sunt assignate direct)
-          if (target.targetType === assignmentType && !target.isExcluded) {
-            alreadyAssignedTargets.add(target.targetShopifyId);
-          }
-        });
-      }
-    });
-    
-    // Adaugă automat target-urile deja assignate în lista de excluderi
-    const targetIdsSet = new Set(targetIds || []);
-    const initialCount = targetIds.length;
-    alreadyAssignedTargets.forEach(targetId => {
-      if (!targetIdsSet.has(targetId)) {
-        targetIds.push(targetId);
-      }
-    });
-    
-    autoAddedCount = targetIds.length - initialCount;
-    
-    if (autoAddedCount > 0 && process.env.NODE_ENV === "development") {
-      console.log(`[EXCEPT] Automatically added ${autoAddedCount} already assigned ${assignmentType === "PRODUCT" ? "products" : "collections"} to exclusions`);
-    }
-  }
-
   // Verifică dacă colecțiile/produsele selectate sunt deja assignate
-  // Doar dacă NU sunt excluderi (pentru excluderi, logica este inversă)
-  if (targetIds && targetIds.length > 0 && !isExcluded) {
+  // NOUA LOGICĂ: Nu mai folosim EXCEPT, deci verificăm doar assignment-uri directe
+  if (targetIds && targetIds.length > 0) {
     // Importă normalizeShopifyId pentru a normaliza ID-urile
     const { normalizeShopifyId } = await import("./template-lookup.server.js");
     
@@ -712,28 +679,6 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
         continue;
       }
       
-      // Verifică dacă target-ul face parte dintr-un EXCEPT assignment
-      for (const assignment of allAssignments) {
-        if (assignment.assignmentType !== assignmentType) continue;
-        
-        // Verifică dacă este un EXCEPT assignment (toate target-urile sunt excluded)
-        const allExcluded = assignment.targets.length > 0 && assignment.targets.every(t => t.isExcluded);
-        if (allExcluded) {
-          const excludedIds = assignment.targets
-            .filter(t => t.isExcluded)
-            .map(t => normalizeShopifyId(t.targetShopifyId))
-            .filter(Boolean);
-          
-          // Dacă target-ul NU este în lista de excluded, înseamnă că face parte din EXCEPT assignment
-          if (!excludedIds.includes(normalizedTargetId)) {
-            conflictingAssignments.push({
-              targetId: normalizedTargetId,
-              templateId: assignment.templateId,
-            });
-            break;
-          }
-        }
-      }
     }
     
     if (conflictingAssignments.length > 0) {
@@ -746,13 +691,52 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     where: { templateId: template.id },
   });
 
-  // Reconstruiește lookup table-ul (assignment-urile vechi au fost șterse)
-  const { rebuildTemplateLookup: rebuildLookup1 } = await import("./template-lookup.server.js");
-  await rebuildLookup1(shop.id, shopDomain, admin);
-
-  // Dacă nu există assignment (null sau empty), nu creăm nimic
+  // Dacă nu există assignment (null sau empty), reconstruiește lookup table-ul și returnează
   if (!assignmentType || assignmentType === "NONE") {
+    const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
+    await rebuildTemplateLookup(shop.id, shopDomain, admin);
     return { success: true };
+  }
+
+  // Elimină duplicate-urile din targetIds înainte de salvare
+  const uniqueTargetIds = targetIds ? [...new Set(targetIds)] : [];
+  if (targetIds && targetIds.length !== uniqueTargetIds.length) {
+    console.log(`[saveTemplateAssignment] Removed ${targetIds.length - uniqueTargetIds.length} duplicate targetIds`);
+  }
+  
+  console.log(`[saveTemplateAssignment] Creating assignment:`, {
+    templateId: template.id,
+    assignmentType: assignmentType,
+    targetIdsCount: uniqueTargetIds.length,
+    targetIds: uniqueTargetIds,
+  });
+
+  // Populează produsele/colecțiile în DB când se face assignment
+  // NOUA LOGICĂ: Populăm doar produsele/colecțiile assignate, nu toate
+  if (uniqueTargetIds.length > 0 && admin) {
+    const { syncSingleProduct, syncSingleCollection } = await import("./sync.server.js");
+    
+    console.log(`[saveTemplateAssignment] Syncing ${uniqueTargetIds.length} ${assignmentType === "PRODUCT" ? "products" : "collections"} to DB...`);
+    
+    // Sincronizează fiecare produs/colecție în DB
+    for (const targetId of uniqueTargetIds) {
+      try {
+        // Convertește ID-ul la format GID dacă e necesar
+        const gid = targetId.startsWith("gid://") ? targetId : 
+          (assignmentType === "PRODUCT" ? `gid://shopify/Product/${targetId}` : `gid://shopify/Collection/${targetId}`);
+        
+        if (assignmentType === "PRODUCT") {
+          await syncSingleProduct(admin, shopDomain, gid);
+        } else if (assignmentType === "COLLECTION") {
+          await syncSingleCollection(admin, shopDomain, gid);
+        }
+      } catch (error) {
+        console.error(`[saveTemplateAssignment] Error syncing ${assignmentType} ${targetId}:`, error);
+        // Continuă cu următorul target chiar dacă unul eșuează
+      }
+    }
+    
+    console.log(`[saveTemplateAssignment] Successfully synced ${uniqueTargetIds.length} ${assignmentType === "PRODUCT" ? "products" : "collections"} to DB`);
   }
 
   // Creează noul assignment
@@ -762,24 +746,28 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
       assignmentType: assignmentType,
       shopId: shop.id,
       targets: {
-        create: targetIds?.map((targetId) => ({
+        create: uniqueTargetIds.map((targetId) => ({
           targetShopifyId: targetId,
           targetType: assignmentType === "PRODUCT" ? "PRODUCT" : "COLLECTION",
-          isExcluded: isExcluded,
-        })) || [],
+          isExcluded: false, // Nu mai folosim isExcluded (eliminăm EXCEPT)
+        })),
       },
     },
   });
+  
+  console.log(`[saveTemplateAssignment] Assignment created:`, {
+    assignmentId: assignment.id,
+    targetsCount: assignment.targets?.length || 0,
+  });
 
-  // Reconstruiește lookup table-ul pentru acest shop (după ce s-a creat noul assignment)
-  const { rebuildTemplateLookup: rebuildLookup2 } = await import("./template-lookup.server.js");
-  await rebuildLookup2(shop.id, shopDomain, admin);
+  // Reconstruiește lookup table-ul pentru acest shop (o singură dată, după ce s-a creat noul assignment)
+  // OPTIMIZAT: Nu mai facem rebuild de 2 ori - doar o dată după ce assignment-ul este creat
+  const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
+  await rebuildTemplateLookup(shop.id, shopDomain, admin);
 
   return { 
     success: true, 
-    assignment,
-    autoAddedCount: autoAddedCount || 0,
-    autoAddedType: autoAddedCount > 0 ? assignmentType : null
+    assignment
   };
 }
 
@@ -887,13 +875,26 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
   const normalizedProductId = normalizeShopifyId(productId);
   const normalizedCollectionId = normalizeShopifyId(collectionId);
   const normalizeTime = performance.now() - normalizeStart;
+  
+  // Debug logging pentru normalizare
+  console.log(`   🔍 [DEBUG] Normalization:`, {
+    productId: productId,
+    productIdType: typeof productId,
+    normalizedProductId: normalizedProductId,
+    normalizedProductIdType: typeof normalizedProductId,
+    collectionId: collectionId,
+    collectionIdType: typeof collectionId,
+    normalizedCollectionId: normalizedCollectionId,
+    normalizedCollectionIdType: typeof normalizedCollectionId,
+  });
 
-  // OPTIMIZARE: Caută mai întâi după productId (prioritatea cea mai mare), apoi collectionId, apoi default
-  // În loc de OR care poate scana multe rânduri, facem query-uri separate în ordinea priorității
+  // OPTIMIZARE: Caută în ordinea priorității (PRODUCT > COLLECTION > DEFAULT)
+  // NOTĂ: collectionId vine din Shopify context (Liquid), nu din DB
+  // Nu mai stocăm produsele din colecții - doar colecțiile în sine
   let lookup = null;
   let lookupQueryTime = 0;
 
-  // 1. Caută după productId (priority 1) - OPTIMIZAT: fără `productId: { not: null }` redundant
+  // 1. Caută după productId (priority 1) - PRODUCT assignment direct
   if (normalizedProductId) {
     const queryStart = performance.now();
     lookup = await prisma.templateLookup.findFirst({
@@ -916,24 +917,78 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
   }
 
   // 2. Dacă nu s-a găsit, caută după collectionId (priority 2)
+  // NOTĂ: collectionId vine din parametru (Shopify context), nu din DB
+  // Nu mai stocăm produsele din colecții în TemplateLookup - doar colecțiile în sine
+  console.log(`   🔍 [DEBUG] Checking collection lookup:`, {
+    lookup: lookup,
+    normalizedCollectionId: normalizedCollectionId,
+    willSearch: !lookup && normalizedCollectionId,
+  });
+  
   if (!lookup && normalizedCollectionId) {
     const queryStart = performance.now();
+    
+    // Debug logging pentru a verifica normalizarea
+    console.log(`   🔍 [DEBUG] Looking for collection template:`, {
+      originalCollectionId: collectionId,
+      originalType: typeof collectionId,
+      normalizedCollectionId: normalizedCollectionId,
+      normalizedType: typeof normalizedCollectionId,
+      shopId: shopId,
+    });
+    
+    // IMPORTANT: Asigură-te că normalizedCollectionId este string pentru match corect
+    const collectionIdForQuery = String(normalizedCollectionId).trim();
+    
     lookup = await prisma.templateLookup.findFirst({
       where: {
         shopId: shopId,
-        collectionId: normalizedCollectionId,
+        collectionId: collectionIdForQuery,
       },
       orderBy: {
         priority: "asc",
       },
       select: {
         templateId: true,
+        collectionId: true, // Adaugă pentru debugging
+        priority: true, // Adaugă pentru debugging
       },
     });
     lookupQueryTime = performance.now() - queryStart;
     
     if (lookup && process.env.NODE_ENV === "development") {
-      console.log(`   ✅ Found template via COLLECTION lookup: ${lookupQueryTime.toFixed(2)}ms`);
+      console.log(`   ✅ Found template via COLLECTION lookup (collectionId from context): ${lookupQueryTime.toFixed(2)}ms`, {
+        templateId: lookup.templateId,
+        collectionId: normalizedCollectionId,
+      });
+    } else if (!lookup) {
+      console.log(`   ⚠️  [DEBUG] No template found for collection:`, {
+        normalizedCollectionId: normalizedCollectionId,
+        normalizedType: typeof normalizedCollectionId,
+        shopId: shopId,
+      });
+      // Verifică dacă există colecții în TemplateLookup pentru acest shop
+      const allCollectionLookups = await prisma.templateLookup.findMany({
+        where: {
+          shopId: shopId,
+          collectionId: { not: null },
+        },
+        select: {
+          collectionId: true,
+          templateId: true,
+          priority: true,
+        },
+      });
+      console.log(`   🔍 [DEBUG] Available collection lookups in DB:`, allCollectionLookups);
+      console.log(`   🔍 [DEBUG] Comparing:`, {
+        searchingFor: String(normalizedCollectionId),
+        searchingForType: typeof String(normalizedCollectionId),
+        availableInDB: allCollectionLookups.map(l => ({
+          collectionId: l.collectionId,
+          collectionIdType: typeof l.collectionId,
+          matches: String(l.collectionId) === String(normalizedCollectionId),
+        })),
+      });
     }
   }
 
