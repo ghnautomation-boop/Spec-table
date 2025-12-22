@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "description-container-v1"
-application_url = "https://competent-bonds-alike-theme.trycloudflare.com"
+application_url = "https://kyle-resources-consecutive-searched.trycloudflare.com"
 embedded = true
 
 [build]
@@ -50,9 +50,9 @@ scopes = "read_products,write_products,read_collection_listings,read_themes,read
 
 [auth]
 redirect_urls = [
-  "https://competent-bonds-alike-theme.trycloudflare.com/auth/callback",
-  "https://competent-bonds-alike-theme.trycloudflare.comauth/shopify/callback",
-  "https://competent-bonds-alike-theme.trycloudflare.com/api/auth/callback"
+  "https://kyle-resources-consecutive-searched.trycloudflare.com/auth/callback",
+  "https://kyle-resources-consecutive-searched.trycloudflare.comauth/shopify/callback",
+  "https://kyle-resources-consecutive-searched.trycloudflare.com/api/auth/callback"
 ]
 
 

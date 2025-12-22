@@ -624,8 +624,13 @@
     })));
     
     // Construiește CSS variables pentru stilurile dinamice
+    // NOUA LOGICĂ: Specification Text Color și Value Text Color separate
     let cssVars = '--dc-bg-color: ' + (styling.backgroundColor || '#ffffff') + '; ';
-    cssVars += '--dc-text-color: ' + (styling.textColor || '#000000') + '; ';
+    // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
+    const specTextColor = styling.specificationTextColor || styling.textColor || '#000000';
+    const valueTextColor = styling.valueTextColor || styling.textColor || '#000000';
+    cssVars += '--dc-specification-text-color: ' + specTextColor + '; ';
+    cssVars += '--dc-value-text-color: ' + valueTextColor + '; ';
     cssVars += '--dc-heading-color: ' + (styling.headingColor || '#000000') + '; ';
     cssVars += '--dc-heading-font-size: ' + (styling.headingFontSize || '18px') + '; ';
     cssVars += '--dc-heading-font-weight: ' + (styling.headingFontWeight || 'bold') + '; ';
@@ -644,8 +649,23 @@
     cssVars += '--dc-row-border: ' + (styling.rowBorderEnabled ? (styling.rowBorderWidth || '1px') + ' ' + (styling.rowBorderStyle || 'solid') + ' ' + (styling.rowBorderColor || '#000000') : 'none') + '; ';
     cssVars += '--dc-odd-row-bg: ' + (styling.oddRowBackgroundColor || '#f0f0f0') + '; ';
     cssVars += '--dc-even-row-bg: ' + (styling.evenRowBackgroundColor || '#ffffff') + '; ';
+    cssVars += '--dc-odd-column-bg: ' + (styling.oddColumnBackgroundColor || '#ff0000') + '; ';
+    cssVars += '--dc-even-column-bg: ' + (styling.evenColumnBackgroundColor || '#00ff00') + '; ';
     cssVars += '--dc-td-bg: ' + (styling.tdBackgroundColor || 'transparent') + '; ';
     cssVars += '--dc-row-bg-enabled: ' + (styling.rowBackgroundEnabled ? '1' : '0') + '; ';
+    cssVars += '--dc-column-bg-enabled: ' + (styling.columnBackgroundEnabled ? '1' : '0') + '; ';
+    // See More Button Styling
+    cssVars += '--dc-see-more-button-color: ' + (styling.seeMoreButtonColor || '#000000') + '; ';
+    cssVars += '--dc-see-more-button-background: ' + (styling.seeMoreButtonBackground || 'transparent') + '; ';
+    cssVars += '--dc-see-more-button-font-size: ' + (styling.seeMoreButtonFontSize || '14px') + '; ';
+    cssVars += '--dc-see-more-button-font-family: ' + (styling.seeMoreButtonFontFamily || 'Arial') + '; ';
+    cssVars += '--dc-see-more-button-padding: ' + (styling.seeMoreButtonPadding || '8px') + '; ';
+    cssVars += '--dc-see-more-button-border-radius: ' + (styling.seeMoreButtonBorderRadius || '0px') + '; ';
+    if (styling.seeMoreButtonBorderEnabled) {
+      cssVars += '--dc-see-more-button-border: ' + (styling.seeMoreButtonBorderWidth || '1px') + ' ' + (styling.seeMoreButtonBorderStyle || 'solid') + ' ' + (styling.seeMoreButtonBorderColor || '#000000') + '; ';
+    } else {
+      cssVars += '--dc-see-more-button-border: none; ';
+    }
     
     let html = '<div id="specification-table-' + template.id + '" class="dc_container" style="' + cssVars + '">';
     
@@ -677,9 +697,66 @@
     const seeMoreEnabled = template.seeMoreEnabled || false;
     const seeMoreHideFromPC = template.seeMoreHideFromPC === true || template.seeMoreHideFromPC === 'true';
     const seeMoreHideFromMobile = template.seeMoreHideFromMobile === true || template.seeMoreHideFromMobile === 'true';
-    const totalRows = allMetafieldsWithSection.length;
+    
+    // Obține metafield-urile cu valori din obiectele construite în Liquid (pentru verificarea valorilor)
+    const productMetafields = window.productMetafieldsData || {};
+    const variantMetafields = window.variantMetafieldsData || {};
+    
+    // Funcție pentru a verifica dacă un metafield are valoare
+    function metafieldHasValue(metafield) {
+      let hasValue = false;
+      let value = null;
+      
+      if (metafield.ownerType === 'PRODUCT') {
+        if (productMetafields[metafield.namespace] && 
+            productMetafields[metafield.namespace][metafield.key] !== undefined) {
+          value = productMetafields[metafield.namespace][metafield.key];
+          // Verifică dacă valoarea nu este goală, null, undefined sau "N/A"
+          hasValue = value !== null && 
+                    value !== undefined && 
+                    value !== '' && 
+                    (typeof value !== 'string' || value.trim() !== '') &&
+                    value !== 'null' && 
+                    value !== 'undefined' &&
+                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+          
+          // Pentru obiecte (product_reference, collection_reference), verifică dacă au cel puțin title sau image
+          if (hasValue && typeof value === 'object') {
+            hasValue = value.title || value.featured_image || value.image;
+          }
+        }
+      } else if (metafield.ownerType === 'VARIANT') {
+        // Pentru variante, verifică dacă există cel puțin o variantă cu valoare
+        Object.keys(variantMetafields).forEach(variantId => {
+          if (!hasValue && variantMetafields[variantId] && 
+              variantMetafields[variantId][metafield.namespace] && 
+              variantMetafields[variantId][metafield.namespace][metafield.key] !== undefined) {
+            value = variantMetafields[variantId][metafield.namespace][metafield.key];
+            hasValue = value !== null && 
+                      value !== undefined && 
+                      value !== '' && 
+                      (typeof value !== 'string' || value.trim() !== '') &&
+                      value !== 'null' && 
+                      value !== 'undefined' &&
+                      (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+            
+            // Pentru obiecte, verifică dacă au cel puțin title sau image
+            if (hasValue && typeof value === 'object') {
+              hasValue = value.title || value.featured_image || value.image;
+            }
+          }
+        });
+      }
+      
+      return hasValue;
+    }
+    
+    // Filtrează metafields-urile care au valori (vizibile)
+    const visibleMetafields = allMetafieldsWithSection.filter(metafield => metafieldHasValue(metafield));
+    const totalVisibleRows = visibleMetafields.length;
     
     // Determină ce rânduri să afișeze pe baza flag-urilor
+    // IMPORTANT: Folosim visibleMetafields pentru a afișa doar metafields-urile cu valori
     // Dacă seeMoreHideFromPC este true: pe PC afișează toate, pe mobile primele 10 + buton
     // Dacă seeMoreHideFromMobile este true: pe mobile afișează toate, pe PC primele 10 + buton
     // Dacă ambele sunt false: funcționează normal (primele 10 + buton peste tot)
@@ -690,24 +767,30 @@
     
     if (seeMoreEnabled) {
       if (seeMoreHideFromPC) {
-        // Pe PC: toate rândurile, pe mobile: primele 10 + buton
-        displayRowsPC = allMetafieldsWithSection;
-        displayRowsMobile = allMetafieldsWithSection.slice(0, 10);
+        // Pe PC: toate metafields-urile VIZIBILE (cu valori)
+        displayRowsPC = visibleMetafields;
+        // Pe mobile: primele 10 metafields-uri VIZIBILE (cu valori)
+        displayRowsMobile = visibleMetafields.slice(0, 10);
         hasMorePC = false;
-        hasMoreMobile = totalRows > 10;
+        hasMoreMobile = totalVisibleRows > 10;
       } else if (seeMoreHideFromMobile) {
-        // Pe mobile: toate rândurile, pe PC: primele 10 + buton
-        displayRowsPC = allMetafieldsWithSection.slice(0, 10);
-        displayRowsMobile = allMetafieldsWithSection;
-        hasMorePC = totalRows > 10;
+        // Pe PC: primele 10 metafields-uri VIZIBILE (cu valori)
+        displayRowsPC = visibleMetafields.slice(0, 10);
+        // Pe mobile: toate metafields-urile VIZIBILE (cu valori)
+        displayRowsMobile = visibleMetafields;
+        hasMorePC = totalVisibleRows > 10;
         hasMoreMobile = false;
       } else {
-        // Normal: primele 10 + buton peste tot
-        displayRowsPC = allMetafieldsWithSection.slice(0, 10);
-        displayRowsMobile = allMetafieldsWithSection.slice(0, 10);
-        hasMorePC = totalRows > 10;
-        hasMoreMobile = totalRows > 10;
+        // Normal: primele 10 metafields-uri VIZIBILE (cu valori) + buton peste tot
+        displayRowsPC = visibleMetafields.slice(0, 10);
+        displayRowsMobile = visibleMetafields.slice(0, 10);
+        hasMorePC = totalVisibleRows > 10;
+        hasMoreMobile = totalVisibleRows > 10;
       }
+    } else {
+      // Dacă seeMoreEnabled este false, afișăm toate metafields-urile VIZIBILE
+      displayRowsPC = visibleMetafields;
+      displayRowsMobile = visibleMetafields;
     }
     
     // Grupează toate rândurile pe secțiuni (pentru a ști ce secțiuni există)
@@ -734,15 +817,15 @@
       allGroupedBySection[item.sectionIndex].displayMetafieldsMobile.push(item);
     });
     
-    // Separe rândurile ascunse pentru PC și mobile
+    // Separe rândurile ascunse pentru PC și mobile (doar metafields-urile cu valori)
     if (hasMorePC) {
-      const hiddenRowsPC = allMetafieldsWithSection.slice(10);
+      const hiddenRowsPC = visibleMetafields.slice(10);
       hiddenRowsPC.forEach(item => {
         allGroupedBySection[item.sectionIndex].hiddenMetafieldsPC.push(item);
       });
     }
     if (hasMoreMobile) {
-      const hiddenRowsMobile = allMetafieldsWithSection.slice(10);
+      const hiddenRowsMobile = visibleMetafields.slice(10);
       hiddenRowsMobile.forEach(item => {
         allGroupedBySection[item.sectionIndex].hiddenMetafieldsMobile.push(item);
       });
@@ -879,12 +962,22 @@
     });
     
     // Adaugă butonul "See more" pentru PC și mobile separat, dacă este necesar
+    const seeMoreButtonStyle = styling.seeMoreButtonStyle || 'arrow';
+    const seeMoreButtonText = styling.seeMoreButtonText || 'See More';
+    const showArrow = seeMoreButtonStyle === 'arrow' || seeMoreButtonStyle === 'arrow+text';
+    const showText = seeMoreButtonStyle === 'text' || seeMoreButtonStyle === 'arrow+text';
+    
     if (hasMorePC || hasMoreMobile) {
       // Butonul pentru PC
       if (hasMorePC) {
         html += '<div class="dc_see_more dc_see_more_pc">';
         html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'pc\')">';
-        html += '<span id="see-more-arrow-pc-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        if (showArrow) {
+          html += '<span id="see-more-arrow-pc-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        }
+        if (showText) {
+          html += '<span class="dc_see_more_text">' + escapeHtml(seeMoreButtonText) + '</span>';
+        }
         html += '</button>';
         html += '</div>';
       }
@@ -893,7 +986,12 @@
       if (hasMoreMobile) {
         html += '<div class="dc_see_more dc_see_more_mobile">';
         html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'mobile\')">';
-        html += '<span id="see-more-arrow-mobile-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        if (showArrow) {
+          html += '<span id="see-more-arrow-mobile-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+        }
+        if (showText) {
+          html += '<span class="dc_see_more_text">' + escapeHtml(seeMoreButtonText) + '</span>';
+        }
         html += '</button>';
         html += '</div>';
       }
@@ -993,12 +1091,23 @@
       const globalIndex = allMetafieldsWithSection.indexOf(metafield);
       const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
       
-      // Construiește stiluri inline doar pentru background (dinamic bazat pe index)
-      let rowStyle = '';
-      if (styling.rowBackgroundEnabled) {
-        rowStyle = 'background-color: ' + (isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff')) + '; ';
+      // NOUA LOGICĂ: Column background (Odd/Even) sau Row background (Odd/Even)
+      // Mutual exclusivity: dacă column e activat, row nu poate fi activat și invers
+      let specBackgroundStyle = '';
+      let valueBackgroundStyle = '';
+      if (styling.columnBackgroundEnabled) {
+        // Column background: prima coloană (spec) = odd, a doua coloană (value) = even
+        specBackgroundStyle = 'background-color: ' + (styling.oddColumnBackgroundColor || '#ff0000') + '; ';
+        valueBackgroundStyle = 'background-color: ' + (styling.evenColumnBackgroundColor || '#00ff00') + '; ';
+      } else if (styling.rowBackgroundEnabled) {
+        // Row background: ambele coloane au același background bazat pe rând
+        const rowBackground = isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff');
+        specBackgroundStyle = 'background-color: ' + rowBackground + '; ';
+        valueBackgroundStyle = 'background-color: ' + rowBackground + '; ';
       } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
-        rowStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+        // Background TD standard
+        specBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+        valueBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
       }
       
       // Adaugă clasele pentru hide from PC/Mobile
@@ -1032,8 +1141,8 @@
         });
       }
       
-      html += '<tr class="' + rowClasses + '"' + (rowStyle ? ' style="' + rowStyle + '"' : '') + '>';
-      html += '<td class="dc_table_td_label">';
+      html += '<tr class="' + rowClasses + '">';
+      html += '<td class="dc_table_td_label"' + (specBackgroundStyle ? ' style="' + specBackgroundStyle + '"' : '') + '>';
       // Folosește customName dacă există, altfel name sau namespace.key
       const displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
       let nameHtml = escapeHtml(displayName);
@@ -1045,7 +1154,7 @@
       
       html += nameHtml + '  :';
       html += '</td>';
-      html += '<td class="dc_table_td_value" data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
+      html += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
       // Valoarea va fi populată din obiectul JavaScript construit în Liquid
       // Folosim un placeholder care va fi înlocuit după ce se construiește obiectul
       html += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">Loading...</span>';
@@ -1117,12 +1226,23 @@
       const globalIndex = allMetafieldsWithSection.indexOf(metafield);
       const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
       
-      // Construiește stiluri inline doar pentru background (dinamic bazat pe index)
-      let rowStyle = '';
-      if (styling.rowBackgroundEnabled) {
-        rowStyle = 'background-color: ' + (isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff')) + '; ';
+      // NOUA LOGICĂ: Column background (Odd/Even) sau Row background (Odd/Even)
+      // Mutual exclusivity: dacă column e activat, row nu poate fi activat și invers
+      let specBackgroundStyle = '';
+      let valueBackgroundStyle = '';
+      if (styling.columnBackgroundEnabled) {
+        // Column background: prima coloană (spec) = odd, a doua coloană (value) = even
+        specBackgroundStyle = 'background-color: ' + (styling.oddColumnBackgroundColor || '#ff0000') + '; ';
+        valueBackgroundStyle = 'background-color: ' + (styling.evenColumnBackgroundColor || '#00ff00') + '; ';
+      } else if (styling.rowBackgroundEnabled) {
+        // Row background: ambele coloane au același background bazat pe rând
+        const rowBackground = isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff');
+        specBackgroundStyle = 'background-color: ' + rowBackground + '; ';
+        valueBackgroundStyle = 'background-color: ' + rowBackground + '; ';
       } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
-        rowStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+        // Background TD standard
+        specBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+        valueBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
       }
       
       // Adaugă clasele pentru hide from PC/Mobile
@@ -1142,8 +1262,8 @@
         rowClasses += ' dc_hidden';
       }
       
-      rowsHtml += '<tr class="' + rowClasses + '"' + (rowStyle ? ' style="' + rowStyle + '"' : '') + '>';
-      rowsHtml += '<td class="dc_table_td_label">';
+      rowsHtml += '<tr class="' + rowClasses + '">';
+      rowsHtml += '<td class="dc_table_td_label"' + (specBackgroundStyle ? ' style="' + specBackgroundStyle + '"' : '') + '>';
       const displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
       let nameHtml = escapeHtml(displayName);
       
@@ -1153,7 +1273,7 @@
       
       rowsHtml += nameHtml + '  :';
       rowsHtml += '</td>';
-      rowsHtml += '<td class="dc_table_td_value" data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
+      rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
       rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">Loading...</span>';
       rowsHtml += '</td>';
       rowsHtml += '</tr>';

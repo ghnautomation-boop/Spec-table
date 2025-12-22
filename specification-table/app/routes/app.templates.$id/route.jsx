@@ -188,7 +188,8 @@ export const action = async ({ request, params }) => {
   // Parse styling
   const styling = {
     backgroundColor: formData.get("backgroundColor") || "#ffffff",
-    textColor: formData.get("textColor") || "#000000",
+    specificationTextColor: formData.get("specificationTextColor") || formData.get("textColor") || "#000000", // Backward compatibility
+    valueTextColor: formData.get("valueTextColor") || formData.get("textColor") || "#000000", // Backward compatibility
     headingColor: formData.get("headingColor") || "#000000",
     headingFontSize: formData.get("headingFontSize") || "18px",
     headingFontWeight: formData.get("headingFontWeight") || "bold",
@@ -209,7 +210,24 @@ export const action = async ({ request, params }) => {
     rowBackgroundEnabled: formData.get("rowBackgroundEnabled") === "true",
     oddRowBackgroundColor: formData.get("oddRowBackgroundColor") || "#f0f0f0",
     evenRowBackgroundColor: formData.get("evenRowBackgroundColor") || "#ffffff",
+    columnBackgroundEnabled: formData.get("columnBackgroundEnabled") === "true",
+    oddColumnBackgroundColor: formData.get("oddColumnBackgroundColor") || "#ff0000",
+    evenColumnBackgroundColor: formData.get("evenColumnBackgroundColor") || "#00ff00",
     textTransform: formData.get("textTransform") || "none",
+    // See More Button Settings
+    seeMoreButtonStyle: formData.get("seeMoreButtonStyle") || "arrow",
+    seeMoreButtonText: formData.get("seeMoreButtonText") || "See More",
+    seeMoreButtonBorderEnabled: formData.get("seeMoreButtonBorderEnabled") === "true",
+    seeMoreButtonBorderWidth: formData.get("seeMoreButtonBorderWidth") || "1px",
+    seeMoreButtonBorderStyle: formData.get("seeMoreButtonBorderStyle") || "solid",
+    seeMoreButtonBorderColor: formData.get("seeMoreButtonBorderColor") || "#000000",
+    seeMoreButtonColor: formData.get("seeMoreButtonColor") || "#000000",
+    seeMoreButtonBackground: formData.get("seeMoreButtonBackground") || "transparent",
+    seeMoreButtonFontSize: formData.get("seeMoreButtonFontSize") || "14px",
+    seeMoreButtonFontStyle: formData.get("seeMoreButtonFontStyle") || "normal",
+    seeMoreButtonFontFamily: formData.get("seeMoreButtonFontFamily") || "Arial",
+    seeMoreButtonBorderRadius: formData.get("seeMoreButtonBorderRadius") || "0px",
+    seeMoreButtonPadding: formData.get("seeMoreButtonPadding") || "8px",
   };
 
   // Parse sections
@@ -416,9 +434,20 @@ export default function TemplateEditorPage() {
     seeMoreEnabled: template?.seeMoreEnabled || false,
     seeMoreHideFromPC: template?.seeMoreHideFromPC || false,
     seeMoreHideFromMobile: template?.seeMoreHideFromMobile || false,
-    styling: template?.styling ? JSON.parse(template.styling) : {
+    styling: template?.styling ? (() => {
+      const parsed = JSON.parse(template.styling);
+      // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
+      if (parsed.textColor && !parsed.specificationTextColor) {
+        parsed.specificationTextColor = parsed.textColor;
+      }
+      if (parsed.textColor && !parsed.valueTextColor) {
+        parsed.valueTextColor = parsed.textColor;
+      }
+      return parsed;
+    })() : {
       backgroundColor: "#ffffff",
-      textColor: "#000000",
+      specificationTextColor: "#000000",
+      valueTextColor: "#000000",
       headingColor: "#000000",
       headingFontSize: "16px",
       headingFontWeight: "bold",
@@ -499,7 +528,8 @@ export default function TemplateEditorPage() {
       ? JSON.parse(template.styling)
       : {
           backgroundColor: "#ffffff",
-          textColor: "#000000",
+          specificationTextColor: "#000000",
+          valueTextColor: "#000000",
           headingColor: "#000000",
           headingFontSize: "18px",
           headingFontWeight: "bold",
@@ -520,7 +550,24 @@ export default function TemplateEditorPage() {
           rowBackgroundEnabled: false,
           oddRowBackgroundColor: "#f0f0f0",
           evenRowBackgroundColor: "#ffffff",
+          columnBackgroundEnabled: false,
+          oddColumnBackgroundColor: "#ff0000",
+          evenColumnBackgroundColor: "#00ff00",
           textTransform: "none",
+          // See More Button Settings
+          seeMoreButtonStyle: "arrow",
+          seeMoreButtonText: "See More",
+          seeMoreButtonBorderEnabled: false,
+          seeMoreButtonBorderWidth: "1px",
+          seeMoreButtonBorderStyle: "solid",
+          seeMoreButtonBorderColor: "#000000",
+          seeMoreButtonColor: "#000000",
+          seeMoreButtonBackground: "transparent",
+          seeMoreButtonFontSize: "14px",
+          seeMoreButtonFontStyle: "normal",
+          seeMoreButtonFontFamily: "Arial",
+          seeMoreButtonBorderRadius: "0px",
+          seeMoreButtonPadding: "8px",
         }
   );
 
@@ -528,6 +575,63 @@ export default function TemplateEditorPage() {
   useEffect(() => {
     if (template?.styling) {
       const parsedStyling = JSON.parse(template.styling);
+      // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
+      if (parsedStyling.textColor && !parsedStyling.specificationTextColor) {
+        parsedStyling.specificationTextColor = parsedStyling.textColor;
+      }
+      if (parsedStyling.textColor && !parsedStyling.valueTextColor) {
+        parsedStyling.valueTextColor = parsedStyling.textColor;
+      }
+      // Backward compatibility: dacă nu există columnBackgroundEnabled, setează false
+      if (parsedStyling.columnBackgroundEnabled === undefined) {
+        parsedStyling.columnBackgroundEnabled = false;
+      }
+      if (!parsedStyling.oddColumnBackgroundColor) {
+        parsedStyling.oddColumnBackgroundColor = "#ff0000";
+      }
+      if (!parsedStyling.evenColumnBackgroundColor) {
+        parsedStyling.evenColumnBackgroundColor = "#00ff00";
+      }
+      // Backward compatibility: See More Button Settings
+      if (!parsedStyling.seeMoreButtonStyle) {
+        parsedStyling.seeMoreButtonStyle = "arrow";
+      }
+      if (!parsedStyling.seeMoreButtonText) {
+        parsedStyling.seeMoreButtonText = "See More";
+      }
+      if (parsedStyling.seeMoreButtonBorderEnabled === undefined) {
+        parsedStyling.seeMoreButtonBorderEnabled = false;
+      }
+      if (!parsedStyling.seeMoreButtonBorderWidth) {
+        parsedStyling.seeMoreButtonBorderWidth = "1px";
+      }
+      if (!parsedStyling.seeMoreButtonBorderStyle) {
+        parsedStyling.seeMoreButtonBorderStyle = "solid";
+      }
+      if (!parsedStyling.seeMoreButtonBorderColor) {
+        parsedStyling.seeMoreButtonBorderColor = "#000000";
+      }
+      if (!parsedStyling.seeMoreButtonColor) {
+        parsedStyling.seeMoreButtonColor = "#000000";
+      }
+      if (!parsedStyling.seeMoreButtonBackground) {
+        parsedStyling.seeMoreButtonBackground = "transparent";
+      }
+      if (!parsedStyling.seeMoreButtonFontSize) {
+        parsedStyling.seeMoreButtonFontSize = "14px";
+      }
+      if (!parsedStyling.seeMoreButtonFontStyle) {
+        parsedStyling.seeMoreButtonFontStyle = "normal";
+      }
+      if (!parsedStyling.seeMoreButtonFontFamily) {
+        parsedStyling.seeMoreButtonFontFamily = "Arial";
+      }
+      if (!parsedStyling.seeMoreButtonBorderRadius) {
+        parsedStyling.seeMoreButtonBorderRadius = "0px";
+      }
+      if (!parsedStyling.seeMoreButtonPadding) {
+        parsedStyling.seeMoreButtonPadding = "8px";
+      }
       setStyling(parsedStyling);
     }
     if (template?.sections) {
@@ -718,7 +822,8 @@ export default function TemplateEditorPage() {
       'input[name="seeMoreHideFromMobile"]',
       // Styling inputs
       'input[name="backgroundColor"]',
-      'input[name="textColor"]',
+      'input[name="specificationTextColor"]',
+      'input[name="valueTextColor"]',
       'input[name="headingColor"]',
       'input[name="headingFontSize"]',
       'input[name="headingFontWeight"]',
@@ -739,6 +844,9 @@ export default function TemplateEditorPage() {
       'input[name="rowBackgroundEnabled"]',
       'input[name="oddRowBackgroundColor"]',
       'input[name="evenRowBackgroundColor"]',
+      'input[name="columnBackgroundEnabled"]',
+      'input[name="oddColumnBackgroundColor"]',
+      'input[name="evenColumnBackgroundColor"]',
       'input[name="textTransform"]',
     ];
 
@@ -1135,7 +1243,7 @@ export default function TemplateEditorPage() {
             cursor: "pointer",
             padding: "10px",
             backgroundColor: styling.backgroundColor,
-            borderBottom: `1px solid ${styling.textColor || "#000000"}`,
+            borderBottom: `1px solid ${styling.specificationTextColor || styling.valueTextColor || "#000000"}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1205,7 +1313,7 @@ export default function TemplateEditorPage() {
     
     const containerStyle = {
       backgroundColor: styling.backgroundColor,
-      color: styling.textColor,
+      color: styling.specificationTextColor || styling.valueTextColor || "#000000", // Fallback pentru backward compatibility
       borderWidth: styling.borderWidth,
       borderColor: styling.sectionBorderEnabled ? styling.sectionBorderColor : "transparent",
       borderStyle: styling.sectionBorderEnabled ? styling.sectionBorderStyle : "none",
@@ -1232,9 +1340,24 @@ export default function TemplateEditorPage() {
             ? (mfDef.name || `${mfDef.namespace}.${mfDef.key}`)
             : "Metafield");
       const isOdd = globalIndex % 2 === 0;
-      const rowBackground = styling.rowBackgroundEnabled
-        ? (isOdd ? styling.oddRowBackgroundColor : styling.evenRowBackgroundColor)
-        : styling.tdBackgroundColor;
+      
+      // NOUA LOGICĂ: Column background (Odd/Even) sau Row background (Odd/Even)
+      // Mutual exclusivity: dacă column e activat, row nu poate fi activat și invers
+      let specBackground, valueBackground;
+      if (styling.columnBackgroundEnabled) {
+        // Column background: prima coloană (spec) = odd, a doua coloană (value) = even
+        specBackground = styling.oddColumnBackgroundColor;
+        valueBackground = styling.evenColumnBackgroundColor;
+      } else if (styling.rowBackgroundEnabled) {
+        // Row background: ambele coloane au același background bazat pe rând
+        const rowBackground = isOdd ? styling.oddRowBackgroundColor : styling.evenRowBackgroundColor;
+        specBackground = rowBackground;
+        valueBackground = rowBackground;
+      } else {
+        // Background TD standard
+        specBackground = styling.tdBackgroundColor;
+        valueBackground = styling.tdBackgroundColor;
+      }
       
       return (
         <tr key={`${metafield.sectionIndex}-${metafield.mfIndex}`} style={{ borderBottom: styling.rowBorderEnabled ? `${styling.rowBorderWidth} ${styling.rowBorderStyle} ${styling.rowBorderColor}` : "none" }}>
@@ -1243,10 +1366,10 @@ export default function TemplateEditorPage() {
               padding: "8px",
               fontWeight: "bold",
               width: "40%",
-              color: styling.textColor,
+              color: styling.specificationTextColor || "#000000",
               fontFamily: styling.textFontFamily,
               fontSize: styling.textFontSize,
-              backgroundColor: rowBackground,
+              backgroundColor: specBackground,
               textTransform: styling.textTransform,
             }}
           >
@@ -1279,10 +1402,10 @@ export default function TemplateEditorPage() {
           <td
             style={{
               padding: "8px",
-              color: styling.textColor,
+              color: styling.valueTextColor || "#000000",
               fontFamily: styling.textFontFamily,
               fontSize: styling.textFontSize,
-              backgroundColor: rowBackground,
+              backgroundColor: valueBackground,
               textTransform: styling.textTransform,
             }}
           >
@@ -1295,7 +1418,7 @@ export default function TemplateEditorPage() {
     return (
       <div style={containerStyle}>
         {sections.length === 0 ? (
-          <div style={{ padding: "20px", textAlign: "center", color: styling.textColor }}>
+          <div style={{ padding: "20px", textAlign: "center", color: styling.specificationTextColor || styling.valueTextColor || "#000000" }}>
             <p>Add sections to see the preview</p>
           </div>
         ) : isAccordion ? (
@@ -1322,19 +1445,34 @@ export default function TemplateEditorPage() {
                 <button
                   onClick={() => setShowAll(true)}
                   style={{
-                    background: "none",
-                    border: "none",
+                    background: styling.seeMoreButtonBackground || "transparent",
+                    border: styling.seeMoreButtonBorderEnabled 
+                      ? `${styling.seeMoreButtonBorderWidth || "1px"} ${styling.seeMoreButtonBorderStyle || "solid"} ${styling.seeMoreButtonBorderColor || "#000000"}`
+                      : "none",
                     cursor: "pointer",
-                    padding: "8px",
+                    padding: styling.seeMoreButtonPadding || "8px",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: styling.textColor || "#000000",
+                    gap: "8px",
+                    color: styling.seeMoreButtonColor || "#000000",
+                    fontSize: styling.seeMoreButtonFontSize || "14px",
+                    fontFamily: styling.seeMoreButtonFontFamily || "Arial",
+                    fontStyle: styling.seeMoreButtonFontStyle === "italic" || styling.seeMoreButtonFontStyle === "bold italic" ? "italic" : "normal",
+                    fontWeight: styling.seeMoreButtonFontStyle === "bold" || styling.seeMoreButtonFontStyle === "bold italic" ? "bold" : "normal",
+                    borderRadius: styling.seeMoreButtonBorderRadius || "0px",
+                    width: "100%",
+                    transition: "opacity 0.2s ease",
                   }}
                 >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease" }}>
-                    <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  {(styling.seeMoreButtonStyle === "arrow" || styling.seeMoreButtonStyle === "arrow+text") && (
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease", flexShrink: 0 }}>
+                      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                  {(styling.seeMoreButtonStyle === "text" || styling.seeMoreButtonStyle === "arrow+text") && (
+                    <span>{styling.seeMoreButtonText || "See More"}</span>
+                  )}
                 </button>
               </div>
             )}
@@ -1356,7 +1494,7 @@ export default function TemplateEditorPage() {
                       </tbody>
                     </table>
                   ) : (
-                    <p style={{ marginTop: "10px", color: styling.textColor, fontStyle: "italic" }}>
+                    <p style={{ marginTop: "10px", color: styling.specificationTextColor || styling.valueTextColor || "#000000", fontStyle: "italic" }}>
                       Metafields does not exist in this section
                     </p>
                   )}
@@ -1368,19 +1506,34 @@ export default function TemplateEditorPage() {
                 <button
                   onClick={() => setShowAll(true)}
                   style={{
-                    background: "none",
-                    border: "none",
+                    background: styling.seeMoreButtonBackground || "transparent",
+                    border: styling.seeMoreButtonBorderEnabled 
+                      ? `${styling.seeMoreButtonBorderWidth || "1px"} ${styling.seeMoreButtonBorderStyle || "solid"} ${styling.seeMoreButtonBorderColor || "#000000"}`
+                      : "none",
                     cursor: "pointer",
-                    padding: "8px",
+                    padding: styling.seeMoreButtonPadding || "8px",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: styling.textColor || "#000000",
+                    gap: "8px",
+                    color: styling.seeMoreButtonColor || "#000000",
+                    fontSize: styling.seeMoreButtonFontSize || "14px",
+                    fontFamily: styling.seeMoreButtonFontFamily || "Arial",
+                    fontStyle: styling.seeMoreButtonFontStyle === "italic" || styling.seeMoreButtonFontStyle === "bold italic" ? "italic" : "normal",
+                    fontWeight: styling.seeMoreButtonFontStyle === "bold" || styling.seeMoreButtonFontStyle === "bold italic" ? "bold" : "normal",
+                    borderRadius: styling.seeMoreButtonBorderRadius || "0px",
+                    width: "100%",
+                    transition: "opacity 0.2s ease",
                   }}
                 >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease" }}>
-                    <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  {(styling.seeMoreButtonStyle === "arrow" || styling.seeMoreButtonStyle === "arrow+text") && (
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease", flexShrink: 0 }}>
+                      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                  {(styling.seeMoreButtonStyle === "text" || styling.seeMoreButtonStyle === "arrow+text") && (
+                    <span>{styling.seeMoreButtonText || "See More"}</span>
+                  )}
                 </button>
               </div>
             )}
@@ -1537,7 +1690,8 @@ export default function TemplateEditorPage() {
           key={`seeMoreHideFromMobile-${seeMoreHideFromMobile}`}
         />
             <input type="hidden" name="backgroundColor" value={styling.backgroundColor} />
-            <input type="hidden" name="textColor" value={styling.textColor} />
+            <input type="hidden" name="specificationTextColor" value={styling.specificationTextColor} />
+            <input type="hidden" name="valueTextColor" value={styling.valueTextColor} />
             <input type="hidden" name="headingColor" value={styling.headingColor} />
             <input type="hidden" name="headingFontSize" value={styling.headingFontSize} />
             <input type="hidden" name="headingFontWeight" value={styling.headingFontWeight} />
@@ -1559,7 +1713,24 @@ export default function TemplateEditorPage() {
             <input type="hidden" name="rowBackgroundEnabled" value={styling.rowBackgroundEnabled ? "true" : "false"} />
             <input type="hidden" name="oddRowBackgroundColor" value={styling.oddRowBackgroundColor} />
             <input type="hidden" name="evenRowBackgroundColor" value={styling.evenRowBackgroundColor} />
+            <input type="hidden" name="columnBackgroundEnabled" value={styling.columnBackgroundEnabled ? "true" : "false"} />
+            <input type="hidden" name="oddColumnBackgroundColor" value={styling.oddColumnBackgroundColor} />
+            <input type="hidden" name="evenColumnBackgroundColor" value={styling.evenColumnBackgroundColor} />
             <input type="hidden" name="textTransform" value={styling.textTransform} />
+            {/* See More Button Settings */}
+            <input type="hidden" name="seeMoreButtonStyle" value={styling.seeMoreButtonStyle || "arrow"} />
+            <input type="hidden" name="seeMoreButtonText" value={styling.seeMoreButtonText || "See More"} />
+            <input type="hidden" name="seeMoreButtonBorderEnabled" value={styling.seeMoreButtonBorderEnabled ? "true" : "false"} />
+            <input type="hidden" name="seeMoreButtonBorderWidth" value={styling.seeMoreButtonBorderWidth || "1px"} />
+            <input type="hidden" name="seeMoreButtonBorderStyle" value={styling.seeMoreButtonBorderStyle || "solid"} />
+            <input type="hidden" name="seeMoreButtonBorderColor" value={styling.seeMoreButtonBorderColor || "#000000"} />
+            <input type="hidden" name="seeMoreButtonColor" value={styling.seeMoreButtonColor || "#000000"} />
+            <input type="hidden" name="seeMoreButtonBackground" value={styling.seeMoreButtonBackground || "transparent"} />
+            <input type="hidden" name="seeMoreButtonFontSize" value={styling.seeMoreButtonFontSize || "14px"} />
+            <input type="hidden" name="seeMoreButtonFontStyle" value={styling.seeMoreButtonFontStyle || "normal"} />
+            <input type="hidden" name="seeMoreButtonFontFamily" value={styling.seeMoreButtonFontFamily || "Arial"} />
+            <input type="hidden" name="seeMoreButtonBorderRadius" value={styling.seeMoreButtonBorderRadius || "0px"} />
+            <input type="hidden" name="seeMoreButtonPadding" value={styling.seeMoreButtonPadding || "8px"} />
             {sections.map((section, sectionIndex) => (
                 <div key={sectionIndex}>
                     <input
@@ -2151,6 +2322,46 @@ export default function TemplateEditorPage() {
                     value={seeMoreHideFromMobile ? "true" : "false"}
                     label="Show see more button just on PC"
                   />
+                  
+                  {/* Show More Button Style */}
+                  <s-select
+                    name="seeMoreButtonStyle"
+                    label="Show More Button Style"
+                    value={styling.seeMoreButtonStyle || "arrow"}
+                    onInput={(e) => {
+                      const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                      if (value !== undefined) {
+                        setStyling((prev) => ({ ...prev, seeMoreButtonStyle: value }));
+                      }
+                    }}
+                    onChange={(e) => {
+                      const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                      if (value !== undefined) {
+                        setStyling((prev) => ({ ...prev, seeMoreButtonStyle: value }));
+                      }
+                    }}
+                  >
+                    <s-option value="arrow">Arrow</s-option>
+                    <s-option value="text">Text</s-option>
+                    <s-option value="arrow+text">Arrow + Text</s-option>
+                  </s-select>
+                  
+                  {/* Show More Button Text - se afișează doar dacă style este "text" sau "arrow+text" */}
+                  {(styling.seeMoreButtonStyle === "text" || styling.seeMoreButtonStyle === "arrow+text") && (
+                    <s-text-field
+                      label="Button Text"
+                      name="seeMoreButtonText"
+                      value={styling.seeMoreButtonText || "See More"}
+                      onChange={(e) => {
+                        const value = e.currentTarget?.value || e.target?.value || "";
+                        setStyling((prev) => ({
+                          ...prev,
+                          seeMoreButtonText: value,
+                        }));
+                      }}
+                      placeholder="See More, Vezi mai mult, Extinde lista..."
+                    />
+                  )}
                 </s-stack>
               </s-box>
             )}
@@ -2415,16 +2626,30 @@ export default function TemplateEditorPage() {
                 <s-heading level="3">Spec Styling</s-heading>
                 <s-stack direction="block" gap="base">
                   <s-color-field
-                    label="Text Color"
-                    name="textColor"
-                    value={styling.textColor}
+                    label="Specification Text Color"
+                    name="specificationTextColor"
+                    value={styling.specificationTextColor || "#000000"}
                     alpha
                     onChange={(event) => {
                       const value = event.currentTarget?.value || event.target?.value;
                       if (!value) return;
                       setStyling((prev) => ({
                         ...prev,
-                        textColor: value,
+                        specificationTextColor: value,
+                      }));
+                    }}
+                  />
+                  <s-color-field
+                    label="Value Text Color"
+                    name="valueTextColor"
+                    value={styling.valueTextColor || "#000000"}
+                    alpha
+                    onChange={(event) => {
+                      const value = event.currentTarget?.value || event.target?.value;
+                      if (!value) return;
+                      setStyling((prev) => ({
+                        ...prev,
+                        valueTextColor: value,
                       }));
                     }}
                   />
@@ -2485,8 +2710,8 @@ export default function TemplateEditorPage() {
               </s-select>
             </s-stack>
 
-                  {/* Background TD - se afișează doar când Row Background este dezactivat */}
-                  {!styling.rowBackgroundEnabled && (
+                  {/* Background TD - se afișează doar când Row Background și Column Background sunt dezactivate */}
+                  {!styling.rowBackgroundEnabled && !styling.columnBackgroundEnabled && (
                     <s-color-field
                       label="Background TD"
                       name="tdBackgroundColor"
@@ -2509,10 +2734,13 @@ export default function TemplateEditorPage() {
                       id="row-background-switch"
                       label="Row Background (Odd/Even)"
                       checked={styling.rowBackgroundEnabled}
+                      disabled={styling.columnBackgroundEnabled}
                       onChange={(e) => {
                         setStyling((prev) => ({
                           ...prev,
                           rowBackgroundEnabled: e.target.checked,
+                          // Mutual exclusivity: dacă row e activat, column e dezactivat
+                          columnBackgroundEnabled: e.target.checked ? false : prev.columnBackgroundEnabled,
                         }));
                       }}
                     />
@@ -2552,6 +2780,58 @@ export default function TemplateEditorPage() {
                     )}
                   </s-stack>
 
+                  {/* Column Background (Odd/Even) */}
+                  <s-stack direction="block" gap="tight">
+                    <s-switch
+                      id="column-background-switch"
+                      label="Column Background (Odd/Even)"
+                      checked={styling.columnBackgroundEnabled}
+                      disabled={styling.rowBackgroundEnabled}
+                      onChange={(e) => {
+                        setStyling((prev) => ({
+                          ...prev,
+                          columnBackgroundEnabled: e.target.checked,
+                          // Mutual exclusivity: dacă column e activat, row e dezactivat
+                          rowBackgroundEnabled: e.target.checked ? false : prev.rowBackgroundEnabled,
+                        }));
+                      }}
+                    />
+                    {styling.columnBackgroundEnabled && (
+                      <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
+                        <s-stack direction="inline" gap="base">
+                          <s-color-field
+                            label="Odd Column Background (Spec)"
+                            name="oddColumnBackgroundColor"
+                            value={styling.oddColumnBackgroundColor}
+                            alpha
+                            onChange={(event) => {
+                              const value = event.currentTarget?.value || event.target?.value;
+                              if (!value) return;
+                              setStyling((prev) => ({
+                                ...prev,
+                                oddColumnBackgroundColor: value,
+                              }));
+                            }}
+                          />
+                          <s-color-field
+                            label="Even Column Background (Value)"
+                            name="evenColumnBackgroundColor"
+                            value={styling.evenColumnBackgroundColor}
+                            alpha
+                            onChange={(event) => {
+                              const value = event.currentTarget?.value || event.target?.value;
+                              if (!value) return;
+                              setStyling((prev) => ({
+                                ...prev,
+                                evenColumnBackgroundColor: value,
+                              }));
+                            }}
+                          />
+                        </s-stack>
+                      </s-stack>
+                    )}
+                  </s-stack>
+
                   {/* Text Transform */}
                   <s-select
                     name="textTransform"
@@ -2575,7 +2855,7 @@ export default function TemplateEditorPage() {
                     <s-option value="lowercase">Lowercase</s-option>
                     <s-option value="capitalize">Capitalize</s-option>
                   </s-select>
-
+                  
                   {/* Row Border */}
                   <s-stack direction="block" gap="tight">
                     <s-switch
@@ -2628,7 +2908,7 @@ export default function TemplateEditorPage() {
                             <s-option value="dotted">Dotted</s-option>
                             <s-option value="none">None</s-option>
               </s-select>
-            </s-stack>
+                        </s-stack>
                         <div style={{ width: "100%" }}>
                           <RangeSlider
                             label="Border Width"
@@ -2650,12 +2930,254 @@ export default function TemplateEditorPage() {
                             value={styling.rowBorderWidth}
                           />
                         </div>
-            </s-stack>
+                      </s-stack>
                     )}
                   </s-stack>
                 </s-stack>
               </s-stack>
             </s-box>
+            
+            {/* 4. See More Button Styling */}
+            {seeMoreEnabled && (
+              <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+                <s-stack direction="block" gap="base">
+                  <s-heading level="3">See More Button Styling</s-heading>
+                  <s-stack direction="block" gap="base"> 
+                          <s-color-field
+                            label="Button Text Color"
+                            name="seeMoreButtonColor"
+                            value={styling.seeMoreButtonColor || "#000000"}
+                            alpha
+                            onChange={(event) => {
+                              const value = event.currentTarget?.value || event.target?.value;
+                              if (!value) return;
+                              setStyling((prev) => ({
+                                ...prev,
+                                seeMoreButtonColor: value,
+                              }));
+                            }}
+                          />
+                          
+                          <s-color-field
+                            label="Button Background"
+                            name="seeMoreButtonBackground"
+                            value={styling.seeMoreButtonBackground || "transparent"}
+                            alpha
+                            onChange={(event) => {
+                              const value = event.currentTarget?.value || event.target?.value;
+                              if (!value) return;
+                              setStyling((prev) => ({
+                                ...prev,
+                                seeMoreButtonBackground: value,
+                              }));
+                            }}
+                          />
+                          
+                          <s-stack direction="inline" gap="base">
+                            <div style={{ width: "100%" }}>
+                              <RangeSlider
+                                label="Font Size"
+                                value={pxToNumber(styling.seeMoreButtonFontSize || "14px")}
+                                onChange={(value) => {
+                                  setStyling((prev) => ({
+                                    ...prev,
+                                    seeMoreButtonFontSize: numberToPx(value),
+                                  }));
+                                }}
+                                min={8}
+                                max={48}
+                                step={1}
+                                output
+                              />
+                              <input
+                                type="hidden"
+                                name="seeMoreButtonFontSize"
+                                value={styling.seeMoreButtonFontSize || "14px"}
+                              />
+                            </div>
+                            <div style={{ width: "100%" }}>
+                              <RangeSlider
+                                label="Padding"
+                                value={pxToNumber(styling.seeMoreButtonPadding || "8px")}
+                                onChange={(value) => {
+                                  setStyling((prev) => ({
+                                    ...prev,
+                                    seeMoreButtonPadding: numberToPx(value),
+                                  }));
+                                }}
+                                min={0}
+                                max={40}
+                                step={1}
+                                output
+                              />
+                              <input
+                                type="hidden"
+                                name="seeMoreButtonPadding"
+                                value={styling.seeMoreButtonPadding || "8px"}
+                              />
+                            </div>
+                          </s-stack>
+                          
+                          <s-select
+                            name="seeMoreButtonFontStyle"
+                            label="Font Style"
+                            value={styling.seeMoreButtonFontStyle || "normal"}
+                            onInput={(e) => {
+                              const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                              if (value !== undefined) {
+                                setStyling((prev) => ({ ...prev, seeMoreButtonFontStyle: value }));
+                              }
+                            }}
+                            onChange={(e) => {
+                              const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                              if (value !== undefined) {
+                                setStyling((prev) => ({ ...prev, seeMoreButtonFontStyle: value }));
+                              }
+                            }}
+                          >
+                            <s-option value="normal">Normal</s-option>
+                            <s-option value="italic">Italic</s-option>
+                            <s-option value="bold">Bold</s-option>
+                            <s-option value="bold italic">Bold Italic</s-option>
+                          </s-select>
+                          
+                          <s-select
+                            name="seeMoreButtonFontFamily"
+                            label="Font Family"
+                            value={styling.seeMoreButtonFontFamily || "Arial"}
+                            onInput={(e) => {
+                              const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                              if (value !== undefined) {
+                                setStyling((prev) => ({ ...prev, seeMoreButtonFontFamily: value }));
+                              }
+                            }}
+                            onChange={(e) => {
+                              const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                              if (value !== undefined) {
+                                setStyling((prev) => ({ ...prev, seeMoreButtonFontFamily: value }));
+                              }
+                            }}
+                          >
+                            <s-option value="Arial">Arial</s-option>
+                            <s-option value="Helvetica">Helvetica</s-option>
+                            <s-option value="Times New Roman">Times New Roman</s-option>
+                            <s-option value="Courier New">Courier New</s-option>
+                            <s-option value="Verdana">Verdana</s-option>
+                            <s-option value="Georgia">Georgia</s-option>
+                            <s-option value="Palatino">Palatino</s-option>
+                            <s-option value="Garamond">Garamond</s-option>
+                            <s-option value="Comic Sans MS">Comic Sans MS</s-option>
+                            <s-option value="Trebuchet MS">Trebuchet MS</s-option>
+                            <s-option value="Impact">Impact</s-option>
+                            <s-option value="Lucida Console">Lucida Console</s-option>
+                            <s-option value="Tahoma">Tahoma</s-option>
+                            <s-option value="Calibri">Calibri</s-option>
+                            <s-option value="Roboto">Roboto</s-option>
+                          </s-select>
+                          
+                          <div style={{ width: "100%" }}>
+                            <RangeSlider
+                              label="Border Radius"
+                              value={pxToNumber(styling.seeMoreButtonBorderRadius || "0px")}
+                              onChange={(value) => {
+                                setStyling((prev) => ({
+                                  ...prev,
+                                  seeMoreButtonBorderRadius: numberToPx(value),
+                                }));
+                              }}
+                              min={0}
+                              max={50}
+                              step={1}
+                              output
+                            />
+                            <input
+                              type="hidden"
+                              name="seeMoreButtonBorderRadius"
+                              value={styling.seeMoreButtonBorderRadius || "0px"}
+                            />
+                          </div>
+                          
+                          {/* Button Border */}
+                          <s-stack direction="block" gap="tight">
+                            <s-switch
+                              id="see-more-button-border-switch"
+                              label="Button Border"
+                              checked={styling.seeMoreButtonBorderEnabled || false}
+                              onChange={(e) => {
+                                setStyling((prev) => ({
+                                  ...prev,
+                                  seeMoreButtonBorderEnabled: e.target.checked,
+                                }));
+                              }}
+                            />
+                            {styling.seeMoreButtonBorderEnabled && (
+                              <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
+                                <s-stack direction="inline" gap="base">
+                                  <div style={{ width: "100%" }}>
+                                    <RangeSlider
+                                      label="Border Width"
+                                      value={pxToNumber(styling.seeMoreButtonBorderWidth || "1px")}
+                                      onChange={(value) => {
+                                        setStyling((prev) => ({
+                                          ...prev,
+                                          seeMoreButtonBorderWidth: numberToPx(value),
+                                        }));
+                                      }}
+                                      min={0}
+                                      max={10}
+                                      step={1}
+                                      output
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="seeMoreButtonBorderWidth"
+                                      value={styling.seeMoreButtonBorderWidth || "1px"}
+                                    />
+                                  </div>
+                                  <s-select
+                                    name="seeMoreButtonBorderStyle"
+                                    label="Border Style"
+                                    value={styling.seeMoreButtonBorderStyle || "solid"}
+                                    onInput={(e) => {
+                                      const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                                      if (value !== undefined) {
+                                        setStyling((prev) => ({ ...prev, seeMoreButtonBorderStyle: value }));
+                                      }
+                                    }}
+                                    onChange={(e) => {
+                                      const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                                      if (value !== undefined) {
+                                        setStyling((prev) => ({ ...prev, seeMoreButtonBorderStyle: value }));
+                                      }
+                                    }}
+                                  >
+                                    <s-option value="solid">Solid</s-option>
+                                    <s-option value="dashed">Dashed</s-option>
+                                    <s-option value="dotted">Dotted</s-option>
+                                    <s-option value="double">Double</s-option>
+                                  </s-select>
+                                </s-stack>
+                                <s-color-field
+                                  label="Border Color"
+                                  name="seeMoreButtonBorderColor"
+                                  value={styling.seeMoreButtonBorderColor || "#000000"}
+                                  alpha
+                                  onChange={(event) => {
+                                    const value = event.currentTarget?.value || event.target?.value;
+                                    if (!value) return;
+                                    setStyling((prev) => ({
+                                      ...prev,
+                                      seeMoreButtonBorderColor: value,
+                                    }));
+                                  }}
+                                />
+                              </s-stack>
+                            )}
+                          </s-stack>
+                        </s-stack>
+                      </s-stack>
+                    </s-box>
+                  )}
           </s-stack>
         </s-section>
         </div>

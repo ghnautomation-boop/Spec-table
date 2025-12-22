@@ -4,7 +4,7 @@
 .dc_container {
   width: 100%;
   background-color: var(--dc-bg-color, #ffffff);
-  color: var(--dc-text-color, #000000);
+  color: var(--dc-specification-text-color, var(--dc-value-text-color, #000000)); /* Fallback pentru backward compatibility */
   border: var(--dc-border, none);
   border-radius: var(--dc-border-radius, 0px);
   padding: var(--dc-padding, 20px);
@@ -32,7 +32,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--dc-text-color, #000000);
+  border-bottom: 1px solid var(--dc-specification-text-color, var(--dc-value-text-color, #000000));
   background-color: var(--dc-bg-color, #ffffff);
   font-size: var(--dc-heading-font-size, 18px);
   font-weight: var(--dc-heading-font-weight, bold);
@@ -60,21 +60,21 @@
   border-bottom: var(--dc-row-border, none);
 }
 
-/* Table Cell - Label (prima coloană) */
+/* Table Cell - Label (prima coloană) - Specification Text Color */
 .dc_table_td_label {
   padding: 8px;
   font-weight: bold;
   width: var(--dc-first-column-width, 40%);
-  color: var(--dc-text-color, #000000);
+  color: var(--dc-specification-text-color, #000000);
   font-family: var(--dc-text-font-family, inherit);
   font-size: var(--dc-text-font-size, 14px);
   text-transform: var(--dc-text-transform, none);
 }
 
-/* Table Cell - Value */
+/* Table Cell - Value - Value Text Color */
 .dc_table_td_value {
   padding: 8px;
-  color: var(--dc-text-color, #000000);
+  color: var(--dc-value-text-color, #000000);
   font-family: var(--dc-text-font-family, inherit);
   font-size: var(--dc-text-font-size, 14px);
   text-transform: var(--dc-text-transform, none);
@@ -102,23 +102,33 @@
 .dc_see_more {
   text-align: center;
   margin-top: 12px;
-  background-color:aliceblue;
+  background-color: var(--dc-see-more-button-background, transparent);
 }
 
-.dc_see_more:hover{
-    background-color:rgb(220, 233, 245)
-  }
+.dc_see_more:hover {
+  opacity: 0.9;
+}
+
 /* See More Button */
 .dc_see_more_button {
-  background: none;
-  border: none;
+  background: var(--dc-see-more-button-background, transparent);
+  border: var(--dc-see-more-button-border, none);
   cursor: pointer;
-  padding: 8px;
+  padding: var(--dc-see-more-button-padding, 8px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--dc-text-color, #000000);
+  gap: 8px;
+  color: var(--dc-see-more-button-color, #000000);
+  font-size: var(--dc-see-more-button-font-size, 14px);
+  font-family: var(--dc-see-more-button-font-family, Arial);
+  border-radius: var(--dc-see-more-button-border-radius, 0px);
   width: 100%;
+  transition: opacity 0.2s ease;
+}
+
+.dc_see_more_button:hover {
+  opacity: 0.8;
 }
 
 /* Versiuni PC și Mobile pentru See More */
@@ -164,6 +174,12 @@
 .dc_see_more_arrow {
   display: inline-block;
   transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+/* See More Text */
+.dc_see_more_text {
+  display: inline-block;
 }
 
 /* Accordion Arrow */
