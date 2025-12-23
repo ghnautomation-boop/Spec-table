@@ -516,7 +516,7 @@ export default function Index() {
         <s-section>
           <s-banner tone="info">
             <s-stack direction="block" gap="tight">
-              <s-text emphasis="strong">Welcome to Specification Templates!</s-text>
+              <s-text emphasis="strong">Welcome to SmartSpecs Table!</s-text>
               <s-paragraph>
                 Get started by following the setup guide below. This will help you configure
                 your product specification tables and make them available on your storefront.

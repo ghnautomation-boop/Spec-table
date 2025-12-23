@@ -592,6 +592,8 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
  * Sincronizează un singur metafield definition (folosit pentru webhook-uri)
  */
 export async function syncSingleMetafieldDefinition(admin, shopDomain, metafieldDefinitionData) {
+  console.log(`[sync] syncSingleMetafieldDefinition called with:`, metafieldDefinitionData);
+  
   // Găsește sau creează shop-ul
   let shop = await prisma.shop.findUnique({
     where: { shopDomain },
@@ -601,17 +603,32 @@ export async function syncSingleMetafieldDefinition(admin, shopDomain, metafield
     shop = await prisma.shop.create({
       data: { shopDomain },
     });
+    console.log(`[sync] Created shop: ${shopDomain}`);
   }
 
-  // Normalizează ownerType: PRODUCT_VARIANT sau PRODUCTVARIANT -> VARIANT, PRODUCT rămâne PRODUCT
-  const normalizedOwnerType =
-    metafieldDefinitionData.ownerType === "PRODUCT_VARIANT" || 
-    metafieldDefinitionData.ownerType === "PRODUCTVARIANT"
-      ? "VARIANT"
-      : metafieldDefinitionData.ownerType;
+  // Normalizează ownerType: 
+  // - PRODUCT_VARIANT sau PRODUCTVARIANT -> VARIANT
+  // - Product (cu majusculă) -> PRODUCT
+  // - PRODUCT rămâne PRODUCT
+  let normalizedOwnerType = metafieldDefinitionData.ownerType;
+  
+  if (normalizedOwnerType === "PRODUCT_VARIANT" || normalizedOwnerType === "PRODUCTVARIANT") {
+    normalizedOwnerType = "VARIANT";
+  } else if (normalizedOwnerType === "ProductVariant" || normalizedOwnerType === "PRODUCTVARIANT") {
+    normalizedOwnerType = "VARIANT";
+  } else if (normalizedOwnerType === "Product" || normalizedOwnerType === "PRODUCT") {
+    normalizedOwnerType = "PRODUCT";
+  } else if (normalizedOwnerType === "Variant" || normalizedOwnerType === "VARIANT") {
+    normalizedOwnerType = "VARIANT";
+  }
+  
+  // Asigură-te că ownerType este uppercase
+  normalizedOwnerType = normalizedOwnerType.toUpperCase();
+
+  console.log(`[sync] Normalized ownerType: ${metafieldDefinitionData.ownerType} -> ${normalizedOwnerType}`);
 
   // Upsert metafield definition
-  await prisma.metafieldDefinition.upsert({
+  const result = await prisma.metafieldDefinition.upsert({
     where: {
       namespace_key_ownerType_shopId: {
         namespace: metafieldDefinitionData.namespace,
@@ -632,6 +649,14 @@ export async function syncSingleMetafieldDefinition(admin, shopDomain, metafield
       ownerType: normalizedOwnerType,
       shopId: shop.id,
     },
+  });
+
+  console.log(`[sync] Upsert result:`, {
+    id: result.id,
+    namespace: result.namespace,
+    key: result.key,
+    ownerType: result.ownerType,
+    type: result.type
   });
 
   return { success: true, shopId: shop.id };

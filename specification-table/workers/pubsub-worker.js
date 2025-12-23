@@ -285,34 +285,72 @@ const pendingWebhooks = new Map();
  * Extrage resource ID și tipul din payload
  */
 function extractResourceInfo(topic, payload) {
-  // Topic-ul poate veni în format "products/create" sau "PRODUCTS_CREATE"
-  // Normalizăm la format lowercase cu slash
-  let normalizedTopic = topic.toLowerCase();
-  if (normalizedTopic.includes("_")) {
-    // Convertim "PRODUCTS_CREATE" -> "products/create"
-    normalizedTopic = normalizedTopic.replace(/_/g, "/");
-  }
+  // Simplificăm logica - recunoaștem direct topic-urile
+  const topicUpper = topic.toUpperCase();
   
-  const topicParts = normalizedTopic.split("/");
-  const resourceType = topicParts[0]; // "products", "collections", "metafield_definitions"
-  const action = topicParts[1]; // "create", "update", "delete"
+  console.log(`[worker] extractResourceInfo - topic: ${topic}, topicUpper: ${topicUpper}`);
   
+  let resourceType = null;
+  let action = null;
   let resourceId = null;
   
-  if (resourceType === "products") {
-    resourceId = payload?.admin_graphql_api_id || payload?.id;
-  } else if (resourceType === "collections") {
-    resourceId = payload?.admin_graphql_api_id || payload?.id;
-  } else if (resourceType === "metafield_definitions") {
+  // Metafield definitions - tratăm direct (verificăm exact match-ul primul)
+  if (topicUpper === "METAFIELD_DEFINITIONS_CREATE" || topicUpper.includes("METAFIELD_DEFINITIONS_CREATE")) {
+    resourceType = "metafield_definitions";
+    action = "create";
     resourceId = payload?.id || payload?.admin_graphql_api_id;
-  } else if (resourceType === "app") {
-    // Pentru app/uninstalled, app/scopes_update, etc.
+    console.log(`[worker] Matched METAFIELD_DEFINITIONS_CREATE`);
+  } else if (topicUpper === "METAFIELD_DEFINITIONS_UPDATE" || topicUpper.includes("METAFIELD_DEFINITIONS_UPDATE")) {
+    resourceType = "metafield_definitions";
+    action = "update";
+    resourceId = payload?.id || payload?.admin_graphql_api_id;
+    console.log(`[worker] Matched METAFIELD_DEFINITIONS_UPDATE`);
+  } else if (topicUpper === "METAFIELD_DEFINITIONS_DELETE" || topicUpper.includes("METAFIELD_DEFINITIONS_DELETE")) {
+    resourceType = "metafield_definitions";
+    action = "delete";
+    resourceId = payload?.id || payload?.admin_graphql_api_id;
+    console.log(`[worker] Matched METAFIELD_DEFINITIONS_DELETE`);
+  }
+  // Products delete
+  else if (topicUpper === "PRODUCTS_DELETE" || topicUpper.includes("PRODUCTS_DELETE")) {
+    resourceType = "products";
+    action = "delete";
+    resourceId = payload?.admin_graphql_api_id || payload?.id;
+  }
+  // Collections delete
+  else if (topicUpper === "COLLECTIONS_DELETE" || topicUpper.includes("COLLECTIONS_DELETE")) {
+    resourceType = "collections";
+    action = "delete";
+    resourceId = payload?.admin_graphql_api_id || payload?.id;
+  }
+  // App events
+  else if (topicUpper.startsWith("APP_")) {
+    resourceType = "app";
+    action = topicUpper.replace("APP_", "").toLowerCase();
     resourceId = "app";
+  }
+  // Fallback pentru alte formate (products/create, etc.)
+  else {
+    let normalizedTopic = topic.toLowerCase();
+    if (normalizedTopic.includes("_")) {
+      normalizedTopic = normalizedTopic.replace(/_/g, "/");
+    }
+    
+    const topicParts = normalizedTopic.split("/");
+    resourceType = topicParts[0];
+    action = topicParts[1];
+    
+    if (resourceType === "products") {
+      resourceId = payload?.admin_graphql_api_id || payload?.id;
+    } else if (resourceType === "collections") {
+      resourceId = payload?.admin_graphql_api_id || payload?.id;
+    } else if (resourceType === "app") {
+      resourceId = "app";
+    }
   }
   
   console.log(`[worker] extractResourceInfo:`, { 
     originalTopic: topic, 
-    normalizedTopic, 
     resourceType, 
     action, 
     resourceId,
@@ -520,6 +558,7 @@ async function processWebhook(shop, topic, payload) {
     } else if (resourceType === "metafield_definitions") {
       if (action === "delete") {
         // Handle delete
+        // Pentru delete, trebuie să obținem namespace, key și ownerType din payload sau să facem query GraphQL
         const definitionId = resourceId || payload?.id || payload?.admin_graphql_api_id;
         if (!definitionId) {
           const errorMsg = `No definitionId found for delete action. Payload keys: ${Object.keys(payload || {}).join(", ")}`;
@@ -528,19 +567,187 @@ async function processWebhook(shop, topic, payload) {
         }
         
         console.log(`[worker] Deleting metafield definition: ${definitionId} for shop: ${shop}`);
-        const deleted = await prisma.metafieldDefinition.deleteMany({
-          where: {
-            shopifyId: definitionId,
-            shop: { shopDomain: shop },
-          },
+        
+        // Obține shop-ul pentru a avea shopId
+        const shopRecord = await prisma.shop.findUnique({
+          where: { shopDomain: shop },
+          select: { id: true },
         });
-        console.log(`[worker] Deleted ${deleted.count} metafield definition(s)`);
+        
+        if (!shopRecord) {
+          throw new Error(`Shop not found: ${shop}`);
+        }
+        
+        // Pentru delete, trebuie să ștergem folosind namespace, key, ownerType și shopId
+        // Dar nu avem aceste date direct în payload pentru delete
+        // Trebuie să facem query GraphQL pentru a obține datele sau să le extragem din payload dacă există
+        if (payload?.namespace && payload?.key && payload?.owner_type) {
+          // Normalizează ownerType
+          const normalizedOwnerType = 
+            payload.owner_type === "PRODUCT_VARIANT" || payload.owner_type === "PRODUCTVARIANT"
+              ? "VARIANT"
+              : payload.owner_type;
+          
+          const deleted = await prisma.metafieldDefinition.deleteMany({
+            where: {
+              namespace: payload.namespace,
+              key: payload.key,
+              ownerType: normalizedOwnerType,
+              shopId: shopRecord.id,
+            },
+          });
+          console.log(`[worker] Deleted ${deleted.count} metafield definition(s) using namespace/key/ownerType`);
+        } else {
+          // Dacă nu avem namespace/key în payload, facem query GraphQL pentru a le obține
+          // Construim GID-ul dacă nu este deja în format GID
+          const definitionGid = definitionId.toString().startsWith('gid://') 
+            ? definitionId 
+            : `gid://shopify/MetafieldDefinition/${definitionId}`;
+          
+          console.log(`[worker] Fetching metafield definition for delete using GID: ${definitionGid}`);
+          
+          const query = `
+            query GetMetafieldDefinitionById($id: ID!) {
+              metafieldDefinition(id: $id) {
+                id
+                namespace
+                key
+                ownerType
+              }
+            }
+          `;
+          
+          const response = await admin.graphql(query, { variables: { id: definitionGid } });
+          const data = await response.json();
+          
+          if (data.errors) {
+            console.error(`[worker] GraphQL errors:`, data.errors);
+            throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+          }
+          
+          if (data.data?.metafieldDefinition) {
+            const def = data.data.metafieldDefinition;
+            const normalizedOwnerType = 
+              def.ownerType === "PRODUCT_VARIANT" || def.ownerType === "PRODUCTVARIANT"
+                ? "VARIANT"
+                : def.ownerType;
+            
+            console.log(`[worker] Deleting metafield definition:`, {
+              namespace: def.namespace,
+              key: def.key,
+              ownerType: normalizedOwnerType
+            });
+            
+            const deleted = await prisma.metafieldDefinition.deleteMany({
+              where: {
+                namespace: def.namespace,
+                key: def.key,
+                ownerType: normalizedOwnerType,
+                shopId: shopRecord.id,
+              },
+            });
+            console.log(`[worker] Deleted ${deleted.count} metafield definition(s) using GraphQL query`);
+          } else {
+            console.warn(`[worker] Metafield definition not found in Shopify: ${definitionId}`, data);
+          }
+        }
       } else {
-        // Create/Update
+        // Create/Update - simplificat
         if (payload) {
-          console.log(`[worker] Syncing metafield definition for shop: ${shop}`);
-          const result = await syncSingleMetafieldDefinition(admin, shop, payload);
-          console.log(`[worker] Successfully synced metafield definition`, result);
+          console.log(`[worker] Processing metafield definition ${action} for shop: ${shop}`);
+          
+          // Payload-ul din webhook conține direct toate datele necesare
+          // Conform documentației Shopify, webhook-ul pentru metafield definitions trimite:
+          // - namespace
+          // - key
+          // - name
+          // - owner_type (nu ownerType)
+          // - type_name (nu type.name)
+          // - id
+          
+          console.log(`[worker] Payload received:`, {
+            namespace: payload.namespace,
+            key: payload.key,
+            name: payload.name,
+            owner_type: payload.owner_type,
+            type_name: payload.type_name,
+            id: payload.id
+          });
+          
+          // Verifică dacă avem toate datele necesare direct din payload
+          if (payload.namespace && payload.key && payload.owner_type) {
+            // Avem toate datele necesare din payload - folosim direct
+            const metafieldDefinitionData = {
+              namespace: payload.namespace,
+              key: payload.key,
+              name: payload.name || null,
+              ownerType: payload.owner_type, // Webhook-ul trimite owner_type
+              type: payload.type_name, // Webhook-ul trimite type_name
+            };
+            
+            console.log(`[worker] Using payload data directly:`, metafieldDefinitionData);
+            
+            const result = await syncSingleMetafieldDefinition(admin, shop, metafieldDefinitionData);
+            console.log(`[worker] Successfully synced metafield definition from payload`, result);
+          } else {
+            // Dacă nu avem toate datele, facem query GraphQL folosind ID-ul
+            const definitionId = resourceId || payload?.id;
+            if (definitionId) {
+              console.log(`[worker] Fetching metafield definition data from GraphQL: ${definitionId}`);
+              
+              // Construim GID-ul dacă nu este deja în format GID
+              const definitionGid = definitionId.toString().startsWith('gid://') 
+                ? definitionId 
+                : `gid://shopify/MetafieldDefinition/${definitionId}`;
+              
+              console.log(`[worker] Using GID: ${definitionGid}`);
+              
+              // Folosim query-ul corect conform documentației Shopify
+              const query = `
+                query GetMetafieldDefinitionById($id: ID!) {
+                  metafieldDefinition(id: $id) {
+                    id
+                    name
+                    namespace
+                    key
+                    type {
+                      name
+                    }
+                    ownerType
+                  }
+                }
+              `;
+              
+              const response = await admin.graphql(query, { variables: { id: definitionGid } });
+              const data = await response.json();
+              
+              if (data.errors) {
+                console.error(`[worker] GraphQL errors:`, data.errors);
+                throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+              }
+              
+              if (data.data?.metafieldDefinition) {
+                const def = data.data.metafieldDefinition;
+                const metafieldDefinitionData = {
+                  namespace: def.namespace,
+                  key: def.key,
+                  name: def.name || null,
+                  ownerType: def.ownerType,
+                  type: def.type?.name || def.type,
+                };
+                
+                console.log(`[worker] Extracted from GraphQL:`, metafieldDefinitionData);
+                
+                const result = await syncSingleMetafieldDefinition(admin, shop, metafieldDefinitionData);
+                console.log(`[worker] Successfully synced metafield definition from GraphQL`, result);
+              } else {
+                console.error(`[worker] Metafield definition not found in GraphQL response:`, data);
+                throw new Error(`Metafield definition not found: ${definitionId}`);
+              }
+            } else {
+              throw new Error(`No definitionId found in payload. Payload keys: ${Object.keys(payload).join(", ")}`);
+            }
+          }
         } else {
           console.warn(`[worker] No payload found for metafield definition ${action}, skipping sync`);
         }
@@ -590,14 +797,45 @@ function processMessageWithDebounce(message) {
   
   const { shop, topic, payload, webhookId } = data;
   
-  const { resourceType, resourceId } = extractResourceInfo(topic, payload);
+  const { resourceType, action, resourceId } = extractResourceInfo(topic, payload);
   const debounceKey = `${shop}-${resourceType}-${resourceId || "app"}`;
   
-  // Dacă există deja un webhook în așteptare pentru același resource, anulează timer-ul vechi
-  if (pendingWebhooks.has(debounceKey)) {
+  // Pentru metafield_definitions, nu anulăm CREATE-ul când vine UPDATE-ul
+  // pentru că CREATE-ul trebuie să fie procesat primul (să insereze în DB)
+  // și apoi UPDATE-ul să actualizeze
+  if (pendingWebhooks.has(debounceKey) && resourceType === "metafield_definitions") {
+    const existing = pendingWebhooks.get(debounceKey);
+    const existingAction = existing.action;
+    
+    // Dacă există un CREATE în așteptare și vine un UPDATE, procesăm CREATE-ul imediat
+    // și apoi procesăm UPDATE-ul
+    if (existingAction === "create" && action === "update") {
+      console.log(`[worker] CREATE pending, processing it immediately before UPDATE`);
+      clearTimeout(existing.timer);
+      
+      // Procesează CREATE-ul imediat
+      (async () => {
+        try {
+          await processWebhook(shop, existing.topic, existing.payload);
+          existing.message.ack();
+          console.log(`[worker] Processed CREATE immediately`);
+        } catch (error) {
+          console.error(`[worker] Error processing CREATE immediately:`, error);
+          existing.message.ack(); // Ack chiar și în caz de eroare pentru a evita loop-uri
+        }
+      })();
+      
+      // Continuă cu procesarea UPDATE-ului normal (cu debouncing)
+    } else if (existingAction === action) {
+      // Dacă acțiunea este aceeași (de ex. două UPDATE-uri), anulează pe cel vechi
+      clearTimeout(existing.timer);
+      existing.message.ack();
+      console.log(`[worker] Cancelled previous ${action} webhook for ${debounceKey}, processing new one`);
+    }
+  } else if (pendingWebhooks.has(debounceKey)) {
+    // Pentru alte resource types, comportamentul normal (anulează pe cel vechi)
     const existing = pendingWebhooks.get(debounceKey);
     clearTimeout(existing.timer);
-    // Acknowledge mesajul vechi (nu mai avem nevoie de el, procesăm pe cel nou)
     existing.message.ack();
     console.log(`[worker] Cancelled previous webhook for ${debounceKey}, processing new one`);
   }
@@ -622,18 +860,30 @@ function processMessageWithDebounce(message) {
       pendingWebhooks.delete(debounceKey);
     } catch (error) {
       console.error(`[worker] Error in debounced processing for ${debounceKey}:`, error);
-      // Nu ack mesajul - va fi retrimis automat de Pub/Sub după ack deadline (60 sec)
-      // Sau putem nack explicit pentru retry imediat
-      message.nack();
+      console.error(`[worker] Error stack:`, error.stack);
+      
+      // Pentru a evita loop-uri infinite, facem ack chiar și în caz de eroare
+      // Eroarea este deja logată și poate fi investigată ulterior
+      // Dacă este o eroare critică, va trebui să o rezolvăm manual sau să facem retry manual
+      try {
+        message.ack();
+        console.log(`[worker] Acknowledged message despite error to prevent infinite loop: ${debounceKey}`);
+      } catch (ackError) {
+        console.error(`[worker] Error acknowledging message:`, ackError);
+      }
+      
       pendingWebhooks.delete(debounceKey);
     }
   }, debounceDelay);
   
-  // Stochează mesajul și timer-ul
+  // Stochează mesajul, timer-ul și acțiunea pentru a putea face logica specială
   pendingWebhooks.set(debounceKey, {
     message,
     timer,
     timestamp: Date.now(),
+    topic,
+    payload,
+    action,
   });
   
   console.log(`[worker] Queued webhook for debouncing: ${debounceKey} (will process in ${debounceDelay}ms)`);

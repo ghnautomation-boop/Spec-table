@@ -219,7 +219,7 @@ export default function SyncPage() {
       if (fetcher.data.results) {
         const results = fetcher.data.results;
         shopify.toast.show(
-          `Sync completed! Products: ${results.products?.totalSynced || 0}, Collections: ${results.collections?.totalSynced || 0}, Metafields: ${results.metafieldDefinitions?.totalSynced || 0}`
+          `Sync completed! Metafield definitions synced: ${results.metafieldDefinitions?.totalSynced || 0}`
         );
       }
     } else if (fetcher.data?.success === false) {
@@ -387,9 +387,9 @@ export default function SyncPage() {
             <s-paragraph>
               {isSynced
                 ? hasMismatch
-                  ? "There are differences between your store data and the application database. Click the button below to re-synchronize data. This will sync only products, collections, and metafield definitions that have been updated since the last sync, making it much faster for large stores."
+                  ? "There are differences between your store data and the application database. Click the button below to re-synchronize metafield definitions. This will sync only metafield definitions that have been updated since the last sync, making it much faster for large stores."
                   : "Your data is synchronized and up to date. No action needed."
-                : "Click the button below to synchronize all data from your store. This may take a few moments depending on the size of your store."}
+                : "Click the button below to synchronize metafield definitions from your store. This may take a few moments depending on the number of metafield definitions."}
             </s-paragraph>
             
             {isSynced && !hasMismatch && (
@@ -423,49 +423,20 @@ export default function SyncPage() {
           <s-section>
             <s-heading size="medium">Sync Results</s-heading>
             <s-stack direction="block" gap="base" style={{ marginTop: "16px" }}>
-              <s-grid columns={{ xs: 1, sm: 3 }} gap="base">
-                <s-box
-                  padding="base"
-                  borderWidth="base"
-                  borderRadius="base"
-                  background="success-subdued"
-                >
-                  <s-stack direction="block" gap="tight">
-                    <s-text tone="subdued">Products Synced</s-text>
-                    <s-text emphasis="strong" size="large">
-                      {fetcher.data.results.products?.totalSynced || 0}
-                    </s-text>
-                  </s-stack>
-                </s-box>
-                
-                <s-box
-                  padding="base"
-                  borderWidth="base"
-                  borderRadius="base"
-                  background="success-subdued"
-                >
-                  <s-stack direction="block" gap="tight">
-                    <s-text tone="subdued">Collections Synced</s-text>
-                    <s-text emphasis="strong" size="large">
-                      {fetcher.data.results.collections?.totalSynced || 0}
-                    </s-text>
-                  </s-stack>
-                </s-box>
-                
-                <s-box
-                  padding="base"
-                  borderWidth="base"
-                  borderRadius="base"
-                  background="success-subdued"
-                >
-                  <s-stack direction="block" gap="tight">
-                    <s-text tone="subdued">Metafields Synced</s-text>
-                    <s-text emphasis="strong" size="large">
-                      {fetcher.data.results.metafieldDefinitions?.totalSynced || 0}
-                    </s-text>
-                  </s-stack>
-                </s-box>
-              </s-grid>
+              <s-box
+                padding="base"
+                borderWidth="base"
+                borderRadius="base"
+                background="success-subdued"
+                style={{ maxWidth: "300px" }}
+              >
+                <s-stack direction="block" gap="tight">
+                  <s-text tone="subdued">Metafield Definitions Synced</s-text>
+                  <s-text emphasis="strong" size="large">
+                    {fetcher.data.results.metafieldDefinitions?.totalSynced || 0}
+                  </s-text>
+                </s-stack>
+              </s-box>
               
               {fetcher.data.results.errors?.length > 0 && (
                 <s-banner tone="critical">
