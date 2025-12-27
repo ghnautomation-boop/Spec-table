@@ -33,106 +33,109 @@ model Session {
 }
 
 model Shop {
-  id          String   @id @default(uuid())
-  shopDomain  String   @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  products            Product[]
-  collections         Collection[]
+  id         String   @id @default(uuid())
+  shopDomain String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  products             Product[]
+  collections          Collection[]
   metafieldDefinitions MetafieldDefinition[]
-  templates           SpecificationTemplate[]
-  assignments         TemplateAssignment[]
-  templateLookups     TemplateLookup[]
-  webhookEvents       WebhookEvent[]
-  setupProgress       SetupProgress?
-  syncStatus          SyncStatus?
-  shopPlan            ShopPlan?
+  templates            SpecificationTemplate[]
+  assignments          TemplateAssignment[]
+  templateLookups      TemplateLookup[]
+  webhookEvents        WebhookEvent[]
+  setupProgress        SetupProgress?
+  syncStatus           SyncStatus?
+  shopPlan             ShopPlan?
 }
 
 model Product {
-  id          String   @id @default(uuid())
-  shopifyId   String
-  title       String
-  handle      String?
-  shopId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
+  id        String   @id @default(uuid())
+  shopifyId String
+  title     String
+  handle    String?
+  shopId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
   @@unique([shopifyId, shopId])
   @@index([shopId])
 }
 
 model Collection {
-  id          String   @id @default(uuid())
-  shopifyId   String
-  title       String
-  handle      String?
-  shopId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
+  id        String   @id @default(uuid())
+  shopifyId String
+  title     String
+  handle    String?
+  shopId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
   @@unique([shopifyId, shopId])
   @@index([shopId])
 }
 
 model MetafieldDefinition {
-  id          String   @id @default(uuid())
-  namespace   String
-  key         String
-  name        String?
-  type        String
-  ownerType   String   // "PRODUCT" or "VARIANT"
-  shopId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  namespace String
+  key       String
+  name      String?
+  type      String
+  ownerType String // "PRODUCT" or "VARIANT"
+  shopId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop                      Shop                       @relation(fields: [shopId], references: [id], onDelete: Cascade)
   templateSectionMetafields TemplateSectionMetafield[]
-  
+
   @@unique([namespace, key, ownerType, shopId])
   @@index([shopId])
 }
 
 model SpecificationTemplate {
-  id            String   @id @default(uuid())
-  name          String
-  shopId        String
-  styling       String   // JSON string with styling config
-  isActive      Boolean  @default(true)
-  isAccordion   Boolean  @default(false)
-  isAccordionHideFromPC   Boolean  @default(false) // Ascunde accordion pe desktop
-  isAccordionHideFromMobile Boolean @default(false) // Ascunde accordion pe mobile
-  seeMoreEnabled Boolean @default(false)
-  seeMoreHideFromPC   Boolean  @default(false) // Ascunde "See more" pe desktop
-  seeMoreHideFromMobile Boolean @default(false) // Ascunde "See more" pe mobile
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id                        String   @id @default(uuid())
+  name                      String
+  shopId                    String
+  styling                   String // JSON string with styling config
+  isActive                  Boolean  @default(true)
+  isAccordion               Boolean  @default(false)
+  isAccordionHideFromPC     Boolean  @default(false) // Ascunde accordion pe desktop
+  isAccordionHideFromMobile Boolean  @default(false) // Ascunde accordion pe mobile
+  seeMoreEnabled            Boolean  @default(false)
+  seeMoreHideFromPC         Boolean  @default(false) // Ascunde "See more" pe desktop
+  seeMoreHideFromMobile     Boolean  @default(false) // Ascunde "See more" pe mobile
+  splitViewPerSection       Boolean  @default(false) // Split view per section (distribuie secțiunile în 2 coloane)
+  splitViewPerMetafield     Boolean  @default(false) // Split view per metafield (distribuie metafields-urile în 2 coloane)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  shop        Shop                 @relation(fields: [shopId], references: [id], onDelete: Cascade)
   sections    TemplateSection[]
   assignments TemplateAssignment[]
   lookups     TemplateLookup[]
-  
+
   @@index([shopId])
   @@index([shopId, isActive])
 }
 
 model TemplateSection {
-  id          String   @id @default(uuid())
-  templateId  String
-  heading     String
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  template    SpecificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  metafields  TemplateSectionMetafield[]
-  
+  id                   String   @id @default(uuid())
+  templateId           String
+  heading              String
+  order                Int      @default(0)
+  hideSectionWhenEmpty Boolean  @default(true) // Ascunde secțiunea când toate metafield-urile sunt goale
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  template   SpecificationTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  metafields TemplateSectionMetafield[]
+
   @@index([templateId])
 }
 
@@ -141,18 +144,18 @@ model TemplateSectionMetafield {
   sectionId             String
   metafieldDefinitionId String
   order                 Int      @default(0)
-  customName            String?  // Nume personalizat pentru acest template
+  customName            String? // Nume personalizat pentru acest template
   tooltipEnabled        Boolean  @default(false) // Dacă tooltip-ul este activat
-  tooltipText           String?  // Textul tooltip-ului
-  hideFromPC           Boolean  @default(false) // Ascunde metafield-ul pe desktop
+  tooltipText           String? // Textul tooltip-ului
+  hideFromPC            Boolean  @default(false) // Ascunde metafield-ul pe desktop
   hideFromMobile        Boolean  @default(false) // Ascunde metafield-ul pe mobile
-  prefix                String?  // Prefix pentru valoarea metafield-ului (ex: "cm" -> "cm 50")
-  suffix                String?  // Suffix pentru valoarea metafield-ului (ex: "cm" -> "50 cm")
+  prefix                String? // Prefix pentru valoarea metafield-ului (ex: "cm" -> "cm 50")
+  suffix                String? // Suffix pentru valoarea metafield-ului (ex: "cm" -> "50 cm")
   createdAt             DateTime @default(now())
-  
-  section               TemplateSection      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  metafieldDefinition   MetafieldDefinition @relation(fields: [metafieldDefinitionId], references: [id], onDelete: Cascade)
-  
+
+  section             TemplateSection     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  metafieldDefinition MetafieldDefinition @relation(fields: [metafieldDefinitionId], references: [id], onDelete: Cascade)
+
   @@unique([sectionId, metafieldDefinitionId])
   @@index([sectionId])
   @@index([sectionId, order])
@@ -165,17 +168,17 @@ enum AssignmentType {
 }
 
 model TemplateAssignment {
-  id            String         @id @default(uuid())
-  templateId   String
+  id             String         @id @default(uuid())
+  templateId     String
   assignmentType AssignmentType
-  shopId       String
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  
-  template     SpecificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  shop         Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  targets      TemplateAssignmentTarget[]
-  
+  shopId         String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  template SpecificationTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  shop     Shop                       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  targets  TemplateAssignmentTarget[]
+
   @@index([shopId])
   @@index([templateId])
   @@index([shopId, assignmentType])
@@ -183,15 +186,15 @@ model TemplateAssignment {
 }
 
 model TemplateAssignmentTarget {
-  id            String   @id @default(uuid())
-  assignmentId  String
+  id              String   @id @default(uuid())
+  assignmentId    String
   targetShopifyId String // Product or Collection Shopify ID
-  targetType    String   // "PRODUCT" or "COLLECTION"
-  isExcluded    Boolean  @default(false) // For exclusion rules
-  createdAt     DateTime @default(now())
-  
-  assignment    TemplateAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  
+  targetType      String // "PRODUCT" or "COLLECTION"
+  isExcluded      Boolean  @default(false) // For exclusion rules
+  createdAt       DateTime @default(now())
+
+  assignment TemplateAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
   @@index([assignmentId])
   @@index([targetShopifyId])
   @@index([assignmentId, targetShopifyId, isExcluded])
@@ -204,25 +207,25 @@ model TemplateAssignmentTarget {
  * Priority: 1=PRODUCT, 2=COLLECTION, 3=DEFAULT
  */
 model TemplateLookup {
-  id            String   @id @default(uuid())
-  shopId        String
-  productId     String?  // ID-ul normalizat al produsului (nullable)
-  collectionId  String?  // ID-ul normalizat al colecției (nullable)
-  templateId    String
-  priority      Int      // 1=PRODUCT, 2=COLLECTION, 3=DEFAULT
-  isDefault     Boolean  @default(false) // true pentru DEFAULT assignments (evită mii de rânduri)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  shop          Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  template      SpecificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  
+  id           String   @id @default(uuid())
+  shopId       String
+  productId    String? // ID-ul normalizat al produsului (nullable)
+  collectionId String? // ID-ul normalizat al colecției (nullable)
+  templateId   String
+  priority     Int // 1=PRODUCT, 2=COLLECTION, 3=DEFAULT
+  isDefault    Boolean  @default(false) // true pentru DEFAULT assignments (evită mii de rânduri)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shop     Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  template SpecificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, productId, collectionId, priority])
   // Indexuri pentru lookup rapid
   // Covering indexes (include templateId pentru a evita lookup suplimentar)
   @@index([shopId, productId, priority, templateId])
   @@index([shopId, collectionId, priority, templateId])
   @@index([shopId, isDefault, priority, templateId])
-  @@unique([shopId, productId, collectionId, priority])
 }
 
 /**
@@ -230,19 +233,19 @@ model TemplateLookup {
  * Stochează toate evenimentele webhook pentru debugging și monitoring
  */
 model WebhookEvent {
-  id            String   @id @default(uuid())
-  shopId        String
-  topic         String   // "products/create", "collections/update", etc.
-  status        String   // "success", "error", "failed_permanently"
-  errorMessage  String?  // Mesajul de eroare dacă status = "error"
-  payload       String?  // Payload-ul webhook-ului (JSON string, opțional pentru debugging)
-  responseTime  Int?     // Timpul de răspuns în ms
-  retryCount    Int      @default(0) // Numărul de încercări de retry
-  lastRetryAt   DateTime? // Data ultimei încercări de retry
-  createdAt     DateTime @default(now())
-  
-  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
+  id           String    @id @default(uuid())
+  shopId       String
+  topic        String // "products/create", "collections/update", etc.
+  status       String // "success", "error", "failed_permanently"
+  errorMessage String? // Mesajul de eroare dacă status = "error"
+  payload      String? // Payload-ul webhook-ului (JSON string, opțional pentru debugging)
+  responseTime Int? // Timpul de răspuns în ms
+  retryCount   Int       @default(0) // Numărul de încercări de retry
+  lastRetryAt  DateTime? // Data ultimei încercări de retry
+  createdAt    DateTime  @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
   @@index([shopId])
   @@index([shopId, topic])
   @@index([shopId, status])
@@ -256,38 +259,38 @@ model WebhookEvent {
  * Stochează starea fiecărui pas din Setup Guide
  */
 model SetupProgress {
-  id                      String   @id @default(uuid())
-  shopId                  String   @unique
-  step1_themeSelected     Boolean  @default(false)
-  step1_selectedThemeId   String?  // ID-ul temei selectate
-  step1_selectedThemeName String?  // Numele temei selectate
-  step2_extensionApplied  Boolean  @default(false)
-  step3_extensionActivated Boolean @default(false)
-  step4_templateCreated   Boolean  @default(false)
-  step5_assignmentConfigured Boolean @default(false)
-  step6_tested            Boolean  @default(false)
-  completedAt             DateTime?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  
-  shop                    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
+  id                         String    @id @default(uuid())
+  shopId                     String    @unique
+  step1_themeSelected        Boolean   @default(false)
+  step1_selectedThemeId      String? // ID-ul temei selectate
+  step1_selectedThemeName    String? // Numele temei selectate
+  step2_extensionApplied     Boolean   @default(false)
+  step3_extensionActivated   Boolean   @default(false)
+  step4_templateCreated      Boolean   @default(false)
+  step5_assignmentConfigured Boolean   @default(false)
+  step6_tested               Boolean   @default(false)
+  completedAt                DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
   @@index([shopId])
 }
 
 model SyncStatus {
-  id   String @id @default(uuid())
+  id     String @id @default(uuid())
   shopId String @unique
 
   // Lock simplu pentru a preveni multiple initial sync-uri în paralel
-  syncInProgress Boolean @default(false)
+  syncInProgress Boolean   @default(false)
   syncStartedAt  DateTime?
 
   // Counts in App DB
-  appProducts           Int @default(0)
-  appCollections        Int @default(0)
-  appProductMetafields  Int @default(0)
-  appVariantMetafields  Int @default(0)
+  appProducts          Int @default(0)
+  appCollections       Int @default(0)
+  appProductMetafields Int @default(0)
+  appVariantMetafields Int @default(0)
 
   // Counts in Shopify Store (nullable până la primul check)
   shopifyProducts          Int?
@@ -302,7 +305,7 @@ model SyncStatus {
   lastWebhookAt       DateTime?
   lastComparisonOk    Boolean?
   lastMismatchDetails String?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -315,12 +318,12 @@ model SyncStatus {
  * Plan selectat de merchant (folosit pentru gating/feature flags mai târziu)
  */
 model ShopPlan {
-  id        String   @id @default(uuid())
-  shopId    String   @unique
-  planKey   String   // "free" | "starter" | "growth" | "enterprise" (extensibil)
+  id                       String   @id @default(uuid())
+  shopId                   String   @unique
+  planKey                  String // "free" | "starter" | "growth" | "enterprise" (extensibil)
   productsCountAtSelection Int
-  selectedAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  selectedAt               DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 

@@ -70,6 +70,7 @@
   Folosește informațiile din baza de date (toate metafield definitions) pentru a construi dinamic codul Liquid
   Template-ul ne spune ce metafield-uri să afișăm, iar valorile le obținem direct din Liquid
 {% endcomment %}
+
 {% if product %}
 <script>
   // Inițializează obiectele pentru metafield-uri
@@ -182,18 +183,18 @@
         {% assign mf_value = metafield_pair[1] %}
         {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
         {% if mf_value.type == 'file_reference' %}
-          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'product_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
-          '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% else %}
-          '{{ mf_key }}': {{ mf_value.value | json }},
+          '{{ mf_key }}': {{ mf_value.value | json }}{% unless forloop.last %},{% endunless %}
         {% endif %}
       {% endfor %}
-    },
+    }{% if product.metafields.test_data %},{% endif %}
     {% endif %}
     {% comment %} Construiește pentru alte namespace-uri cunoscute {% endcomment %}
     {% if product.metafields.test_data %}
@@ -203,18 +204,18 @@
         {% assign mf_value = metafield_pair[1] %}
         {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
         {% if mf_value.type == 'file_reference' %}
-          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'product_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
-          '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+          '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% else %}
-          '{{ mf_key }}': {{ mf_value.value | json }},
+          '{{ mf_key }}': {{ mf_value.value | json }}{% unless forloop.last %},{% endunless %}
         {% endif %}
       {% endfor %}
-    },
+    }
     {% endif %}
   };
   
@@ -233,18 +234,18 @@
           {% assign variant_mf_value = variant_mf_pair[1] %}
           {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
           {% if variant_mf_value.type.name == 'file_reference' %}
-            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %},
+            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type.name == 'product_reference' %}
-            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type.name == 'collection_reference' %}
-            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type.name == 'dimension' %}
-            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% else %}
-            '{{ variant_mf_key }}': {{ variant_mf_value.value | json }},
+            '{{ variant_mf_key }}': {{ variant_mf_value.value | json }}{% unless forloop.last %},{% endunless %}
           {% endif %}
         {% endfor %}
-      },
+      }
       {% endif %}
     };
     
@@ -260,18 +261,18 @@
               {% assign variant_mf_value = variant_mf_pair[1] %}
               {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
               {% if variant_mf_value.type == 'file_reference' %}
-                '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %},
+                '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
               {% elsif variant_mf_value.type == 'product_reference' %}
-                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
               {% elsif variant_mf_value.type == 'collection_reference' %}
-                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %},
+                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
               {% elsif variant_mf_value.type == 'dimension' %}
-                '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %},
+                '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
               {% else %}
-                '{{ variant_mf_key }}': {{ variant_mf_value.value | json }},
+                '{{ variant_mf_key }}': {{ variant_mf_value.value | json }}{% unless forloop.last %},{% endunless %}
               {% endif %}
             {% endfor %}
-          },
+          }
           {% endif %}
         };
       {% endif %}
@@ -283,7 +284,7 @@
 (function() {
   const container = document.getElementById('specification-table-container-{{ block.id }}');
   if (!container) return;
-  
+
   const productId = container.dataset.productId;
   // IMPORTANT: dataset.collectionId poate fi undefined (dacă atributul nu există), empty string, sau string cu valoare
   // Trebuie să normalizăm pentru a obține valoarea corectă
@@ -303,7 +304,6 @@
     hasCollectionIdAttr: container.hasAttribute('data-collection-id'),
     shopDomain: shopDomain,
   });
-  
   // Folosește app proxy pentru a accesa API-urile
   // App proxy URL: https://{shop-domain}/apps/{subpath}
   // Configurat în shopify.app.toml
@@ -415,7 +415,7 @@
       }
       return result;
     }
-    
+  
     // Pentru multi_line_text_field și single_line_text_field - randare text simplă
     if (metafieldType === 'multi_line_text_field' || metafieldType === 'single_line_text_field') {
       if (typeof value === 'object') {
@@ -520,25 +520,50 @@
     },
   })
     .then(response => {
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      console.log('[Fetch] Response status:', response.status);
+      console.log('[Fetch] Response ok?', response.ok);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      console.log('[Fetch] Parsing JSON response...');
       return response.json();
     })
     .then(async data => {
-      console.log('Template data:', data);
+      console.log('[Fetch] Template data received:', data);
+      console.log('[Fetch] Has template?', !!data.template);
+      
       if (data.template) {
         currentTemplate = data.template;
         
+        // Debug logging pentru split view
+        console.log('[Fetch] Template split view settings:', {
+          splitViewPerSection: data.template.splitViewPerSection,
+          splitViewPerMetafield: data.template.splitViewPerMetafield,
+          sectionsCount: data.template.sections?.length || 0
+        });
+        
         // Construiește obiectul cu metafield-urile din Liquid folosind template-ul și toate metafield definitions
+        console.log('[Fetch] Building metafields from template...');
         if (window.buildMetafieldsFromTemplate) {
           window.buildMetafieldsFromTemplate(data.template, data.allMetafieldDefinitions);
+          console.log('[Fetch] Metafields built successfully');
+        } else {
+          console.warn('[Fetch] buildMetafieldsFromTemplate function not found!');
         }
         
         // Renderizează template-ul - valorile metafield-urilor vor fi populate direct din Liquid
-        renderTemplate(container, data.template);
+        console.log('[Fetch] About to call renderTemplate...');
+        try {
+          renderTemplate(container, data.template);
+          console.log('[Fetch] renderTemplate completed successfully');
+        } catch (error) {
+          console.error('[Fetch] Error in renderTemplate:', error);
+          console.error('[Fetch] Error name:', error.name);
+          console.error('[Fetch] Error message:', error.message);
+          console.error('[Fetch] Error stack:', error.stack);
+          container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff0000;">Error rendering template. Check console for details.</div>';
+          return;
+        }
         
         // Populează valorile metafield-urilor din obiectul JavaScript construit în Liquid
         updateMetafieldValuesFromLiquid(container);
@@ -629,10 +654,27 @@
     });
   }
   
+  // Funcție helper pentru a escapa HTML (mutată aici pentru a fi disponibilă în renderTemplate)
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
   function renderTemplate(container, template) {
+    console.log('[renderTemplate] START - Function called');
+    console.log('[renderTemplate] Template:', template);
+    console.log('[renderTemplate] Container:', container);
+    
     const styling = template.styling;
     // Citește setările din container
     const firstColumnWidth = container.dataset.firstColumnWidth || '40';
+    
+    // Escape template.id o singură dată pentru a-l folosi în string-uri HTML
+    const escapedTemplateId = escapeHtml(template.id);
+    
+    console.log('[renderTemplate] Styling:', styling);
+    console.log('[renderTemplate] First column width:', firstColumnWidth);
     
     // Debug: verifică dacă template-ul conține flag-urile hideFromPC/hideFromMobile
     console.log('renderTemplate - Template sections:', template.sections?.map(s => ({
@@ -691,11 +733,16 @@
       cssVars += '--dc-see-more-button-border: none; ';
     }
     
-    let html = '<div id="specification-table-' + template.id + '" class="dc_container" style="' + cssVars + '">';
+    let html = '<div id="specification-table-' + escapedTemplateId + '" class="dc_container" style="' + cssVars + '">';
     
     // Colectează toate metafields-urile din toate secțiunile cu informații despre secțiune
     const allMetafieldsWithSection = [];
+    // Construiește un obiect care mapează indexul secțiunii la valoarea hideSectionWhenEmpty
+    const sectionHideWhenEmpty = {};
     template.sections.forEach((section, sectionIndex) => {
+      // Setează valoarea hideSectionWhenEmpty pentru această secțiune (default: true)
+      sectionHideWhenEmpty[sectionIndex] = section.hideSectionWhenEmpty !== undefined && section.hideSectionWhenEmpty !== null ? section.hideSectionWhenEmpty : true;
+      
       if (section.metafields && section.metafields.length > 0) {
         section.metafields.forEach((metafield, mfIndex) => {
           // Asigură-te că toate proprietățile sunt copiate, inclusiv hideFromPC și hideFromMobile
@@ -860,8 +907,142 @@
     // SVG pentru săgeată modernă
     const arrowDownSvg = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease;"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     
-    // Renderizează secțiunile cu rândurile afișate
-    Object.keys(allGroupedBySection).forEach(sectionIndex => {
+    // Verifică dacă split view este activat
+    const splitViewPerSection = template.splitViewPerSection === true || template.splitViewPerSection === 'true';
+    const splitViewPerMetafield = template.splitViewPerMetafield === true || template.splitViewPerMetafield === 'true';
+    
+    // Dacă splitViewPerSection este activat, grupează secțiunile pentru distribuție în 2 coloane
+    let sectionsToRender = [];
+    let leftColumnSections = [];
+    let rightColumnSections = [];
+    
+    if (splitViewPerSection) {
+      // Colectează toate secțiunile care trebuie afișate
+      Object.keys(allGroupedBySection).forEach(sectionIndex => {
+        const sectionIdx = parseInt(sectionIndex);
+        const sectionData = allGroupedBySection[sectionIndex];
+        
+        // Verifică dacă secțiunea trebuie ascunsă (toate metafield-urile sunt goale)
+        const sectionVisibleMetafields = visibleMetafields.filter(mf => mf.sectionIndex === sectionIdx);
+        const shouldHideSection = sectionHideWhenEmpty[sectionIdx] && sectionVisibleMetafields.length === 0;
+        
+        // Skip secțiunile care trebuie ascunse sau care nu au rânduri de afișat și nu au rânduri ascunse
+        if (!shouldHideSection && 
+            (sectionData.displayMetafieldsPC.length > 0 || sectionData.displayMetafieldsMobile.length > 0 || 
+             sectionData.hiddenMetafieldsPC.length > 0 || sectionData.hiddenMetafieldsMobile.length > 0)) {
+          sectionsToRender.push({ sectionIndex: sectionIdx, sectionData });
+        }
+      });
+      
+      // Distribuie secțiunile în 2 coloane
+      leftColumnSections = [];
+      rightColumnSections = [];
+      sectionsToRender.forEach((section, index) => {
+        if (index % 2 === 0) {
+          leftColumnSections.push(section);
+        } else {
+          rightColumnSections.push(section);
+        }
+      });
+    
+      // Renderizează coloanele doar dacă există secțiuni de renderizat
+      if (sectionsToRender.length > 0) {
+        html += '<div class="dc_split_view_sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
+        html += '<div class="dc_split_view_column dc_split_view_left">';
+        leftColumnSections.forEach(({ sectionIndex, sectionData }) => {
+          const sectionIdx = sectionIndex;
+          // Verifică flag-urile pentru accordion
+          const isAccordionHideFromPC = template.isAccordionHideFromPC === true || template.isAccordionHideFromPC === 'true';
+          const isAccordionHideFromMobile = template.isAccordionHideFromMobile === true || template.isAccordionHideFromMobile === 'true';
+          const showAccordionPC = template.isAccordion && !isAccordionHideFromPC;
+          const showAccordionMobile = template.isAccordion && !isAccordionHideFromMobile;
+          
+          html += '<div class="dc_section">';
+          html += '<div class="dc_accordion_pc_version">';
+          if (showAccordionPC) {
+            html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'pc\')">';
+            html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+            html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+            html += '</div>';
+            html += '<div id="spec-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+            html += '</div>';
+          } else {
+            html += '<h3 class="dc_heading">';
+            html += escapeHtml(sectionData.heading);
+            html += '</h3>';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+          }
+          html += '</div>';
+          html += '<div class="dc_accordion_mobile_version">';
+          if (showAccordionMobile) {
+            html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'mobile\')">';
+            html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+            html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+            html += '</div>';
+            html += '<div id="spec-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+            html += '</div>';
+          } else {
+            html += '<h3 class="dc_heading">';
+            html += escapeHtml(sectionData.heading);
+            html += '</h3>';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+          }
+          html += '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '<div class="dc_split_view_column dc_split_view_right">';
+        rightColumnSections.forEach(({ sectionIndex, sectionData }) => {
+          const sectionIdx = sectionIndex;
+          // Verifică flag-urile pentru accordion
+          const isAccordionHideFromPC = template.isAccordionHideFromPC === true || template.isAccordionHideFromPC === 'true';
+          const isAccordionHideFromMobile = template.isAccordionHideFromMobile === true || template.isAccordionHideFromMobile === 'true';
+          const showAccordionPC = template.isAccordion && !isAccordionHideFromPC;
+          const showAccordionMobile = template.isAccordion && !isAccordionHideFromMobile;
+          
+          html += '<div class="dc_section">';
+          html += '<div class="dc_accordion_pc_version">';
+          if (showAccordionPC) {
+            html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'pc\')">';
+            html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+            html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+            html += '</div>';
+            html += '<div id="spec-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+            html += '</div>';
+          } else {
+            html += '<h3 class="dc_heading">';
+            html += escapeHtml(sectionData.heading);
+            html += '</h3>';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+          }
+          html += '</div>';
+          html += '<div class="dc_accordion_mobile_version">';
+          if (showAccordionMobile) {
+            html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'mobile\')">';
+            html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+            html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+            html += '</div>';
+            html += '<div id="spec-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+            html += '</div>';
+          } else {
+            html += '<h3 class="dc_heading">';
+            html += escapeHtml(sectionData.heading);
+            html += '</h3>';
+            html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+          }
+          html += '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '</div>'; // Închide dc_split_view_sections
+      }
+    } else {
+      // Renderizează secțiunile normal (fără split view per section)
+      Object.keys(allGroupedBySection).forEach(sectionIndex => {
       const sectionIdx = parseInt(sectionIndex);
       const sectionData = allGroupedBySection[sectionIndex];
       
@@ -888,14 +1069,14 @@
         // Versiunea pentru PC
         html += '<div class="dc_accordion_pc_version">';
         if (showAccordionPC) {
-          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'pc\')">';
+          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'pc\')">';
           html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
-          html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+          html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
           html += '</div>';
-          html += '<div id="spec-section-pc-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-          html += '<div id="spec-table-pc-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
-          html += '<table class="dc_table" id="spec-table-pc-' + template.id + '-' + sectionIdx + '">';
-          html += '<tbody id="spec-table-pc-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '<div id="spec-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+          html += '<div id="spec-table-pc-' + escapedTemplateId + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-pc-' + escapedTemplateId + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-pc-' + escapedTemplateId + '-' + sectionIdx + '-tbody"></tbody>';
           html += '</table>';
           html += '</div>';
           html += '</div>';
@@ -903,9 +1084,9 @@
           html += '<h3 class="dc_heading">';
           html += escapeHtml(sectionData.heading);
           html += '</h3>';
-          html += '<div id="spec-table-pc-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
-          html += '<table class="dc_table" id="spec-table-pc-' + template.id + '-' + sectionIdx + '">';
-          html += '<tbody id="spec-table-pc-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '<div id="spec-table-pc-' + escapedTemplateId + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-pc-' + escapedTemplateId + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-pc-' + escapedTemplateId + '-' + sectionIdx + '-tbody"></tbody>';
           html += '</table>';
           html += '</div>';
         }
@@ -914,14 +1095,14 @@
         // Versiunea pentru mobile
         html += '<div class="dc_accordion_mobile_version">';
         if (showAccordionMobile) {
-          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'mobile\')">';
+          html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'mobile\')">';
           html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
-          html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+          html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
           html += '</div>';
-          html += '<div id="spec-section-mobile-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-          html += '<div id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
-          html += '<table class="dc_table" id="spec-table-mobile-' + template.id + '-' + sectionIdx + '">';
-          html += '<tbody id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '<div id="spec-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+          html += '<div id="spec-table-mobile-' + escapedTemplateId + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-mobile-' + escapedTemplateId + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-mobile-' + escapedTemplateId + '-' + sectionIdx + '-tbody"></tbody>';
           html += '</table>';
           html += '</div>';
           html += '</div>';
@@ -929,9 +1110,9 @@
           html += '<h3 class="dc_heading">';
           html += escapeHtml(sectionData.heading);
           html += '</h3>';
-          html += '<div id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-container" class="dc_table_container">';
-          html += '<table class="dc_table" id="spec-table-mobile-' + template.id + '-' + sectionIdx + '">';
-          html += '<tbody id="spec-table-mobile-' + template.id + '-' + sectionIdx + '-tbody"></tbody>';
+          html += '<div id="spec-table-mobile-' + escapedTemplateId + '-' + sectionIdx + '-container" class="dc_table_container">';
+          html += '<table class="dc_table" id="spec-table-mobile-' + escapedTemplateId + '-' + sectionIdx + '">';
+          html += '<tbody id="spec-table-mobile-' + escapedTemplateId + '-' + sectionIdx + '-tbody"></tbody>';
           html += '</table>';
           html += '</div>';
         }
@@ -948,19 +1129,19 @@
       html += '<div class="dc_accordion_pc_version">';
       if (showAccordionPC) {
         // Pe PC: accordion
-        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'pc\')">';
+        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'pc\')">';
         html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
-        html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+        html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
         html += '</div>';
-        html += '<div id="spec-section-pc-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc');
+        html += '<div id="spec-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
         html += '</div>';
       } else {
         // Pe PC: normal (fără accordion)
         html += '<h3 class="dc_heading">';
         html += escapeHtml(sectionData.heading);
         html += '</h3>';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc');
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
       }
       html += '</div>';
       
@@ -968,38 +1149,38 @@
       html += '<div class="dc_accordion_mobile_version">';
       if (showAccordionMobile) {
         // Pe mobile: accordion
-        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + template.id + '\', \'mobile\')">';
+        html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'mobile\')">';
         html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
         html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + template.id + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
         html += '</div>';
         html += '<div id="spec-section-mobile-' + template.id + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile');
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
         html += '</div>';
       } else {
         // Pe mobile: normal (fără accordion)
         html += '<h3 class="dc_heading">';
         html += escapeHtml(sectionData.heading);
         html += '</h3>';
-        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, template.id, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile');
+        html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
       }
       html += '</div>';
       
       html += '</div>';
     });
-    
+    }
     // Adaugă butonul "See more" pentru PC și mobile separat, dacă este necesar
     const seeMoreButtonStyle = styling.seeMoreButtonStyle || 'arrow';
     const seeMoreButtonText = styling.seeMoreButtonText || 'See More';
     const showArrow = seeMoreButtonStyle === 'arrow' || seeMoreButtonStyle === 'arrow+text';
     const showText = seeMoreButtonStyle === 'text' || seeMoreButtonStyle === 'arrow+text';
-    
+  
     if (hasMorePC || hasMoreMobile) {
       // Butonul pentru PC
       if (hasMorePC) {
         html += '<div class="dc_see_more dc_see_more_pc">';
-        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'pc\')">';
+        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + escapedTemplateId + '\', event, \'pc\')">';
         if (showArrow) {
-          html += '<span id="see-more-arrow-pc-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+          html += '<span id="see-more-arrow-pc-' + escapedTemplateId + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
         }
         if (showText) {
           html += '<span class="dc_see_more_text">' + escapeHtml(seeMoreButtonText) + '</span>';
@@ -1011,9 +1192,9 @@
       // Butonul pentru mobile
       if (hasMoreMobile) {
         html += '<div class="dc_see_more dc_see_more_mobile">';
-        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + template.id + '\', event, \'mobile\')">';
+        html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + escapedTemplateId + '\', event, \'mobile\')">';
         if (showArrow) {
-          html += '<span id="see-more-arrow-mobile-' + template.id + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
+          html += '<span id="see-more-arrow-mobile-' + escapedTemplateId + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
         }
         if (showText) {
           html += '<span class="dc_see_more_text">' + escapeHtml(seeMoreButtonText) + '</span>';
@@ -1023,25 +1204,25 @@
       }
       
       // Adaugă rândurile ascunse organizate pe secțiuni (ca tabele complete)
-      html += '<div id="spec-table-hidden-' + template.id + '" class="dc_hidden">';
+      html += '<div id="spec-table-hidden-' + escapedTemplateId + '" class="dc_hidden">';
       Object.keys(allGroupedBySection).forEach(sectionIndex => {
         const sectionIdx = parseInt(sectionIndex);
         const sectionData = allGroupedBySection[sectionIndex];
         
         // Container pentru rândurile ascunse PC
         if (sectionData.hiddenMetafieldsPC.length > 0) {
-          html += '<div id="spec-hidden-section-pc-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="pc">';
+          html += '<div id="spec-hidden-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="pc">';
           html += '<table style="display: none;"><tbody>';
-          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsPC, styling, template.id, sectionIdx, allMetafieldsWithSection);
+          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsPC, styling, escapedTemplateId, sectionIdx, allMetafieldsWithSection);
           html += '</tbody></table>';
           html += '</div>';
         }
         
         // Container pentru rândurile ascunse mobile
         if (sectionData.hiddenMetafieldsMobile.length > 0) {
-          html += '<div id="spec-hidden-section-mobile-' + template.id + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="mobile">';
+          html += '<div id="spec-hidden-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="mobile">';
           html += '<table style="display: none;"><tbody>';
-          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsMobile, styling, template.id, sectionIdx, allMetafieldsWithSection);
+          html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsMobile, styling, escapedTemplateId, sectionIdx, allMetafieldsWithSection);
           html += '</tbody></table>';
           html += '</div>';
         }
@@ -1050,14 +1231,73 @@
     }
     
     html += '</div>';
-    container.innerHTML = html;
+    
+    // Debug logging pentru split view
+    if (splitViewPerSection || splitViewPerMetafield) {
+      console.log('[renderTemplate] Split view enabled:', {
+        splitViewPerSection: splitViewPerSection,
+        splitViewPerMetafield: splitViewPerMetafield,
+        sectionsToRenderCount: sectionsToRender ? sectionsToRender.length : 0,
+        leftColumnCount: leftColumnSections ? leftColumnSections.length : 0,
+        rightColumnCount: rightColumnSections ? rightColumnSections.length : 0,
+        allGroupedBySection: Object.keys(allGroupedBySection).length
+      });
+    }
+    
+    console.log('[renderTemplate] HTML generated, length:', html.length);
+    console.log('[renderTemplate] About to set innerHTML...');
+    
+    try {
+      container.innerHTML = html;
+      console.log('[renderTemplate] innerHTML set successfully!');
+    } catch (error) {
+      console.error('[renderTemplate] Error setting innerHTML:', error);
+      console.error('[renderTemplate] Error name:', error.name);
+      console.error('[renderTemplate] Error message:', error.message);
+      console.error('[renderTemplate] Error stack:', error.stack);
+      console.error('[renderTemplate] HTML length:', html.length);
+      console.error('[renderTemplate] HTML preview (first 500 chars):', html.substring(0, 500));
+      console.error('[renderTemplate] HTML preview (last 500 chars):', html.substring(Math.max(0, html.length - 500)));
+      throw error;
+    }
+    console.log('[renderTemplate] END - Function completed');
   }
   
-  function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields, device) {
+  function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields, device, splitViewPerMetafield) {
     // Generează ID-uri unice pentru PC și mobile
     const deviceSuffix = device ? '-' + device : '';
     const tableId = 'spec-table' + deviceSuffix + '-' + templateId + '-' + sectionIndex;
     
+    // Dacă splitViewPerMetafield este activat, distribuie metafields-urile în 2 coloane
+    if (splitViewPerMetafield && displayMetafields.length > 0) {
+      const leftColumnMetafields = [];
+      const rightColumnMetafields = [];
+      displayMetafields.forEach((metafield, index) => {
+        if (index % 2 === 0) {
+          leftColumnMetafields.push(metafield);
+        } else {
+          rightColumnMetafields.push(metafield);
+        }
+      });
+      
+      let html = '<div id="' + tableId + '-container" class="dc_table_container dc_split_view_metafields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
+      html += '<div class="dc_split_view_metafield_column dc_split_view_metafield_left">';
+      html += '<table class="dc_table" id="' + tableId + '-left">';
+      html += '<tbody id="' + tableId + '-tbody-left">';
+      html += renderMetafieldsRows(leftColumnMetafields, styling, allMetafieldsWithSection);
+      html += '</tbody></table>';
+      html += '</div>';
+      html += '<div class="dc_split_view_metafield_column dc_split_view_metafield_right">';
+      html += '<table class="dc_table" id="' + tableId + '-right">';
+      html += '<tbody id="' + tableId + '-tbody-right">';
+      html += renderMetafieldsRows(rightColumnMetafields, styling, allMetafieldsWithSection);
+      html += '</tbody></table>';
+      html += '</div>';
+      html += '</div>';
+      return html;
+    }
+    
+    // Renderizare normală (fără split view per metafield)
     let html = '<div id="' + tableId + '-container" class="dc_table_container">';
     html += '<table class="dc_table" id="' + tableId + '">';
     html += '<tbody id="' + tableId + '-tbody">';
@@ -1196,6 +1436,103 @@
     html += '</div>';
     
     return html;
+  }
+  
+  // Funcție helper pentru a renderiza rândurile de metafields (folosită pentru split view per metafield)
+  function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
+    let rowsHtml = '';
+    const productMetafields = window.productMetafieldsData || {};
+    const variantMetafields = window.variantMetafieldsData || {};
+    
+    metafields.forEach((metafield, index) => {
+      // Verifică dacă metafield-ul are valoare
+      let hasValue = false;
+      let value = null;
+      
+      if (metafield.ownerType === 'PRODUCT') {
+        if (productMetafields[metafield.namespace] && 
+            productMetafields[metafield.namespace][metafield.key] !== undefined) {
+          value = productMetafields[metafield.namespace][metafield.key];
+          hasValue = value !== null && 
+                    value !== undefined && 
+                    value !== '' && 
+                    (typeof value !== 'string' || value.trim() !== '') &&
+                    value !== 'null' && 
+                    value !== 'undefined' &&
+                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+          if (hasValue && typeof value === 'object') {
+            hasValue = value.title || value.featured_image || value.image;
+          }
+        }
+      } else if (metafield.ownerType === 'VARIANT') {
+        Object.keys(variantMetafields).forEach(variantId => {
+          if (!hasValue && variantMetafields[variantId] && 
+              variantMetafields[variantId][metafield.namespace] && 
+              variantMetafields[variantId][metafield.namespace][metafield.key] !== undefined) {
+            value = variantMetafields[variantId][metafield.namespace][metafield.key];
+            hasValue = value !== null && 
+                      value !== undefined && 
+                      value !== '' && 
+                      (typeof value !== 'string' || value.trim() !== '') &&
+                      value !== 'null' && 
+                      value !== 'undefined' &&
+                      (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+            if (hasValue && typeof value === 'object') {
+              hasValue = value.title || value.featured_image || value.image;
+            }
+          }
+        });
+      }
+      
+      const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+      const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
+      
+      let specBackgroundStyle = '';
+      let valueBackgroundStyle = '';
+      if (styling.columnBackgroundEnabled) {
+        specBackgroundStyle = 'background-color: ' + (styling.oddColumnBackgroundColor || '#ff0000') + '; ';
+        valueBackgroundStyle = 'background-color: ' + (styling.evenColumnBackgroundColor || '#00ff00') + '; ';
+      } else if (styling.rowBackgroundEnabled) {
+        const rowBackground = isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff');
+        specBackgroundStyle = 'background-color: ' + rowBackground + '; ';
+        valueBackgroundStyle = 'background-color: ' + rowBackground + '; ';
+      } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
+        specBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+        valueBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+      }
+      
+      const hideFromPC = metafield.hideFromPC === true || metafield.hideFromPC === 'true';
+      const hideFromMobile = metafield.hideFromMobile === true || metafield.hideFromMobile === 'true';
+      
+      let rowClasses = 'dc_table_tr';
+      if (hideFromPC) {
+        rowClasses += ' dc_hide_from_pc';
+      }
+      if (hideFromMobile) {
+        rowClasses += ' dc_hide_from_mobile';
+      }
+      if (!hasValue) {
+        rowClasses += ' dc_hidden';
+      }
+      
+      rowsHtml += '<tr class="' + rowClasses + '">';
+      rowsHtml += '<td class="dc_table_td_label"' + (specBackgroundStyle ? ' style="' + specBackgroundStyle + '"' : '') + '>';
+      const displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
+      let nameHtml = escapeHtml(displayName);
+      if (metafield.tooltipEnabled && metafield.tooltipText) {
+        nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '" data-tooltip-text="' + escapeHtml(metafield.tooltipText) + '" data-metafield-name="' + escapeHtml(displayName) + '">i</span>';
+      }
+      rowsHtml += nameHtml + '  :';
+      rowsHtml += '</td>';
+      const prefixValue = (metafield.prefix !== null && metafield.prefix !== undefined) ? String(metafield.prefix) : '';
+      const suffixValue = (metafield.suffix !== null && metafield.suffix !== undefined) ? String(metafield.suffix) : '';
+      rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
+      rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
+      rowsHtml += '</td>';
+      rowsHtml += '</tr>';
+    });
+    
+    return rowsHtml;
   }
   
   function renderHiddenRowsAsTable(metafields, styling, templateId, sectionIndex, allMetafieldsWithSection) {
@@ -1394,13 +1731,7 @@
     if (container) {
       updateMetafieldValuesFromLiquid(container);
     }
-  }
-  
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
+  };
   
   // Funcție globală pentru toggle accordion
   window.toggleSpecSection = function(sectionIndex, templateId, device) {
@@ -1499,17 +1830,6 @@
   
   // După ce template-ul este renderat, obține metafield-urile din Liquid
   // Aceasta este o limitare - trebuie să obții metafield-urile din Liquid și să le pasezi la JavaScript
-})();
-</script>
-
-{% comment %} Funcție helper pentru a obține metafield-uri din Liquid {% endcomment %}
-<script>
-(function() {
-  const container = document.getElementById('specification-table-container-{{ block.id }}');
-  if (!container) return;
-  
-  // Nu mai este nevoie de funcția getMetafieldValue și updateMetafieldValues
-  // pentru că valorile sunt deja populate când se renderizează template-ul
 })();
 </script>
 {% endif %}

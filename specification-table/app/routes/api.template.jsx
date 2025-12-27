@@ -124,6 +124,8 @@ export async function loader({ request }) {
         seeMoreEnabled: template.seeMoreEnabled || false,
         seeMoreHideFromPC: template.seeMoreHideFromPC === true,
         seeMoreHideFromMobile: template.seeMoreHideFromMobile === true,
+        splitViewPerSection: template.splitViewPerSection === true,
+        splitViewPerMetafield: template.splitViewPerMetafield === true,
         styling,
         sections,
       },

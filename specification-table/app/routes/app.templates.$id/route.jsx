@@ -171,11 +171,21 @@ export const action = async ({ request, params }) => {
   const seeMoreHideFromPC = formData.get("seeMoreHideFromPC") === "true";
   const seeMoreHideFromMobile = formData.get("seeMoreHideFromMobile") === "true";
   
+  // Extrage splitViewPerSection și splitViewPerMetafield cu fallback la false dacă nu există
+  const splitViewPerSectionRaw = formData.get("splitViewPerSection");
+  const splitViewPerSection = splitViewPerSectionRaw === "true" || splitViewPerSectionRaw === true || splitViewPerSectionRaw === "True" ? true : false;
+  const splitViewPerMetafieldRaw = formData.get("splitViewPerMetafield");
+  const splitViewPerMetafield = splitViewPerMetafieldRaw === "true" || splitViewPerMetafieldRaw === true || splitViewPerMetafieldRaw === "True" ? true : false;
+  
   // Debug logging
   console.log("Form submission - seeMore values:", {
     seeMoreEnabled,
     seeMoreHideFromPC,
     seeMoreHideFromMobile,
+    splitViewPerSection,
+    splitViewPerMetafield,
+    splitViewPerSectionRaw,
+    splitViewPerMetafieldRaw,
     rawPC: formData.get("seeMoreHideFromPC"),
     rawMobile: formData.get("seeMoreHideFromMobile")
   });
@@ -309,6 +319,8 @@ export const action = async ({ request, params }) => {
           seeMoreEnabled,
           seeMoreHideFromPC,
           seeMoreHideFromMobile,
+          splitViewPerSection,
+          splitViewPerMetafield,
           sections,
         },
         session.shop
@@ -326,6 +338,8 @@ export const action = async ({ request, params }) => {
           seeMoreEnabled,
           seeMoreHideFromPC,
           seeMoreHideFromMobile,
+          splitViewPerSection,
+          splitViewPerMetafield,
           sections,
         },
         session.shop
@@ -407,6 +421,12 @@ export default function TemplateEditorPage() {
   const [seeMoreHideFromMobile, setSeeMoreHideFromMobile] = useState(
     template?.seeMoreHideFromMobile || false
   );
+  const [splitViewPerSection, setSplitViewPerSection] = useState(
+    template?.splitViewPerSection || false
+  );
+  const [splitViewPerMetafield, setSplitViewPerMetafield] = useState(
+    template?.splitViewPerMetafield || false
+  );
 
   const [openSelectIndex, setOpenSelectIndex] = useState(null);
   const [selectedMetafieldsForSection, setSelectedMetafieldsForSection] = useState({});
@@ -446,6 +466,8 @@ export default function TemplateEditorPage() {
     seeMoreEnabled: template?.seeMoreEnabled || false,
     seeMoreHideFromPC: template?.seeMoreHideFromPC || false,
     seeMoreHideFromMobile: template?.seeMoreHideFromMobile || false,
+    splitViewPerSection: template?.splitViewPerSection || false,
+    splitViewPerMetafield: template?.splitViewPerMetafield || false,
     styling: template?.styling ? (() => {
       const parsed = JSON.parse(template.styling);
       // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
@@ -542,6 +564,21 @@ export default function TemplateEditorPage() {
       console.log("Updated seeMoreHideFromMobile hidden input:", seeMoreHideFromMobileInput.value);
     }
   }, [seeMoreHideFromPC, seeMoreHideFromMobile]);
+
+  // Actualizează valorile hidden inputs-urilor pentru splitViewPerSection și splitViewPerMetafield
+  useEffect(() => {
+    const splitViewPerSectionInput = document.querySelector('input[name="splitViewPerSection"]');
+    const splitViewPerMetafieldInput = document.querySelector('input[name="splitViewPerMetafield"]');
+    
+    if (splitViewPerSectionInput) {
+      splitViewPerSectionInput.value = splitViewPerSection ? "true" : "false";
+      console.log("Updated splitViewPerSection hidden input:", splitViewPerSectionInput.value);
+    }
+    if (splitViewPerMetafieldInput) {
+      splitViewPerMetafieldInput.value = splitViewPerMetafield ? "true" : "false";
+      console.log("Updated splitViewPerMetafield hidden input:", splitViewPerMetafieldInput.value);
+    }
+  }, [splitViewPerSection, splitViewPerMetafield]);
 
   const [styling, setStyling] = useState(
     template?.styling
@@ -672,6 +709,12 @@ export default function TemplateEditorPage() {
     if (template?.seeMoreHideFromMobile !== undefined) {
       setSeeMoreHideFromMobile(template.seeMoreHideFromMobile);
     }
+    if (template?.splitViewPerSection !== undefined) {
+      setSplitViewPerSection(template.splitViewPerSection);
+    }
+    if (template?.splitViewPerMetafield !== undefined) {
+      setSplitViewPerMetafield(template.splitViewPerMetafield);
+    }
     if (template?.name) {
       setTemplateName(template.name);
     }
@@ -697,6 +740,8 @@ export default function TemplateEditorPage() {
         seeMoreEnabled,
         seeMoreHideFromPC,
         seeMoreHideFromMobile,
+        splitViewPerSection,
+        splitViewPerMetafield,
         styling: JSON.parse(JSON.stringify(styling))
       };
       
@@ -742,7 +787,9 @@ export default function TemplateEditorPage() {
     // Compară seeMoreEnabled și setările asociate
     if (seeMoreEnabled !== initialFormState.current.seeMoreEnabled ||
         seeMoreHideFromPC !== initialFormState.current.seeMoreHideFromPC ||
-        seeMoreHideFromMobile !== initialFormState.current.seeMoreHideFromMobile) {
+        seeMoreHideFromMobile !== initialFormState.current.seeMoreHideFromMobile ||
+        splitViewPerSection !== initialFormState.current.splitViewPerSection ||
+        splitViewPerMetafield !== initialFormState.current.splitViewPerMetafield) {
       return true;
     }
 
@@ -793,7 +840,7 @@ export default function TemplateEditorPage() {
 
     return false;
   }, [templateName, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, 
-      seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, sections, styling]);
+      seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, sections, styling]);
 
 
   // Funcție pentru a declanșa evenimente change pe hidden inputs
@@ -831,6 +878,18 @@ export default function TemplateEditorPage() {
           }
         });
       });
+    });
+
+    // Declanșează change pe hidden inputs pentru splitViewPerSection și splitViewPerMetafield
+    const splitViewInputs = [
+      'input[name="splitViewPerSection"]',
+      'input[name="splitViewPerMetafield"]',
+    ];
+    splitViewInputs.forEach(selector => {
+      const input = form.querySelector(selector);
+      if (input) {
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     });
 
     // Declanșează change pe toate celelalte hidden inputs
@@ -925,7 +984,7 @@ export default function TemplateEditorPage() {
     return () => clearTimeout(timeoutId);
   }, [templateName, sections, isActive, isAccordion, 
       isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, 
-      seeMoreHideFromPC, seeMoreHideFromMobile, styling, triggerFormChanges, shopify]);
+      seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, styling, triggerFormChanges, shopify]);
 
   // Previne navigarea când există schimbări nesalvate
   useEffect(() => {
@@ -1314,7 +1373,7 @@ export default function TemplateEditorPage() {
   };
 
   // Component pentru preview
-  const PreviewTable = ({ styling, sections, isAccordion, seeMoreEnabled }) => {
+  const PreviewTable = ({ styling, sections, isAccordion, seeMoreEnabled, splitViewPerSection = false, splitViewPerMetafield = false }) => {
     const [showAll, setShowAll] = useState(!seeMoreEnabled);
     
     // Colectează toate metafields-urile din toate secțiunile cu informații despre secțiune
@@ -1509,6 +1568,56 @@ export default function TemplateEditorPage() {
               </div>
             )}
           </>
+        ) : splitViewPerSection ? (
+          <>
+            {/* Split View per Section */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+              {Object.entries(groupedBySection).map(([sectionIndex, sectionData], idx) => {
+                const sectionIdx = parseInt(sectionIndex);
+                const columnClass = idx % 2 === 0 ? "left" : "right";
+                return (
+                  <div key={sectionIdx} style={{ marginBottom: "20px" }}>
+                    <h3 style={headingStyle}>{sectionData.heading}</h3>
+                    {sectionData.metafields && sectionData.metafields.length > 0 ? (
+                      splitViewPerMetafield ? (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
+                          <div>
+                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                              <tbody>
+                                {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
+                                  const globalIndex = displayRows.indexOf(metafield);
+                                  return renderMetafieldRow(metafield, globalIndex);
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div>
+                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                              <tbody>
+                                {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
+                                  const globalIndex = displayRows.indexOf(metafield);
+                                  return renderMetafieldRow(metafield, globalIndex);
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
+                          <tbody>
+                            {sectionData.metafields.map((metafield, idx) => {
+                              const globalIndex = displayRows.indexOf(metafield);
+                              return renderMetafieldRow(metafield, globalIndex);
+                            })}
+                          </tbody>
+                        </table>
+                      )
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
           <>
             {Object.entries(groupedBySection).map(([sectionIndex, sectionData]) => {
@@ -1517,14 +1626,39 @@ export default function TemplateEditorPage() {
                 <div key={sectionIdx} style={{ marginBottom: sectionIdx < sections.length - 1 ? "20px" : "0" }}>
                   <h3 style={headingStyle}>{sectionData.heading}</h3>
                   {sectionData.metafields && sectionData.metafields.length > 0 ? (
-                    <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
-                      <tbody>
-                        {sectionData.metafields.map((metafield, idx) => {
-                          const globalIndex = displayRows.indexOf(metafield);
-                          return renderMetafieldRow(metafield, globalIndex);
-                        })}
-                      </tbody>
-                    </table>
+                    splitViewPerMetafield ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
+                        <div>
+                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <tbody>
+                              {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
+                                const globalIndex = displayRows.indexOf(metafield);
+                                return renderMetafieldRow(metafield, globalIndex);
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div>
+                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <tbody>
+                              {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
+                                const globalIndex = displayRows.indexOf(metafield);
+                                return renderMetafieldRow(metafield, globalIndex);
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
+                        <tbody>
+                          {sectionData.metafields.map((metafield, idx) => {
+                            const globalIndex = displayRows.indexOf(metafield);
+                            return renderMetafieldRow(metafield, globalIndex);
+                          })}
+                        </tbody>
+                      </table>
+                    )
                   ) : (
                     <p style={{ marginTop: "10px", color: styling.specificationTextColor || styling.valueTextColor || "#000000", fontStyle: "italic" }}>
                       Metafields does not exist in this section
@@ -1645,6 +1779,27 @@ export default function TemplateEditorPage() {
                 });
               });
               
+              // Actualizează valorile pentru splitViewPerSection și splitViewPerMetafield
+              const splitViewPerSectionInput = e.currentTarget.querySelector('input[name="splitViewPerSection"]');
+              const splitViewPerMetafieldInput = e.currentTarget.querySelector('input[name="splitViewPerMetafield"]');
+              
+              // Verifică dacă variabilele sunt definite (pentru siguranță)
+              const splitViewPerSectionValue = typeof splitViewPerSection !== 'undefined' ? splitViewPerSection : false;
+              const splitViewPerMetafieldValue = typeof splitViewPerMetafield !== 'undefined' ? splitViewPerMetafield : false;
+              
+              if (splitViewPerSectionInput) {
+                splitViewPerSectionInput.value = splitViewPerSectionValue ? "true" : "false";
+                console.log("onSubmit - Updated splitViewPerSection:", splitViewPerSectionInput.value, "from state:", splitViewPerSectionValue);
+              } else {
+                console.error("onSubmit - splitViewPerSection input not found!");
+              }
+              if (splitViewPerMetafieldInput) {
+                splitViewPerMetafieldInput.value = splitViewPerMetafieldValue ? "true" : "false";
+                console.log("onSubmit - Updated splitViewPerMetafield:", splitViewPerMetafieldInput.value, "from state:", splitViewPerMetafieldValue);
+              } else {
+                console.error("onSubmit - splitViewPerMetafield input not found!");
+              }
+              
               // Actualizează valorile pentru seeMoreHideFromPC și seeMoreHideFromMobile
               const seeMoreHideFromPCInput = e.currentTarget.querySelector('input[name="seeMoreHideFromPC"]');
               const seeMoreHideFromMobileInput = e.currentTarget.querySelector('input[name="seeMoreHideFromMobile"]');
@@ -1685,6 +1840,8 @@ export default function TemplateEditorPage() {
               setSeeMoreEnabled(initialFormState.current.seeMoreEnabled);
               setSeeMoreHideFromPC(initialFormState.current.seeMoreHideFromPC);
               setSeeMoreHideFromMobile(initialFormState.current.seeMoreHideFromMobile);
+              setSplitViewPerSection(initialFormState.current.splitViewPerSection);
+              setSplitViewPerMetafield(initialFormState.current.splitViewPerMetafield);
               setSections(JSON.parse(JSON.stringify(initialFormState.current.sections)));
               setStyling(JSON.parse(JSON.stringify(initialFormState.current.styling)));
               setFormKey(prev => prev + 1);
@@ -1728,6 +1885,18 @@ export default function TemplateEditorPage() {
           name="seeMoreHideFromMobile" 
           value={seeMoreHideFromMobile ? "true" : "false"} 
           key={`seeMoreHideFromMobile-${seeMoreHideFromMobile}`}
+        />
+        <input 
+          type="hidden" 
+          name="splitViewPerSection" 
+          value={splitViewPerSection ? "true" : "false"} 
+          key={`splitViewPerSection-${splitViewPerSection}`}
+        />
+        <input 
+          type="hidden" 
+          name="splitViewPerMetafield" 
+          value={splitViewPerMetafield ? "true" : "false"} 
+          key={`splitViewPerMetafield-${splitViewPerMetafield}`}
         />
             <input type="hidden" name="backgroundColor" value={styling.backgroundColor} />
             <input type="hidden" name="specificationTextColor" value={styling.specificationTextColor} />
@@ -2189,6 +2358,21 @@ export default function TemplateEditorPage() {
                                   Cancel
                                 </s-button>
                               </s-stack>
+                              <div style={{ marginTop: "12px", padding: "8px 12px", backgroundColor: "#f6f6f7", borderRadius: "4px", fontSize: "13px", color: "#6d7175" }}>
+                                <s-text>
+                                  If you are not able to see a specific metafield already created in the store in this list, please{" "}
+                                  <a 
+                                    href="/app/sync" 
+                                    style={{ color: "#008060", textDecoration: "underline", cursor: "pointer" }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      navigate("/app/sync");
+                                    }}
+                                  >
+                                    Sync metafields from this page → Data Sync
+                                  </a>
+                                </s-text>
+                              </div>
                           </s-box>
                         )}
                     </div>
@@ -2308,6 +2492,36 @@ export default function TemplateEditorPage() {
               }}
               value={seeMoreEnabled ? "true" : "false"}
               label="See more button (Show first 10 rows)"
+            />
+            <s-switch
+              id="split-view-per-section-switch"
+              name="splitViewPerSection"
+              checked={splitViewPerSection}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setSplitViewPerSection(newValue);
+                // Dacă activezi splitViewPerSection, dezactivează splitViewPerMetafield (mutual exclusiv)
+                if (newValue) {
+                  setSplitViewPerMetafield(false);
+                }
+              }}
+              value={splitViewPerSection ? "true" : "false"}
+              label="Split View per Section (distribute sections in 2 columns)"
+            />
+            <s-switch
+              id="split-view-per-metafield-switch"
+              name="splitViewPerMetafield"
+              checked={splitViewPerMetafield}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setSplitViewPerMetafield(newValue);
+                // Dacă activezi splitViewPerMetafield, dezactivează splitViewPerSection (mutual exclusiv)
+                if (newValue) {
+                  setSplitViewPerSection(false);
+                }
+              }}
+              value={splitViewPerMetafield ? "true" : "false"}
+              label="Split View per Metafield (distribute metafields in 2 columns)"
             />
             {seeMoreEnabled && (
               <s-box 
@@ -3240,7 +3454,7 @@ export default function TemplateEditorPage() {
             <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>Preview</h2>
           </div>
           <div style={{ backgroundColor: "#ffffff", padding: "20px", borderRadius: "4px", minHeight: "400px" }}>
-            <PreviewTable styling={styling} sections={sections} isAccordion={isAccordion} seeMoreEnabled={seeMoreEnabled} />
+            <PreviewTable styling={styling} sections={sections} isAccordion={isAccordion} seeMoreEnabled={seeMoreEnabled} splitViewPerSection={splitViewPerSection} splitViewPerMetafield={splitViewPerMetafield} />
           </div>
         </div>
       </div>

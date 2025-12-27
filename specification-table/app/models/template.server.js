@@ -156,7 +156,7 @@ export async function createTemplate(data, shopDomain) {
     throw new Error("Shop not found");
   }
 
-  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, sections } = data;
+  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, sections } = data;
 
   return await prisma.specificationTemplate.create({
     data: {
@@ -169,6 +169,8 @@ export async function createTemplate(data, shopDomain) {
       seeMoreEnabled: seeMoreEnabled !== undefined ? seeMoreEnabled : false,
       seeMoreHideFromPC: seeMoreHideFromPC !== undefined ? seeMoreHideFromPC : false,
       seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : false,
+      splitViewPerSection: splitViewPerSection !== undefined ? splitViewPerSection : false,
+      splitViewPerMetafield: splitViewPerMetafield !== undefined ? splitViewPerMetafield : false,
       shopId: shop.id,
       sections: {
         create: sections?.map((section, sectionIndex) => ({
@@ -262,6 +264,8 @@ export async function duplicateTemplate(templateId, shopDomain) {
       seeMoreEnabled: originalTemplate.seeMoreEnabled,
       seeMoreHideFromPC: originalTemplate.seeMoreHideFromPC,
       seeMoreHideFromMobile: originalTemplate.seeMoreHideFromMobile,
+      splitViewPerSection: originalTemplate.splitViewPerSection,
+      splitViewPerMetafield: originalTemplate.splitViewPerMetafield,
       shopId: shop.id,
       sections: {
         create: originalTemplate.sections.map((section, sectionIndex) => ({
@@ -358,7 +362,7 @@ export async function updateTemplate(templateId, data, shopDomain) {
     throw new Error("Template not found");
   }
 
-  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, sections } = data;
+  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, sections } = data;
 
   // Debug: verifică datele primite
   if (process.env.NODE_ENV === "development") {
@@ -397,6 +401,8 @@ export async function updateTemplate(templateId, data, shopDomain) {
       seeMoreEnabled: seeMoreEnabled !== undefined ? seeMoreEnabled : template.seeMoreEnabled || false,
       seeMoreHideFromPC: seeMoreHideFromPC !== undefined ? seeMoreHideFromPC : template.seeMoreHideFromPC || false,
       seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : template.seeMoreHideFromMobile || false,
+      splitViewPerSection: splitViewPerSection !== undefined ? splitViewPerSection : (template.splitViewPerSection !== undefined ? template.splitViewPerSection : false),
+      splitViewPerMetafield: splitViewPerMetafield !== undefined ? splitViewPerMetafield : (template.splitViewPerMetafield !== undefined ? template.splitViewPerMetafield : false),
       sections: {
         create: sections?.map((section, sectionIndex) => ({
           heading: section.heading,
@@ -816,6 +822,8 @@ async function getTemplateWithRelations(templateId) {
       seeMoreEnabled: true,
       seeMoreHideFromPC: true,
       seeMoreHideFromMobile: true,
+      splitViewPerSection: true,
+      splitViewPerMetafield: true,
       styling: true,
       sections: {
         select: {
@@ -1076,6 +1084,8 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
       seeMoreEnabled: true,
       seeMoreHideFromPC: true,
       seeMoreHideFromMobile: true,
+      splitViewPerSection: true,
+      splitViewPerMetafield: true,
       styling: true,
     },
   });

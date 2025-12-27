@@ -11,6 +11,39 @@
   font-family: var(--dc-text-font-family, inherit);
 }
 
+/* Split View Styles */
+.dc_split_view_sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.dc_split_view_column {
+  width: 100%;
+}
+
+.dc_split_view_metafields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.dc_split_view_metafield_column {
+  width: 100%;
+}
+
+/* Responsive: pe mobile, split view devine o singură coloană */
+@media (max-width: 768px) {
+  .dc_split_view_sections {
+    grid-template-columns: 1fr;
+  }
+  
+  .dc_split_view_metafields {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Heading */
 .dc_heading {
   margin-bottom: 10px;
