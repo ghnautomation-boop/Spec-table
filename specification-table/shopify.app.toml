@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "description-container-v1"
-application_url = "https://supply-offer-estates-cool.trycloudflare.com"
+application_url = "https://roles-completing-step-purse.trycloudflare.com"
 embedded = true
 
 [build]
@@ -46,13 +46,13 @@ api_version = "2026-01"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_collection_listings,read_themes,read_content"
+scopes = "read_products,write_products,read_collection_listings,read_themes,read_content,read_metaobjects,write_metaobjects"
 
 [auth]
 redirect_urls = [
-  "https://supply-offer-estates-cool.trycloudflare.com/auth/callback",
-  "https://supply-offer-estates-cool.trycloudflare.comauth/shopify/callback",
-  "https://supply-offer-estates-cool.trycloudflare.com/api/auth/callback"
+  "https://roles-completing-step-purse.trycloudflare.com/auth/callback",
+  "https://roles-completing-step-purse.trycloudflare.comauth/shopify/callback",
+  "https://roles-completing-step-purse.trycloudflare.com/api/auth/callback"
 ]
 
 

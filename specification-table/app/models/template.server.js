@@ -146,8 +146,11 @@ export async function getTemplate(templateId, shopDomain) {
 
 /**
  * Creează un template nou
+ * @param {Object} data - Datele template-ului
+ * @param {string} shopDomain - Domain-ul shop-ului
+ * @param {Object} admin - Shopify Admin GraphQL client (opțional, pentru crearea metaobject-ului)
  */
-export async function createTemplate(data, shopDomain) {
+export async function createTemplate(data, shopDomain, admin = null) {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
   });
@@ -158,7 +161,7 @@ export async function createTemplate(data, shopDomain) {
 
   const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, sections } = data;
 
-  return await prisma.specificationTemplate.create({
+  const template = await prisma.specificationTemplate.create({
     data: {
       name,
       styling: JSON.stringify(styling || {}),
@@ -209,13 +212,38 @@ export async function createTemplate(data, shopDomain) {
           },
         },
       },
+      assignments: {
+        select: {
+          assignmentType: true,
+        },
+      },
     },
   });
-}
 
-/**
- * Duplică un template (fără assignments)
- */
+  // Actualizează metaobject-ul în Shopify dacă admin este disponibil ȘI template-ul este activ
+  if (admin && template.isActive) {
+    console.log('[createTemplate] Admin available and template is active, creating metaobject...');
+    console.log('[createTemplate] Template ID:', template.id);
+    console.log('[createTemplate] Template assignments:', template.assignments);
+    try {
+      const { createOrUpdateMetaobject } = await import("../utils/metaobject.server.js");
+      const result = await createOrUpdateMetaobject(admin, template);
+      console.log('[createTemplate] Metaobject creation result:', result);
+    } catch (error) {
+      // Nu aruncăm eroarea - template-ul este deja creat în DB
+      console.error("[createTemplate] Error creating metaobject for template:", error);
+      console.error("[createTemplate] Error stack:", error.stack);
+    }
+  } else {
+    if (!admin) {
+      console.log('[createTemplate] Admin NOT available, skipping metaobject creation');
+    } else if (!template.isActive) {
+      console.log('[createTemplate] Template is inactive, skipping metaobject creation');
+    }
+  }
+
+  return template;
+}
 export async function duplicateTemplate(templateId, shopDomain) {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
@@ -304,7 +332,7 @@ export async function duplicateTemplate(templateId, shopDomain) {
 /**
  * Toggle isActive pentru un template
  */
-export async function toggleTemplateActive(templateId, shopDomain) {
+export async function toggleTemplateActive(templateId, shopDomain, admin = null) {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
   });
@@ -318,31 +346,171 @@ export async function toggleTemplateActive(templateId, shopDomain) {
       id: templateId,
       shopId: shop.id,
     },
+    include: {
+      sections: {
+        include: {
+          metafields: {
+            include: {
+              metafieldDefinition: true,
+            },
+          },
+        },
+      },
+      assignments: {
+        include: {
+          targets: true,
+        },
+      },
+    },
   });
 
   if (!template) {
     throw new Error("Template not found");
   }
 
+  const newActiveState = !template.isActive;
+
   // Toggle isActive
   const updated = await prisma.specificationTemplate.update({
     where: { id: template.id },
     data: {
-      isActive: !template.isActive,
+      isActive: newActiveState,
     },
   });
 
+  // Gestionează assignment-urile și metaobjects-urile în funcție de noua stare
+  if (admin) {
+    if (newActiveState) {
+      // Template-ul devine activ - creează assignment-urile și metaobjects-urile
+      console.log('[toggleTemplateActive] Template became active, creating assignments and metaobjects...');
+      const { createOrUpdateMetaobject, setCollectionMetafield, setProductMetafield } = await import("../utils/metaobject.server.js");
+      
+      // Creează/actualizează metaobject-ul
+      const metaobjectResult = await createOrUpdateMetaobject(admin, template);
+      
+      if (metaobjectResult && metaobjectResult.id) {
+        const metaobjectId = metaobjectResult.id;
+        
+        // Creează assignment-urile și setează metafield-urile pentru fiecare assignment
+        for (const assignment of template.assignments) {
+          if (assignment.assignmentType === "DEFAULT") {
+            // Pentru DEFAULT, metaobject-ul este deja creat cu handle-ul global
+            console.log('[toggleTemplateActive] Global assignment - metaobject already created');
+          } else if (assignment.assignmentType === "COLLECTION") {
+            for (const target of assignment.targets) {
+              const collectionGid = target.targetShopifyId.startsWith('gid://') 
+                ? target.targetShopifyId 
+                : `gid://shopify/Collection/${target.targetShopifyId}`;
+              await setCollectionMetafield(admin, collectionGid, metaobjectId);
+            }
+          } else if (assignment.assignmentType === "PRODUCT") {
+            for (const target of assignment.targets) {
+              const productGid = target.targetShopifyId.startsWith('gid://') 
+                ? target.targetShopifyId 
+                : `gid://shopify/Product/${target.targetShopifyId}`;
+              await setProductMetafield(admin, productGid, metaobjectId);
+            }
+          }
+        }
+      }
+    } else {
+      // Template-ul devine inactiv - șterge assignment-urile și metafield-urile
+      console.log('[toggleTemplateActive] Template became inactive, deleting assignments and metafields...');
+      const { deleteProductMetafield, deleteCollectionMetafield, deleteMetaobject, deleteMetaobjectByHandle } = await import("../utils/metaobject.server.js");
+      const { normalizeShopifyId } = await import("./template-lookup.server.js");
+      
+      // Șterge metafield-urile și entry-urile din DB
+      for (const assignment of template.assignments) {
+        if (assignment.assignmentType === "PRODUCT" || assignment.assignmentType === "COLLECTION") {
+          for (const target of assignment.targets) {
+            try {
+              const targetGid = target.targetShopifyId.startsWith('gid://') 
+                ? target.targetShopifyId 
+                : (assignment.assignmentType === "PRODUCT" 
+                  ? `gid://shopify/Product/${target.targetShopifyId}` 
+                  : `gid://shopify/Collection/${target.targetShopifyId}`);
+              
+              // Șterge metafield-ul
+              if (assignment.assignmentType === "PRODUCT") {
+                await deleteProductMetafield(admin, targetGid);
+              } else if (assignment.assignmentType === "COLLECTION") {
+                await deleteCollectionMetafield(admin, targetGid);
+              }
+              
+              // Șterge entry-ul din DB dacă nu mai este assignat la alt template
+              const normalizedId = normalizeShopifyId(target.targetShopifyId);
+              if (normalizedId) {
+                const otherAssignments = await prisma.templateAssignmentTarget.findFirst({
+                  where: {
+                    targetShopifyId: normalizedId,
+                    targetType: assignment.assignmentType,
+                    assignment: {
+                      templateId: { not: template.id },
+                    },
+                  },
+                });
+                
+                if (!otherAssignments) {
+                  if (assignment.assignmentType === "PRODUCT") {
+                    await prisma.product.deleteMany({
+                      where: {
+                        shopId: shop.id,
+                        OR: [
+                          { shopifyId: targetGid },
+                          { shopifyId: normalizedId },
+                        ],
+                      },
+                    });
+                  } else if (assignment.assignmentType === "COLLECTION") {
+                    await prisma.collection.deleteMany({
+                      where: {
+                        shopId: shop.id,
+                        OR: [
+                          { shopifyId: targetGid },
+                          { shopifyId: normalizedId },
+                        ],
+                      },
+                    });
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(`[toggleTemplateActive] Error deleting metafield/DB entry for ${assignment.assignmentType} ${target.targetShopifyId}:`, error);
+            }
+          }
+        }
+      }
+      
+      // Șterge metaobject-ul
+      const isGlobal = template.assignments.some(a => a.assignmentType === "DEFAULT");
+      if (isGlobal) {
+        await deleteMetaobjectByHandle(admin, "specification_template_global");
+      } else {
+        await deleteMetaobject(admin, template.id);
+      }
+      
+      // Șterge assignment-urile din DB
+      await prisma.templateAssignment.deleteMany({
+        where: { templateId: template.id },
+      });
+    }
+  }
+
   // Reconstruiește lookup table-ul dacă template-ul a fost activat/dezactivat
   const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
-  await rebuildTemplateLookup(shop.id);
+  await rebuildTemplateLookup(shop.id, shopDomain, admin);
 
   return updated;
 }
 
 /**
  * Actualizează un template
+ * @param {string} templateId - ID-ul template-ului
+ * @param {Object} data - Datele template-ului
+ * @param {string} shopDomain - Domain-ul shop-ului
+ * @param {Object} admin - Shopify Admin GraphQL client (opțional, pentru actualizarea metaobject-ului)
  */
-export async function updateTemplate(templateId, data, shopDomain) {
+export async function updateTemplate(templateId, data, shopDomain, admin = null) {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
   });
@@ -440,13 +608,175 @@ export async function updateTemplate(templateId, data, shopDomain) {
           },
         },
       },
+      assignments: {
+        select: {
+          assignmentType: true,
+        },
+      },
     },
   });
 
-  // Dacă isActive s-a schimbat, reconstruiește lookup table-ul
+  // Dacă isActive s-a schimbat, gestionează assignment-urile și metaobjects-urile
   if (isActive !== undefined && isActive !== wasActive) {
+    if (admin) {
+      // Obține template-ul complet cu assignments pentru a gestiona ștergerea/crearea
+      const templateWithAssignments = await prisma.specificationTemplate.findFirst({
+        where: { id: template.id },
+        include: {
+          sections: {
+            include: {
+              metafields: {
+                include: {
+                  metafieldDefinition: true,
+                },
+              },
+            },
+          },
+          assignments: {
+            include: {
+              targets: true,
+            },
+          },
+        },
+      });
+
+      if (templateWithAssignments) {
+        if (isActive) {
+          // Template-ul devine activ - creează assignment-urile și metaobjects-urile
+          console.log('[updateTemplate] Template became active, creating assignments and metaobjects...');
+          const { createOrUpdateMetaobject, setCollectionMetafield, setProductMetafield } = await import("../utils/metaobject.server.js");
+          
+          // Creează/actualizează metaobject-ul
+          const metaobjectResult = await createOrUpdateMetaobject(admin, templateWithAssignments);
+          
+          if (metaobjectResult && metaobjectResult.id) {
+            const metaobjectId = metaobjectResult.id;
+            
+            // Creează assignment-urile și setează metafield-urile pentru fiecare assignment
+            for (const assignment of templateWithAssignments.assignments) {
+              if (assignment.assignmentType === "DEFAULT") {
+                // Pentru DEFAULT, metaobject-ul este deja creat cu handle-ul global
+                console.log('[updateTemplate] Global assignment - metaobject already created');
+              } else if (assignment.assignmentType === "COLLECTION") {
+                for (const target of assignment.targets) {
+                  const collectionGid = target.targetShopifyId.startsWith('gid://') 
+                    ? target.targetShopifyId 
+                    : `gid://shopify/Collection/${target.targetShopifyId}`;
+                  await setCollectionMetafield(admin, collectionGid, metaobjectId);
+                }
+              } else if (assignment.assignmentType === "PRODUCT") {
+                for (const target of assignment.targets) {
+                  const productGid = target.targetShopifyId.startsWith('gid://') 
+                    ? target.targetShopifyId 
+                    : `gid://shopify/Product/${target.targetShopifyId}`;
+                  await setProductMetafield(admin, productGid, metaobjectId);
+                }
+              }
+            }
+          }
+        } else {
+          // Template-ul devine inactiv - șterge assignment-urile și metafield-urile
+          console.log('[updateTemplate] Template became inactive, deleting assignments and metafields...');
+          const { deleteProductMetafield, deleteCollectionMetafield, deleteMetaobject, deleteMetaobjectByHandle } = await import("../utils/metaobject.server.js");
+          const { normalizeShopifyId } = await import("./template-lookup.server.js");
+          
+          // Șterge metafield-urile și entry-urile din DB
+          for (const assignment of templateWithAssignments.assignments) {
+            if (assignment.assignmentType === "PRODUCT" || assignment.assignmentType === "COLLECTION") {
+              for (const target of assignment.targets) {
+                try {
+                  const targetGid = target.targetShopifyId.startsWith('gid://') 
+                    ? target.targetShopifyId 
+                    : (assignment.assignmentType === "PRODUCT" 
+                      ? `gid://shopify/Product/${target.targetShopifyId}` 
+                      : `gid://shopify/Collection/${target.targetShopifyId}`);
+                  
+                  // Șterge metafield-ul
+                  if (assignment.assignmentType === "PRODUCT") {
+                    await deleteProductMetafield(admin, targetGid);
+                  } else if (assignment.assignmentType === "COLLECTION") {
+                    await deleteCollectionMetafield(admin, targetGid);
+                  }
+                  
+                  // Șterge entry-ul din DB dacă nu mai este assignat la alt template
+                  const normalizedId = normalizeShopifyId(target.targetShopifyId);
+                  if (normalizedId) {
+                    const otherAssignments = await prisma.templateAssignmentTarget.findFirst({
+                      where: {
+                        targetShopifyId: normalizedId,
+                        targetType: assignment.assignmentType,
+                        assignment: {
+                          templateId: { not: template.id },
+                        },
+                      },
+                    });
+                    
+                    if (!otherAssignments) {
+                      if (assignment.assignmentType === "PRODUCT") {
+                        await prisma.product.deleteMany({
+                          where: {
+                            shopId: shop.id,
+                            OR: [
+                              { shopifyId: targetGid },
+                              { shopifyId: normalizedId },
+                            ],
+                          },
+                        });
+                      } else if (assignment.assignmentType === "COLLECTION") {
+                        await prisma.collection.deleteMany({
+                          where: {
+                            shopId: shop.id,
+                            OR: [
+                              { shopifyId: targetGid },
+                              { shopifyId: normalizedId },
+                            ],
+                          },
+                        });
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error(`[updateTemplate] Error deleting metafield/DB entry for ${assignment.assignmentType} ${target.targetShopifyId}:`, error);
+                }
+              }
+            }
+          }
+          
+          // Șterge metaobject-ul
+          const isGlobal = templateWithAssignments.assignments.some(a => a.assignmentType === "DEFAULT");
+          if (isGlobal) {
+            await deleteMetaobjectByHandle(admin, "specification_template_global");
+          } else {
+            await deleteMetaobject(admin, template.id);
+          }
+          
+          // Șterge assignment-urile din DB
+          await prisma.templateAssignment.deleteMany({
+            where: { templateId: template.id },
+          });
+        }
+      }
+    }
+    
+    // Reconstruiește lookup table-ul
     const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
-    await rebuildTemplateLookup(template.shopId);
+    await rebuildTemplateLookup(template.shopId, shopDomain, admin);
+  } else if (admin && updated.isActive) {
+    // Dacă template-ul este activ și nu s-a schimbat isActive, actualizează metaobject-ul
+    console.log('[updateTemplate] Admin available, updating metaobject...');
+    console.log('[updateTemplate] Template ID:', updated.id);
+    console.log('[updateTemplate] Template assignments:', updated.assignments);
+    try {
+      const { createOrUpdateMetaobject } = await import("../utils/metaobject.server.js");
+      const result = await createOrUpdateMetaobject(admin, updated);
+      console.log('[updateTemplate] Metaobject update result:', result);
+    } catch (error) {
+      // Nu aruncăm eroarea - template-ul este deja actualizat în DB
+      console.error("[updateTemplate] Error updating metaobject for template:", error);
+      console.error("[updateTemplate] Error stack:", error.stack);
+    }
+  } else {
+    console.log('[updateTemplate] Template is inactive or admin NOT available, skipping metaobject update');
   }
 
   return updated;
@@ -455,7 +785,7 @@ export async function updateTemplate(templateId, data, shopDomain) {
 /**
  * Șterge un template
  */
-export async function deleteTemplate(templateId, shopDomain) {
+export async function deleteTemplate(templateId, shopDomain, admin = null) {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
   });
@@ -469,10 +799,112 @@ export async function deleteTemplate(templateId, shopDomain) {
       id: templateId,
       shopId: shop.id,
     },
+    include: {
+      assignments: {
+        include: {
+          targets: true,
+        },
+      },
+    },
   });
 
   if (!template) {
     throw new Error("Template not found");
+  }
+
+  // Șterge metafield-urile de pe produse/colecții care erau assignate la acest template
+  // Și șterge entry-urile din DB pentru produsele/colecțiile care nu mai sunt assignate la niciun template
+  if (admin && template.assignments && template.assignments.length > 0) {
+    try {
+      const { deleteProductMetafield, deleteCollectionMetafield } = await import("../utils/metaobject.server.js");
+      const { normalizeShopifyId } = await import("./template-lookup.server.js");
+      
+      for (const assignment of template.assignments) {
+        if (assignment.assignmentType === "PRODUCT" || assignment.assignmentType === "COLLECTION") {
+          for (const target of assignment.targets) {
+            try {
+              const targetGid = target.targetShopifyId.startsWith('gid://') 
+                ? target.targetShopifyId 
+                : (assignment.assignmentType === "PRODUCT" 
+                  ? `gid://shopify/Product/${target.targetShopifyId}` 
+                  : `gid://shopify/Collection/${target.targetShopifyId}`);
+              
+              // Șterge metafield-ul
+              if (assignment.assignmentType === "PRODUCT") {
+                await deleteProductMetafield(admin, targetGid);
+              } else if (assignment.assignmentType === "COLLECTION") {
+                await deleteCollectionMetafield(admin, targetGid);
+              }
+              
+              // Verifică dacă target-ul mai este assignat la alt template
+              const normalizedId = normalizeShopifyId(target.targetShopifyId);
+              if (normalizedId) {
+                const otherAssignments = await prisma.templateAssignmentTarget.findFirst({
+                  where: {
+                    targetShopifyId: normalizedId,
+                    targetType: assignment.assignmentType,
+                    assignment: {
+                      templateId: { not: template.id }, // Exclude template-ul curent
+                    },
+                  },
+                });
+                
+                // Dacă nu mai este assignat la niciun template, șterge entry-ul din DB
+                if (!otherAssignments) {
+                  if (assignment.assignmentType === "PRODUCT") {
+                    await prisma.product.deleteMany({
+                      where: {
+                        shopId: shop.id,
+                        OR: [
+                          { shopifyId: targetGid },
+                          { shopifyId: normalizedId },
+                        ],
+                      },
+                    });
+                    console.log(`[deleteTemplate] Deleted Product entry from DB: ${normalizedId}`);
+                  } else if (assignment.assignmentType === "COLLECTION") {
+                    await prisma.collection.deleteMany({
+                      where: {
+                        shopId: shop.id,
+                        OR: [
+                          { shopifyId: targetGid },
+                          { shopifyId: normalizedId },
+                        ],
+                      },
+                    });
+                    console.log(`[deleteTemplate] Deleted Collection entry from DB: ${normalizedId}`);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(`[deleteTemplate] Error deleting metafield/DB entry for ${assignment.assignmentType} ${target.targetShopifyId}:`, error);
+              // Continuă cu următorul target chiar dacă unul eșuează
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[deleteTemplate] Error deleting metafields/DB entries:", error);
+      // Continuă cu ștergerea template-ului chiar dacă ștergerea metafield-urilor eșuează
+    }
+  }
+
+  // Șterge metaobject-ul din Shopify
+  if (admin) {
+    try {
+      const { deleteMetaobject, deleteMetaobjectByHandle } = await import("../utils/metaobject.server.js");
+      // Verifică dacă template-ul este global (are assignment DEFAULT)
+      const isGlobal = template.assignments?.some(a => a.assignmentType === "DEFAULT");
+      if (isGlobal) {
+        // Pentru template-ul global, folosim handle-ul fix
+        await deleteMetaobjectByHandle(admin, "specification_template_global");
+      } else {
+        await deleteMetaobject(admin, template.id);
+      }
+    } catch (error) {
+      console.error("[deleteTemplate] Error deleting metaobject:", error);
+      // Continuă cu ștergerea template-ului chiar dacă ștergerea metaobject-ului eșuează
+    }
   }
 
   const deleted = await prisma.specificationTemplate.delete({
@@ -481,7 +913,7 @@ export async function deleteTemplate(templateId, shopDomain) {
 
   // Reconstruiește lookup table-ul pentru acest shop (template-ul a fost șters)
   const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
-  await rebuildTemplateLookup(template.shopId);
+  await rebuildTemplateLookup(template.shopId, shopDomain, admin);
 
   return deleted;
 }
@@ -704,6 +1136,111 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     }
   }
 
+  // Obține assignment-urile existente înainte de a le șterge (pentru a șterge metafield-urile)
+  const existingAssignments = await prisma.templateAssignment.findMany({
+    where: { templateId: template.id },
+    include: {
+      targets: true,
+    },
+  });
+
+  // Șterge metafield-urile de pe produse/colecții care erau assignate la template-ul vechi
+  // Și șterge entry-urile din DB pentru produsele/colecțiile care nu mai sunt assignate la niciun template
+  if (admin && existingAssignments.length > 0) {
+    try {
+      const { deleteProductMetafield, deleteCollectionMetafield } = await import("../utils/metaobject.server.js");
+      const { normalizeShopifyId } = await import("./template-lookup.server.js");
+      
+      // Colectează toate target-urile care erau assignate la template-ul vechi
+      const oldTargets = [];
+      for (const assignment of existingAssignments) {
+        if (assignment.assignmentType === "PRODUCT" || assignment.assignmentType === "COLLECTION") {
+          for (const target of assignment.targets) {
+            oldTargets.push({
+              targetShopifyId: target.targetShopifyId,
+              targetType: assignment.assignmentType,
+            });
+          }
+        }
+      }
+      
+      // Verifică care target-uri nu mai sunt în noul assignment
+      const newTargetIds = targetIds ? [...new Set(targetIds)] : [];
+      const targetsToRemove = oldTargets.filter(oldTarget => {
+        const normalizedOldId = normalizeShopifyId(oldTarget.targetShopifyId);
+        return !newTargetIds.some(newId => {
+          const normalizedNewId = normalizeShopifyId(newId);
+          return normalizedNewId === normalizedOldId;
+        });
+      });
+      
+      // Șterge metafield-urile și entry-urile din DB pentru target-urile care nu mai sunt assignate
+      for (const targetToRemove of targetsToRemove) {
+        try {
+          const targetGid = targetToRemove.targetShopifyId.startsWith('gid://') 
+            ? targetToRemove.targetShopifyId 
+            : (targetToRemove.targetType === "PRODUCT" 
+              ? `gid://shopify/Product/${targetToRemove.targetShopifyId}` 
+              : `gid://shopify/Collection/${targetToRemove.targetShopifyId}`);
+          
+          // Șterge metafield-ul
+          if (targetToRemove.targetType === "PRODUCT") {
+            await deleteProductMetafield(admin, targetGid);
+          } else if (targetToRemove.targetType === "COLLECTION") {
+            await deleteCollectionMetafield(admin, targetGid);
+          }
+          
+          // Verifică dacă target-ul mai este assignat la alt template
+          const normalizedId = normalizeShopifyId(targetToRemove.targetShopifyId);
+          if (normalizedId) {
+            const otherAssignments = await prisma.templateAssignmentTarget.findFirst({
+              where: {
+                targetShopifyId: normalizedId,
+                targetType: targetToRemove.targetType,
+                assignment: {
+                  templateId: { not: template.id }, // Exclude template-ul curent
+                },
+              },
+            });
+            
+            // Dacă nu mai este assignat la niciun template, șterge entry-ul din DB
+            if (!otherAssignments) {
+              if (targetToRemove.targetType === "PRODUCT") {
+                await prisma.product.deleteMany({
+                  where: {
+                    shopId: shop.id,
+                    OR: [
+                      { shopifyId: targetGid },
+                      { shopifyId: normalizedId },
+                    ],
+                  },
+                });
+                console.log(`[saveTemplateAssignment] Deleted Product entry from DB: ${normalizedId}`);
+              } else if (targetToRemove.targetType === "COLLECTION") {
+                await prisma.collection.deleteMany({
+                  where: {
+                    shopId: shop.id,
+                    OR: [
+                      { shopifyId: targetGid },
+                      { shopifyId: normalizedId },
+                    ],
+                  },
+                });
+                console.log(`[saveTemplateAssignment] Deleted Collection entry from DB: ${normalizedId}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`[saveTemplateAssignment] Error deleting metafield/DB entry for ${targetToRemove.targetType} ${targetToRemove.targetShopifyId}:`, error);
+          // Continuă cu următorul target chiar dacă unul eșuează
+        }
+      }
+    } catch (error) {
+      console.error("[saveTemplateAssignment] Error deleting old metafields/DB entries:", error);
+      // Continuă cu ștergerea assignment-urilor chiar dacă ștergerea metafield-urilor eșuează
+    }
+  }
+
   // Șterge assignment-urile existente pentru acest template
   await prisma.templateAssignment.deleteMany({
     where: { templateId: template.id },
@@ -714,6 +1251,14 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
     await rebuildTemplateLookup(shop.id, shopDomain, admin);
     return { success: true };
+  }
+
+  // Dacă template-ul este inactiv, nu creăm assignment-uri
+  if (!template.isActive) {
+    console.log('[saveTemplateAssignment] Template is inactive, skipping assignment creation');
+    const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
+    await rebuildTemplateLookup(shop.id, shopDomain, admin);
+    return { success: true, skipped: true, reason: 'Template is inactive' };
   }
 
   // Elimină duplicate-urile din targetIds înainte de salvare
@@ -777,6 +1322,96 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     assignmentId: assignment.id,
     targetsCount: assignment.targets?.length || 0,
   });
+
+  // Creează/actualizează metaobject-ul pentru toate tipurile de assignment DOAR dacă template-ul este activ
+  if (admin && template.isActive) {
+    try {
+      // Obține template-ul complet cu assignments pentru a detecta tipul de assignment
+      const templateWithAssignments = await prisma.specificationTemplate.findFirst({
+        where: { id: template.id },
+        include: {
+          sections: {
+            include: {
+              metafields: {
+                include: {
+                  metafieldDefinition: true,
+                },
+              },
+            },
+          },
+          assignments: {
+            select: {
+              assignmentType: true,
+            },
+          },
+        },
+      });
+
+      if (templateWithAssignments) {
+        console.log('[saveTemplateAssignment] Template with assignments found and is active, updating metaobject...');
+        console.log('[saveTemplateAssignment] Template assignments:', templateWithAssignments.assignments);
+        const { createOrUpdateMetaobject, setCollectionMetafield, setProductMetafield } = await import("../utils/metaobject.server.js");
+        const metaobjectResult = await createOrUpdateMetaobject(admin, templateWithAssignments);
+        console.log('[saveTemplateAssignment] Metaobject update result:', metaobjectResult);
+        
+        if (metaobjectResult && metaobjectResult.id) {
+          const metaobjectId = metaobjectResult.id;
+          
+          // Dacă assignment-ul este DEFAULT, nu setăm metafield-uri (template-ul global este accesat direct)
+          if (assignmentType === "DEFAULT") {
+            console.log(`[saveTemplateAssignment] Metaobject updated with global handle - no metafields to set`);
+          } else if (assignmentType === "COLLECTION") {
+            // Setează metafield-ul pe fiecare colecție
+            console.log(`[saveTemplateAssignment] Setting metafields on ${uniqueTargetIds.length} collections...`);
+            for (const collectionId of uniqueTargetIds) {
+              // Asigură-te că collectionId este în format GID
+              const collectionGid = collectionId.startsWith('gid://') 
+                ? collectionId 
+                : `gid://shopify/Collection/${collectionId}`;
+              
+              const success = await setCollectionMetafield(admin, collectionGid, metaobjectId);
+              if (success) {
+                console.log(`[saveTemplateAssignment] Metafield set successfully for collection: ${collectionGid}`);
+              } else {
+                console.error(`[saveTemplateAssignment] Failed to set metafield for collection: ${collectionGid}`);
+              }
+            }
+          } else if (assignmentType === "PRODUCT") {
+            // Setează metafield-ul pe fiecare produs
+            console.log(`[saveTemplateAssignment] Setting metafields on ${uniqueTargetIds.length} products...`);
+            for (const productId of uniqueTargetIds) {
+              // Asigură-te că productId este în format GID
+              const productGid = productId.startsWith('gid://') 
+                ? productId 
+                : `gid://shopify/Product/${productId}`;
+              
+              const success = await setProductMetafield(admin, productGid, metaobjectId);
+              if (success) {
+                console.log(`[saveTemplateAssignment] Metafield set successfully for product: ${productGid}`);
+              } else {
+                console.error(`[saveTemplateAssignment] Failed to set metafield for product: ${productGid}`);
+              }
+            }
+          }
+        } else {
+          console.error('[saveTemplateAssignment] Metaobject was not created/updated, cannot set metafields');
+        }
+      } else {
+        console.log('[saveTemplateAssignment] Template with assignments NOT found');
+      }
+    } catch (error) {
+      console.error("[saveTemplateAssignment] Error updating metaobject:", error);
+      // Nu aruncăm eroarea - assignment-ul este deja salvat
+    }
+  } else {
+    if (!admin) {
+      console.log('[saveTemplateAssignment] Admin NOT available, skipping metaobject update');
+    } else if (!template.isActive) {
+      console.log('[saveTemplateAssignment] Template is inactive, skipping metaobject and assignment creation');
+      // Dacă template-ul este inactiv, nu creăm assignment-urile
+      return { success: true, skipped: true, reason: 'Template is inactive' };
+    }
+  }
 
   // Reconstruiește lookup table-ul pentru acest shop (o singură dată, după ce s-a creat noul assignment)
   // OPTIMIZAT: Nu mai facem rebuild de 2 ori - doar o dată după ce assignment-ul este creat

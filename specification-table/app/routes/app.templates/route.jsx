@@ -152,7 +152,7 @@ export const action = async ({ request }) => {
 
   if (actionType === "delete" && templateId) {
     try {
-      await deleteTemplate(templateId, session.shop);
+      await deleteTemplate(templateId, session.shop, admin);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -186,7 +186,7 @@ export const action = async ({ request }) => {
 
   if (actionType === "toggleActive" && templateId) {
     try {
-      await toggleTemplateActive(templateId, session.shop);
+      await toggleTemplateActive(templateId, session.shop, admin);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };

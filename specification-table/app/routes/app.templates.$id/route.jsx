@@ -152,7 +152,7 @@ export const loader = async ({ request, params }) => {
 };
 
 export const action = async ({ request, params }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { id } = params;
   const formData = await request.formData();
 
@@ -323,7 +323,8 @@ export const action = async ({ request, params }) => {
           splitViewPerMetafield,
           sections,
         },
-        session.shop
+        session.shop,
+        admin
       );
     } else {
       await updateTemplate(
@@ -342,7 +343,8 @@ export const action = async ({ request, params }) => {
           splitViewPerMetafield,
           sections,
         },
-        session.shop
+        session.shop,
+        admin
       );
     }
 
