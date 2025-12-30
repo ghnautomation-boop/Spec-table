@@ -34,13 +34,18 @@
 }
 
 /* Responsive: pe mobile, split view devine o singură coloană */
+/* Split view se aplică doar pe PC și tabletă (min-width: 769px) */
 @media (max-width: 768px) {
   .dc_split_view_sections {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
   
   .dc_split_view_metafields {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+  
+  .dc_split_view_metafield_column {
+    width: 100% !important;
   }
 }
 

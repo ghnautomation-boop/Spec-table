@@ -1293,17 +1293,17 @@ export default function TemplateEditorPage() {
       newSections[sectionIndex].metafields = [];
     }
 
-      selectedIds.forEach((id) => {
-        newSections[sectionIndex].metafields.push({
-          metafieldDefinitionId: id,
-          customName: null,
-          tooltipEnabled: false,
-          tooltipText: null,
-          hideFromPC: false,
-          hideFromMobile: false,
+    selectedIds.forEach((id) => {
+      newSections[sectionIndex].metafields.push({
+        metafieldDefinitionId: id,
+        customName: null,
+        tooltipEnabled: false,
+        tooltipText: null,
+        hideFromPC: false,
+        hideFromMobile: false,
           prefix: null,
           suffix: null,
-        });
+      });
       // Șterge selecția după adăugare
       delete selectedMetafieldsForSection[`${sectionIndex}_${id}`];
     });
@@ -1514,6 +1514,23 @@ export default function TemplateEditorPage() {
   const PreviewTable = ({ styling, sections, isAccordion, seeMoreEnabled, splitViewPerSection = false, splitViewPerMetafield = false, tableName = "Specifications", isCollapsible = false, collapsibleOnPC = false, collapsibleOnMobile = false }) => {
     const [showAll, setShowAll] = useState(!seeMoreEnabled);
     const [isCollapsed, setIsCollapsed] = useState(true);
+    // State pentru accordion: fiecare secțiune poate fi deschisă sau închisă
+    const [openSections, setOpenSections] = useState(() => {
+      // Prima secțiune este deschisă by default
+      const initial = {};
+      if (sections.length > 0) {
+        initial[0] = true;
+      }
+      return initial;
+    });
+    
+    // Funcție pentru toggle accordion
+    const toggleSection = (sectionIdx) => {
+      setOpenSections(prev => ({
+        ...prev,
+        [sectionIdx]: !prev[sectionIdx]
+      }));
+    };
     
     // Colectează toate metafields-urile din toate secțiunile cu informații despre secțiune
     const allMetafieldsWithSection = sections.flatMap((section, sectionIndex) => 
@@ -1669,19 +1686,19 @@ export default function TemplateEditorPage() {
         <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     );
-
-    return (
+              
+              return (
       <div style={containerStyle}>
-        {/* Header cu numele tabelului și butonul de collapsible */}
-        {isCollapsible ? (
+          {/* Header cu numele tabelului și butonul de collapsible */}
+          {isCollapsible ? (
           <div style={{ marginBottom: "15px", borderBottom: "2px solid #e1e3e5", paddingBottom: "10px" }}>
             <div 
               onClick={() => setIsCollapsed(!isCollapsed)}
-              style={{
+                  style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                cursor: "pointer",
+                    cursor: "pointer",
                 userSelect: "none",
                 padding: "10px",
                 transition: "background-color 0.2s ease",
@@ -1691,16 +1708,16 @@ export default function TemplateEditorPage() {
             >
               <span style={headingStyle}>{tableName}</span>
               <span style={{ 
-                display: "inline-flex", 
-                alignItems: "center", 
-                justifyContent: "center", 
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 transition: "transform 0.3s ease",
                 transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)",
                 marginLeft: "10px"
               }}>
                 {arrowDownSvg}
               </span>
-            </div>
+              </div>
           </div>
         ) : (
           <div style={{ marginBottom: "15px", borderBottom: "2px solid #e1e3e5", paddingBottom: "10px" }}>
@@ -1729,7 +1746,7 @@ export default function TemplateEditorPage() {
             // Calculează numărul de metafields pentru fiecare secțiune
             const sectionsWithCount = Object.keys(allGroupedBySection)
               .map(sectionIndex => {
-                const sectionIdx = parseInt(sectionIndex);
+              const sectionIdx = parseInt(sectionIndex);
                 const sectionData = allGroupedBySection[sectionIndex];
                 return {
                   sectionIndex: sectionIdx,
@@ -1841,92 +1858,216 @@ export default function TemplateEditorPage() {
           }
 
           // Funcție helper pentru a randa o secțiune
-          const renderSection = (sectionData, sectionIdx) => {
-            // Verifică dacă există metafields de afișat
-            const hasDisplayMetafields = sectionData.displayMetafields && sectionData.displayMetafields.length > 0;
+          const renderSection = (sectionData, sectionIdx, forceShow = false) => {
+            // Calculează metafields-urile de afișat
+            // Dacă showAll este true sau forceShow este true, afișăm toate metafields-urile
+            const metafieldsToShow = (showAll || forceShow)
+              ? sectionData.allMetafields
+              : sectionData.displayMetafields;
             
-            if (!hasDisplayMetafields) {
+            // Verifică dacă există metafields de afișat
+            const hasMetafieldsToShow = metafieldsToShow && metafieldsToShow.length > 0;
+            
+            // IMPORTANT: Afișăm secțiunea DOAR dacă are metafields de afișat
+            // Dacă toate metafields-urile sunt hidden și showAll este false, secțiunea nu se afișează deloc
+            if (!hasMetafieldsToShow) {
               return null;
             }
 
+            // Verifică dacă accordion este activat și dacă secțiunea este deschisă
+            const isSectionOpen = openSections[sectionIdx] !== false; // Default true pentru prima secțiune
+            const showAccordion = isAccordion;
+
+            // Render conținutul secțiunii (tabelul)
+            const renderSectionContent = () => (
+              splitViewPerMetafield ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
+                  <div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <tbody>
+                        {metafieldsToShow.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
+                          const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+                          return renderMetafieldRow(metafield, globalIndex);
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <tbody>
+                        {metafieldsToShow.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
+                          const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+                          return renderMetafieldRow(metafield, globalIndex);
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
+                  <tbody>
+                    {metafieldsToShow.map((metafield, idx) => {
+                      const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+                      return renderMetafieldRow(metafield, globalIndex);
+                    })}
+                  </tbody>
+                </table>
+              )
+            );
+
             return (
               <div key={sectionIdx} style={{ marginBottom: "20px" }}>
-                <h3 style={headingStyle}>{sectionData.heading}</h3>
-                {splitViewPerMetafield ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
-                    <div>
-                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                        <tbody>
-                          {sectionData.displayMetafields.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
-                            const globalIndex = allMetafieldsWithSection.indexOf(metafield);
-                            return renderMetafieldRow(metafield, globalIndex);
-                          })}
-                        </tbody>
-                      </table>
+                {showAccordion ? (
+                  <>
+                    {/* Header clickable pentru accordion */}
+                    <div
+                      onClick={() => toggleSection(sectionIdx)}
+                      style={{
+                        cursor: "pointer",
+                        padding: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        borderBottom: `1px solid ${styling.specificationTextColor || styling.valueTextColor || "#000000"}`,
+                        backgroundColor: styling.backgroundColor || "#ffffff",
+                        fontSize: styling.headingFontSize || "18px",
+                        fontWeight: styling.headingFontWeight || "bold",
+                        fontFamily: styling.headingFontFamily || "inherit",
+                        color: styling.headingColor || "#000000",
+                        userSelect: "none",
+                        transition: "background-color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f6f6f7";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = styling.backgroundColor || "#ffffff";
+                      }}
+                    >
+                      <span>{sectionData.heading}</span>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "transform 0.3s ease",
+                          transform: isSectionOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        }}
+                      >
+                        {arrowDownSvg}
+                      </span>
                     </div>
-                    <div>
-                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                        <tbody>
-                          {sectionData.displayMetafields.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
-                            const globalIndex = allMetafieldsWithSection.indexOf(metafield);
-                            return renderMetafieldRow(metafield, globalIndex);
-                          })}
-                        </tbody>
-                      </table>
+                    {/* Conținutul secțiunii (collapsible) */}
+                    <div
+                      style={{
+                        display: isSectionOpen ? "block" : "none",
+                        padding: "10px 0",
+                      }}
+                    >
+                      {renderSectionContent()}
                     </div>
-                  </div>
+                  </>
                 ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
-                    <tbody>
-                      {sectionData.displayMetafields.map((metafield, idx) => {
-                        const globalIndex = allMetafieldsWithSection.indexOf(metafield);
-                        return renderMetafieldRow(metafield, globalIndex);
-                      })}
-                    </tbody>
-                  </table>
+                  <>
+                    {/* Header normal (non-accordion) */}
+                    <h3 style={headingStyle}>{sectionData.heading}</h3>
+                    {renderSectionContent()}
+                  </>
                 )}
               </div>
             );
           };
+
+          // Când showAll este true, trebuie să afișăm și secțiunile care erau complet hidden
+          // Colectează toate secțiunile care trebuie afișate
+          const sectionsToRender = [];
+          
+          if (splitViewPerSection) {
+            // Pentru split view per section, folosim distribuția calculată
+            leftColumnSections.forEach(({ sectionIndex, sectionData }) => {
+              sectionsToRender.push({ sectionIndex, sectionData, column: 'left' });
+            });
+            rightColumnSections.forEach(({ sectionIndex, sectionData }) => {
+              sectionsToRender.push({ sectionIndex, sectionData, column: 'right' });
+            });
+            
+            // Dacă showAll este true, adaugă și secțiunile care erau complet hidden
+            if (showAll) {
+              Object.keys(allGroupedBySection).forEach(sectionIndex => {
+                const sectionIdx = parseInt(sectionIndex);
+                const sectionData = allGroupedBySection[sectionIndex];
+                // Verifică dacă secțiunea nu este deja în listă
+                const alreadyIncluded = sectionsToRender.some(s => s.sectionIndex === sectionIdx);
+                if (!alreadyIncluded && sectionData.hiddenMetafields.length > 0) {
+                  // Determină în ce coloană ar trebui să fie bazat pe distribuția optimă
+                  const maxLeftIndex = leftColumnSections.length > 0 ? Math.max(...leftColumnSections.map(s => s.sectionIndex)) : -1;
+                  const minRightIndex = rightColumnSections.length > 0 ? Math.min(...rightColumnSections.map(s => s.sectionIndex)) : Infinity;
+                  
+                  if (sectionIdx <= maxLeftIndex || (sectionIdx < minRightIndex && leftColumnSections.length <= rightColumnSections.length)) {
+                    sectionsToRender.push({ sectionIndex: sectionIdx, sectionData, column: 'left' });
+                  } else {
+                    sectionsToRender.push({ sectionIndex: sectionIdx, sectionData, column: 'right' });
+                  }
+                }
+              });
+            }
+          } else {
+            // Pentru view normal, adaugă toate secțiunile
+            Object.keys(allGroupedBySection).forEach(sectionIndex => {
+              const sectionIdx = parseInt(sectionIndex);
+              const sectionData = allGroupedBySection[sectionIndex];
+              sectionsToRender.push({ sectionIndex: sectionIdx, sectionData, column: null });
+            });
+          }
 
           return (
             <>
               {splitViewPerSection ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
                   <div>
-                    {leftColumnSections.map(({ sectionIndex, sectionData }) => {
-                      return renderSection(sectionData, sectionIndex);
-                    })}
+                    {sectionsToRender
+                      .filter(s => s.column === 'left')
+                      .sort((a, b) => a.sectionIndex - b.sectionIndex)
+                      .map(({ sectionIndex, sectionData }) => {
+                        // Pentru secțiunile care erau complet hidden, forțăm afișarea când showAll este true
+                        const forceShow = showAll && sectionData.displayMetafields.length === 0 && sectionData.hiddenMetafields.length > 0;
+                        return renderSection(sectionData, sectionIndex, forceShow);
+                      })}
                   </div>
                   <div>
-                    {rightColumnSections.map(({ sectionIndex, sectionData }) => {
-                      return renderSection(sectionData, sectionIndex);
-                    })}
+                    {sectionsToRender
+                      .filter(s => s.column === 'right')
+                      .sort((a, b) => a.sectionIndex - b.sectionIndex)
+                      .map(({ sectionIndex, sectionData }) => {
+                        // Pentru secțiunile care erau complet hidden, forțăm afișarea când showAll este true
+                        const forceShow = showAll && sectionData.displayMetafields.length === 0 && sectionData.hiddenMetafields.length > 0;
+                        return renderSection(sectionData, sectionIndex, forceShow);
+                      })}
                   </div>
                 </div>
               ) : (
                 <>
-                  {Object.keys(allGroupedBySection).map(sectionIndex => {
-                    const sectionIdx = parseInt(sectionIndex);
-                    const sectionData = allGroupedBySection[sectionIndex];
-                    return renderSection(sectionData, sectionIdx);
+                  {sectionsToRender.map(({ sectionIndex, sectionData }) => {
+                    // Pentru secțiunile care erau complet hidden, forțăm afișarea când showAll este true
+                    const forceShow = showAll && sectionData.displayMetafields.length === 0 && sectionData.hiddenMetafields.length > 0;
+                    return renderSection(sectionData, sectionIndex, forceShow);
                   })}
                 </>
               )}
               {finalHasMore && !showAll && (
-                <div style={{ textAlign: "center", marginTop: "12px" }}>
-                  <button
-                    onClick={() => setShowAll(true)}
-                    style={{
+              <div style={{ textAlign: "center", marginTop: "12px" }}>
+                <button
+                  onClick={() => setShowAll(true)}
+                  style={{
                       background: styling.seeMoreButtonBackground || "transparent",
                       border: styling.seeMoreButtonBorderEnabled 
                         ? `${styling.seeMoreButtonBorderWidth || "1px"} ${styling.seeMoreButtonBorderStyle || "solid"} ${styling.seeMoreButtonBorderColor || "#000000"}`
                         : "none",
-                      cursor: "pointer",
+                    cursor: "pointer",
                       padding: styling.seeMoreButtonPadding || "8px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                       gap: "8px",
                       color: styling.seeMoreButtonColor || "#000000",
                       fontSize: styling.seeMoreButtonFontSize || "14px",
@@ -1940,16 +2081,16 @@ export default function TemplateEditorPage() {
                   >
                     {(styling.seeMoreButtonStyle === "arrow" || styling.seeMoreButtonStyle === "arrow+text") && (
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease", flexShrink: 0 }}>
-                        <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                    <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                     )}
                     {(styling.seeMoreButtonStyle === "text" || styling.seeMoreButtonStyle === "arrow+text") && (
                       <span>{styling.seeMoreButtonText || "See More"}</span>
                     )}
-                  </button>
-                </div>
-              )}
-            </>
+                </button>
+              </div>
+            )}
+          </>
           );
         })()}
         </div> {/* Închide div-ul pentru conținutul collapsible */}
@@ -2422,18 +2563,18 @@ export default function TemplateEditorPage() {
                   <s-stack direction="inline" gap="base" alignment="space-between">
                     <s-heading level="3">Section {sectionIndex + 1}</s-heading>
                     <s-stack direction="inline" gap="tight" alignment="center">
-                      {sections.length > 1 && (
+                    {sections.length > 1 && (
                         <>
-                          <s-button
-                            type="button"
-                            variant="primary"
-                            icon="delete"
-                            tone="critical"
-                            onClick={() => removeSection(sectionIndex)}
+                      <s-button
+                        type="button"
+                        variant="primary"
+                        icon="delete"
+                        tone="critical"
+                        onClick={() => removeSection(sectionIndex)}
                             accessibilityLabel="Delete Section"
-                          >
-                            Delete Section
-                          </s-button>
+                      >
+                          Delete Section
+                      </s-button>
                         </>
                       )}
                     </s-stack>
@@ -2458,8 +2599,8 @@ export default function TemplateEditorPage() {
                             </s-select>
                           </div>
                         </>
-                      )}
-                    </s-stack>
+                    )}
+                  </s-stack>
 
                   <input
                     type="hidden"
@@ -2495,7 +2636,7 @@ export default function TemplateEditorPage() {
                             overflow: "hidden",
                             transition: "max-height 0.3s ease"
                           }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
                           <thead>
                             <tr style={{ backgroundColor: "#f6f6f7", borderBottom: "2px solid #e1e3e5" }}>
                               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", fontSize: "14px", color: "#202223", width: "40px" }}>
@@ -3163,6 +3304,19 @@ export default function TemplateEditorPage() {
               value={splitViewPerSection ? "true" : "false"}
               label="Split View per Section (distribute sections in 2 columns)"
             />
+            {splitViewPerSection && (
+              <div style={{
+                marginLeft: "24px",
+                backgroundColor: "#fff4e5",
+                border: "1px solid #f5d07b",
+                padding:"5px",
+                borderRadius: "6px"
+              }}>
+                <s-text style={{ color: "#8b6914", fontSize: "13px" }}>
+                  This setting will not be applied on mobile devices.
+                </s-text>
+              </div>
+            )}
             <s-switch
               id="split-view-per-metafield-switch"
               name="splitViewPerMetafield"
@@ -3178,6 +3332,20 @@ export default function TemplateEditorPage() {
               value={splitViewPerMetafield ? "true" : "false"}
               label="Split View per Metafield (distribute metafields in 2 columns)"
             />
+            {splitViewPerMetafield && (
+              <div style={{
+                marginLeft: "24px",
+
+                padding: "5px",
+                backgroundColor: "#fff4e5",
+                border: "1px solid #f5d07b",
+                borderRadius: "6px"
+              }}>
+                <s-text style={{ color: "#8b6914", fontSize: "13px" }}>
+                  This setting will not be applied on mobile devices.
+                </s-text>
+              </div>
+            )}
             {seeMoreEnabled && (
               <s-box 
                 padding="base" 
@@ -3776,7 +3944,7 @@ export default function TemplateEditorPage() {
                     <s-option value="lowercase">Lowercase</s-option>
                     <s-option value="capitalize">Capitalize</s-option>
                   </s-select>
-                  
+
                   {/* Row Border */}
                   <s-stack direction="block" gap="tight">
                     <s-switch
@@ -3829,7 +3997,7 @@ export default function TemplateEditorPage() {
                             <s-option value="dotted">Dotted</s-option>
                             <s-option value="none">None</s-option>
               </s-select>
-                        </s-stack>
+            </s-stack>
                         <div style={{ width: "100%" }}>
                           <RangeSlider
                             label="Border Width"
@@ -3851,7 +4019,7 @@ export default function TemplateEditorPage() {
                             value={styling.rowBorderWidth}
                           />
                         </div>
-                      </s-stack>
+            </s-stack>
                     )}
                   </s-stack>
                 </s-stack>
