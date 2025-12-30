@@ -3196,8 +3196,13 @@ export default function TemplateEditorPage() {
               onChange={(e) => {
                 const newValue = e.target.checked;
                 setIsAccordion(newValue);
-                // Dacă dezactivezi accordion, resetează și flag-urile hide
-                if (!newValue) {
+                // Dacă activezi accordion, dezactivează seeMore (mutual exclusiv)
+                if (newValue) {
+                  setSeeMoreEnabled(false);
+                  setSeeMoreHideFromPC(false);
+                  setSeeMoreHideFromMobile(false);
+                } else {
+                  // Dacă dezactivezi accordion, resetează și flag-urile hide
                   setIsAccordionHideFromPC(false);
                   setIsAccordionHideFromMobile(false);
                 }
@@ -3280,8 +3285,13 @@ export default function TemplateEditorPage() {
               onChange={(e) => {
                 const newValue = e.target.checked;
                 setSeeMoreEnabled(newValue);
-                // Dacă dezactivezi seeMore, resetează și flag-urile hide
-                if (!newValue) {
+                // Dacă activezi seeMore, dezactivează accordion (mutual exclusiv)
+                if (newValue) {
+                  setIsAccordion(false);
+                  setIsAccordionHideFromPC(false);
+                  setIsAccordionHideFromMobile(false);
+                } else {
+                  // Dacă dezactivezi seeMore, resetează și flag-urile hide
                   setSeeMoreHideFromPC(false);
                   setSeeMoreHideFromMobile(false);
                 }
