@@ -112,6 +112,10 @@ model SpecificationTemplate {
   seeMoreHideFromMobile     Boolean  @default(false) // Ascunde "See more" pe mobile
   splitViewPerSection       Boolean  @default(false) // Split view per section (distribuie secțiunile în 2 coloane)
   splitViewPerMetafield     Boolean  @default(false) // Split view per metafield (distribuie metafields-urile în 2 coloane)
+  tableName                  String   @default("Specifications") // Numele tabelului de specificații
+  isCollapsible              Boolean  @default(false) // Dacă tabelul este collapsible
+  collapsibleOnPC            Boolean  @default(false) // Collapsible doar pe PC
+  collapsibleOnMobile        Boolean  @default(false) // Collapsible doar pe Mobile
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 

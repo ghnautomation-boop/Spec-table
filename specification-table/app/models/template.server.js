@@ -159,7 +159,7 @@ export async function createTemplate(data, shopDomain, admin = null) {
     throw new Error("Shop not found");
   }
 
-  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, sections } = data;
+  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections } = data;
 
   const template = await prisma.specificationTemplate.create({
     data: {
@@ -174,6 +174,10 @@ export async function createTemplate(data, shopDomain, admin = null) {
       seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : false,
       splitViewPerSection: splitViewPerSection !== undefined ? splitViewPerSection : false,
       splitViewPerMetafield: splitViewPerMetafield !== undefined ? splitViewPerMetafield : false,
+      tableName: tableName !== undefined && tableName !== null && tableName.trim() !== "" ? tableName.trim() : "Specifications",
+      isCollapsible: isCollapsible !== undefined ? isCollapsible : false,
+      collapsibleOnPC: collapsibleOnPC !== undefined ? collapsibleOnPC : false,
+      collapsibleOnMobile: collapsibleOnMobile !== undefined ? collapsibleOnMobile : false,
       shopId: shop.id,
       sections: {
         create: sections?.map((section, sectionIndex) => ({
@@ -536,7 +540,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
     throw new Error("Template not found");
   }
 
-  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, sections } = data;
+  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections } = data;
 
   // Debug: verifică datele primite
   if (process.env.NODE_ENV === "development") {
@@ -577,6 +581,10 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
       seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : template.seeMoreHideFromMobile || false,
       splitViewPerSection: splitViewPerSection !== undefined ? splitViewPerSection : (template.splitViewPerSection !== undefined ? template.splitViewPerSection : false),
       splitViewPerMetafield: splitViewPerMetafield !== undefined ? splitViewPerMetafield : (template.splitViewPerMetafield !== undefined ? template.splitViewPerMetafield : false),
+      tableName: tableName !== undefined && tableName !== null && tableName.trim() !== "" ? tableName.trim() : (template.tableName || "Specifications"),
+      isCollapsible: isCollapsible !== undefined ? isCollapsible : (template.isCollapsible !== undefined ? template.isCollapsible : false),
+      collapsibleOnPC: collapsibleOnPC !== undefined ? collapsibleOnPC : (template.collapsibleOnPC !== undefined ? template.collapsibleOnPC : false),
+      collapsibleOnMobile: collapsibleOnMobile !== undefined ? collapsibleOnMobile : (template.collapsibleOnMobile !== undefined ? template.collapsibleOnMobile : false),
       sections: {
         create: sections?.map((section, sectionIndex) => ({
           heading: section.heading,

@@ -52,7 +52,11 @@ window.initSpecificationTable = function(containerId, templateData) {
       seeMoreHideFromPC: templateSettings.seeMoreHideFromPC || false,
       seeMoreHideFromMobile: templateSettings.seeMoreHideFromMobile || false,
       splitViewPerSection: templateSettings.splitViewPerSection || false,
-      splitViewPerMetafield: templateSettings.splitViewPerMetafield || false
+      splitViewPerMetafield: templateSettings.splitViewPerMetafield || false,
+      tableName: templateSettings.tableName || "Specifications",
+      isCollapsible: templateSettings.isCollapsible || false,
+      collapsibleOnPC: templateSettings.collapsibleOnPC || false,
+      collapsibleOnMobile: templateSettings.collapsibleOnMobile || false
     };
 
     // Construiește obiectul cu metafield-urile din Liquid folosind template-ul
@@ -331,6 +335,40 @@ function renderTemplate(container, template) {
 
   let html = '<div id="specification-table-' + escapedTemplateId + '" class="dc_container" style="' + cssVars + '">';
 
+  // Adaugă header-ul cu numele tabelului și butonul de collapsible (dacă este activat)
+  const isCollapsible = template.isCollapsible === true || template.isCollapsible === 'true';
+  const collapsibleOnPC = template.collapsibleOnPC === true || template.collapsibleOnPC === 'true';
+  const collapsibleOnMobile = template.collapsibleOnMobile === true || template.collapsibleOnMobile === 'true';
+  const tableName = template.tableName || "Specifications";
+  const arrowDownSvg = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease;"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  if (isCollapsible) {
+    // Determină clasele CSS pentru collapsible
+    let collapsibleClasses = 'dc_collapsible_header';
+    if (collapsibleOnPC && !collapsibleOnMobile) {
+      collapsibleClasses += ' dc_collapsible_pc_only';
+    } else if (collapsibleOnMobile && !collapsibleOnPC) {
+      collapsibleClasses += ' dc_collapsible_mobile_only';
+    } else {
+      collapsibleClasses += ' dc_collapsible_all';
+    }
+
+    html += '<div class="' + collapsibleClasses + '">';
+    html += '<div class="dc_collapsible_title" onclick="toggleSpecificationTable(\'' + escapedTemplateId + '\')">';
+    html += '<span class="dc_collapsible_name">' + escapeHtml(tableName) + '</span>';
+    html += '<span class="dc_collapsible_arrow" id="spec-table-arrow-' + escapedTemplateId + '">' + arrowDownSvg + '</span>';
+    html += '</div>';
+    html += '</div>';
+    
+    // Wrap conținutul tabelului într-un div care poate fi ascuns/afișat
+    html += '<div id="spec-table-content-' + escapedTemplateId + '" class="dc_collapsible_content dc_collapsible_collapsed">';
+  } else {
+    // Dacă nu este collapsible, afișează doar numele tabelului
+    html += '<div class="dc_table_name_header">';
+    html += '<h2 class="dc_table_name">' + escapeHtml(tableName) + '</h2>';
+    html += '</div>';
+  }
+
   // Colectează toate metafields-urile din toate secțiunile
   const allMetafieldsWithSection = [];
   const sectionHideWhenEmpty = {};
@@ -476,8 +514,6 @@ function renderTemplate(container, template) {
     });
   }
 
-  const arrowDownSvg = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease;"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
   const splitViewPerSection = template.splitViewPerSection === true || template.splitViewPerSection === 'true';
   const splitViewPerMetafield = template.splitViewPerMetafield === true || template.splitViewPerMetafield === 'true';
 
@@ -590,7 +626,12 @@ function renderTemplate(container, template) {
     html += '</div>';
   }
 
-  html += '</div>';
+  // Închide div-ul pentru conținutul collapsible (dacă este activat)
+  if (isCollapsible) {
+    html += '</div>'; // Închide dc_collapsible_content
+  }
+
+  html += '</div>'; // Închide dc_container
 
   try {
     container.innerHTML = html;
@@ -848,6 +889,26 @@ window.showAllTableRows = function(templateId, event, device) {
   const container = document.getElementById('specification-table-container-' + templateId);
   if (container) {
     updateMetafieldValuesFromLiquid(container);
+  }
+};
+
+// Funcție globală pentru toggle collapsible table
+window.toggleSpecificationTable = function(templateId) {
+  const content = document.getElementById('spec-table-content-' + templateId);
+  const arrow = document.getElementById('spec-table-arrow-' + templateId);
+  
+  if (content && arrow) {
+    const isCollapsed = content.classList.contains('dc_collapsible_collapsed');
+    
+    if (isCollapsed) {
+      content.classList.remove('dc_collapsible_collapsed');
+      content.classList.add('dc_collapsible_expanded');
+      arrow.style.transform = 'rotate(180deg)';
+    } else {
+      content.classList.remove('dc_collapsible_expanded');
+      content.classList.add('dc_collapsible_collapsed');
+      arrow.style.transform = 'rotate(0deg)';
+    }
   }
 };
 

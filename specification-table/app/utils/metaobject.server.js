@@ -64,6 +64,10 @@ export async function createOrUpdateMetaobject(admin, template) {
     seeMoreHideFromMobile: template.seeMoreHideFromMobile === true,
     splitViewPerSection: template.splitViewPerSection === true,
     splitViewPerMetafield: template.splitViewPerMetafield === true,
+    tableName: template.tableName || "Specifications",
+    isCollapsible: template.isCollapsible === true,
+    collapsibleOnPC: template.collapsibleOnPC === true,
+    collapsibleOnMobile: template.collapsibleOnMobile === true,
   };
 
   // Verifică dacă metaobject-ul există deja

@@ -177,6 +177,13 @@ export const action = async ({ request, params }) => {
   const splitViewPerMetafieldRaw = formData.get("splitViewPerMetafield");
   const splitViewPerMetafield = splitViewPerMetafieldRaw === "true" || splitViewPerMetafieldRaw === true || splitViewPerMetafieldRaw === "True" ? true : false;
   
+  // Extrage tableName și setările de collapsible
+  const tableNameRaw = formData.get("tableName");
+  const tableName = tableNameRaw && tableNameRaw.trim() !== "" ? tableNameRaw.trim() : "Specifications";
+  const isCollapsible = formData.get("isCollapsible") === "true";
+  const collapsibleOnPC = formData.get("collapsibleOnPC") === "true";
+  const collapsibleOnMobile = formData.get("collapsibleOnMobile") === "true";
+  
   // Debug logging
   console.log("Form submission - seeMore values:", {
     seeMoreEnabled,
@@ -321,6 +328,10 @@ export const action = async ({ request, params }) => {
           seeMoreHideFromMobile,
           splitViewPerSection,
           splitViewPerMetafield,
+          tableName,
+          isCollapsible,
+          collapsibleOnPC,
+          collapsibleOnMobile,
           sections,
         },
         session.shop,
@@ -341,6 +352,10 @@ export const action = async ({ request, params }) => {
           seeMoreHideFromMobile,
           splitViewPerSection,
           splitViewPerMetafield,
+          tableName,
+          isCollapsible,
+          collapsibleOnPC,
+          collapsibleOnMobile,
           sections,
         },
         session.shop,
@@ -429,6 +444,18 @@ export default function TemplateEditorPage() {
   const [splitViewPerMetafield, setSplitViewPerMetafield] = useState(
     template?.splitViewPerMetafield || false
   );
+  const [tableName, setTableName] = useState(
+    template?.tableName || "Specifications"
+  );
+  const [isCollapsible, setIsCollapsible] = useState(
+    template?.isCollapsible || false
+  );
+  const [collapsibleOnPC, setCollapsibleOnPC] = useState(
+    template?.collapsibleOnPC || false
+  );
+  const [collapsibleOnMobile, setCollapsibleOnMobile] = useState(
+    template?.collapsibleOnMobile || false
+  );
 
   const [openSelectIndex, setOpenSelectIndex] = useState(null);
   const [selectedMetafieldsForSection, setSelectedMetafieldsForSection] = useState({});
@@ -472,6 +499,10 @@ export default function TemplateEditorPage() {
     seeMoreHideFromMobile: template?.seeMoreHideFromMobile || false,
     splitViewPerSection: template?.splitViewPerSection || false,
     splitViewPerMetafield: template?.splitViewPerMetafield || false,
+    tableName: template?.tableName || "Specifications",
+    isCollapsible: template?.isCollapsible || false,
+    collapsibleOnPC: template?.collapsibleOnPC || false,
+    collapsibleOnMobile: template?.collapsibleOnMobile || false,
     styling: template?.styling ? (() => {
       const parsed = JSON.parse(template.styling);
       // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
@@ -719,6 +750,18 @@ export default function TemplateEditorPage() {
     if (template?.splitViewPerMetafield !== undefined) {
       setSplitViewPerMetafield(template.splitViewPerMetafield);
     }
+    if (template?.tableName !== undefined) {
+      setTableName(template.tableName);
+    }
+    if (template?.isCollapsible !== undefined) {
+      setIsCollapsible(template.isCollapsible);
+    }
+    if (template?.collapsibleOnPC !== undefined) {
+      setCollapsibleOnPC(template.collapsibleOnPC);
+    }
+    if (template?.collapsibleOnMobile !== undefined) {
+      setCollapsibleOnMobile(template.collapsibleOnMobile);
+    }
     if (template?.name) {
       setTemplateName(template.name);
     }
@@ -797,6 +840,14 @@ export default function TemplateEditorPage() {
       return true;
     }
 
+    // Compară tableName și setările de collapsible
+    if (tableName !== initialFormState.current.tableName ||
+        isCollapsible !== initialFormState.current.isCollapsible ||
+        collapsibleOnPC !== initialFormState.current.collapsibleOnPC ||
+        collapsibleOnMobile !== initialFormState.current.collapsibleOnMobile) {
+      return true;
+    }
+
     // Compară sections
     if (sections.length !== initialFormState.current.sections.length) {
       return true;
@@ -844,7 +895,8 @@ export default function TemplateEditorPage() {
 
     return false;
   }, [templateName, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, 
-      seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, sections, styling]);
+      seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, 
+      tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections, styling]);
 
 
   // Funcție pentru a declanșa evenimente change pe hidden inputs
@@ -857,6 +909,12 @@ export default function TemplateEditorPage() {
     const nameInput = form.querySelector('input[name="name"]');
     if (nameInput) {
       nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Declanșează change pe input-ul pentru tableName
+    const tableNameInput = form.querySelector('input[name="tableName"]');
+    if (tableNameInput) {
+      tableNameInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     // Declanșează change pe toate hidden inputs pentru sections
@@ -905,6 +963,10 @@ export default function TemplateEditorPage() {
       'input[name="seeMoreEnabled"]',
       'input[name="seeMoreHideFromPC"]',
       'input[name="seeMoreHideFromMobile"]',
+      'input[name="tableName"]',
+      'input[name="isCollapsible"]',
+      'input[name="collapsibleOnPC"]',
+      'input[name="collapsibleOnMobile"]',
       // Styling inputs
       'input[name="backgroundColor"]',
       'input[name="specificationTextColor"]',
@@ -988,7 +1050,8 @@ export default function TemplateEditorPage() {
     return () => clearTimeout(timeoutId);
   }, [templateName, sections, isActive, isAccordion, 
       isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, 
-      seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, styling, triggerFormChanges, shopify]);
+      seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, 
+      tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, styling, triggerFormChanges, shopify]);
 
   // Previne navigarea când există schimbări nesalvate
   useEffect(() => {
@@ -1447,8 +1510,9 @@ export default function TemplateEditorPage() {
   };
 
   // Component pentru preview
-  const PreviewTable = ({ styling, sections, isAccordion, seeMoreEnabled, splitViewPerSection = false, splitViewPerMetafield = false }) => {
+  const PreviewTable = ({ styling, sections, isAccordion, seeMoreEnabled, splitViewPerSection = false, splitViewPerMetafield = false, tableName = "Specifications", isCollapsible = false, collapsibleOnPC = false, collapsibleOnMobile = false }) => {
     const [showAll, setShowAll] = useState(!seeMoreEnabled);
+    const [isCollapsed, setIsCollapsed] = useState(true);
     
     // Colectează toate metafields-urile din toate secțiunile cu informații despre secțiune
     const allMetafieldsWithSection = sections.flatMap((section, sectionIndex) => 
@@ -1580,8 +1644,57 @@ export default function TemplateEditorPage() {
       );
     };
 
+    const arrowDownSvg = (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease" }}>
+        <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+
     return (
       <div style={containerStyle}>
+        {/* Header cu numele tabelului și butonul de collapsible */}
+        {isCollapsible ? (
+          <div style={{ marginBottom: "15px", borderBottom: "2px solid #e1e3e5", paddingBottom: "10px" }}>
+            <div 
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                userSelect: "none",
+                padding: "10px",
+                transition: "background-color 0.2s ease",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f6f6f7"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+            >
+              <span style={headingStyle}>{tableName}</span>
+              <span style={{ 
+                display: "inline-flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                transition: "transform 0.3s ease",
+                transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)",
+                marginLeft: "10px"
+              }}>
+                {arrowDownSvg}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: "15px", borderBottom: "2px solid #e1e3e5", paddingBottom: "10px" }}>
+            <h2 style={{ ...headingStyle, margin: 0 }}>{tableName}</h2>
+          </div>
+        )}
+        
+        {/* Conținutul tabelului (collapsible sau nu) */}
+        <div style={{
+          overflow: "hidden",
+          transition: "max-height 0.3s ease, opacity 0.3s ease",
+          maxHeight: isCollapsible && isCollapsed ? "0" : "10000px",
+          opacity: isCollapsible && isCollapsed ? 0 : 1,
+        }}>
         {sections.length === 0 ? (
           <div style={{ padding: "20px", textAlign: "center", color: styling.specificationTextColor || styling.valueTextColor || "#000000" }}>
             <p>Add sections to see the preview</p>
@@ -1779,6 +1892,7 @@ export default function TemplateEditorPage() {
             )}
           </>
         )}
+        </div> {/* Închide div-ul pentru conținutul collapsible */}
       </div>
     );
   };
@@ -1916,6 +2030,10 @@ export default function TemplateEditorPage() {
               setSeeMoreHideFromMobile(initialFormState.current.seeMoreHideFromMobile);
               setSplitViewPerSection(initialFormState.current.splitViewPerSection);
               setSplitViewPerMetafield(initialFormState.current.splitViewPerMetafield);
+              setTableName(initialFormState.current.tableName);
+              setIsCollapsible(initialFormState.current.isCollapsible);
+              setCollapsibleOnPC(initialFormState.current.collapsibleOnPC);
+              setCollapsibleOnMobile(initialFormState.current.collapsibleOnMobile);
               setSections(JSON.parse(JSON.stringify(initialFormState.current.sections)));
               setStyling(JSON.parse(JSON.stringify(initialFormState.current.styling)));
               setFormKey(prev => prev + 1);
@@ -1971,6 +2089,30 @@ export default function TemplateEditorPage() {
           name="splitViewPerMetafield" 
           value={splitViewPerMetafield ? "true" : "false"} 
           key={`splitViewPerMetafield-${splitViewPerMetafield}`}
+        />
+        <input 
+          type="hidden" 
+          name="tableName" 
+          value={tableName} 
+          key={`tableName-${tableName}`}
+        />
+        <input 
+          type="hidden" 
+          name="isCollapsible" 
+          value={isCollapsible ? "true" : "false"} 
+          key={`isCollapsible-${isCollapsible}`}
+        />
+        <input 
+          type="hidden" 
+          name="collapsibleOnPC" 
+          value={collapsibleOnPC ? "true" : "false"} 
+          key={`collapsibleOnPC-${collapsibleOnPC}`}
+        />
+        <input 
+          type="hidden" 
+          name="collapsibleOnMobile" 
+          value={collapsibleOnMobile ? "true" : "false"} 
+          key={`collapsibleOnMobile-${collapsibleOnMobile}`}
         />
             <input type="hidden" name="backgroundColor" value={styling.backgroundColor} />
             <input type="hidden" name="specificationTextColor" value={styling.specificationTextColor} />
@@ -2090,6 +2232,118 @@ export default function TemplateEditorPage() {
               onChange={(e) => setTemplateName(e.target.value || e.currentTarget?.value || "")}
               required
             />
+          </s-stack>
+        </s-section>
+
+        <s-section heading="Specification Table settings">
+          <s-stack direction="block" gap="base">
+            <s-text-field
+              name="tableName"
+              label="Table Name"
+              value={tableName}
+              onChange={(e) => {
+                const newValue = e.target.value || e.currentTarget?.value || "";
+                setTableName(newValue);
+                // Actualizează imediat hidden input-ul și declanșează evenimentul change
+                const form = document.querySelector('form[data-save-bar]');
+                if (form) {
+                  const tableNameInput = form.querySelector('input[name="tableName"]');
+                  if (tableNameInput) {
+                    tableNameInput.value = newValue;
+                    tableNameInput.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
+                }
+              }}
+              placeholder="Specifications"
+            />
+            <s-switch
+              checked={isCollapsible}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setIsCollapsible(newValue);
+                // Dacă dezactivezi collapsible, dezactivează și opțiunile PC/Mobile
+                if (!newValue) {
+                  setCollapsibleOnPC(false);
+                  setCollapsibleOnMobile(false);
+                }
+                // Actualizează imediat hidden input-ul
+                const form = document.querySelector('form[data-save-bar]');
+                if (form) {
+                  const isCollapsibleInput = form.querySelector('input[name="isCollapsible"]');
+                  if (isCollapsibleInput) {
+                    isCollapsibleInput.value = newValue ? "true" : "false";
+                    isCollapsibleInput.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
+                }
+              }}
+              value={isCollapsible ? "true" : "false"}
+              label="Collapsible table"
+              accessibilityLabel="Enable collapsible table"
+            />
+            {isCollapsible && (
+              <s-stack direction="block" gap="tight">
+                <s-switch
+                  checked={collapsibleOnPC}
+                  onChange={(e) => {
+                    const newValue = e.target.checked;
+                    setCollapsibleOnPC(newValue);
+                    // Dacă activezi collapsibleOnPC, dezactivează collapsibleOnMobile (mutual exclusiv)
+                    if (newValue) {
+                      setCollapsibleOnMobile(false);
+                    }
+                    // Actualizează imediat hidden input-ul
+                    const form = document.querySelector('form[data-save-bar]');
+                    if (form) {
+                      const collapsibleOnPCInput = form.querySelector('input[name="collapsibleOnPC"]');
+                      if (collapsibleOnPCInput) {
+                        collapsibleOnPCInput.value = newValue ? "true" : "false";
+                        collapsibleOnPCInput.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
+                      if (newValue) {
+                        const collapsibleOnMobileInput = form.querySelector('input[name="collapsibleOnMobile"]');
+                        if (collapsibleOnMobileInput) {
+                          collapsibleOnMobileInput.value = "false";
+                          collapsibleOnMobileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                      }
+                    }
+                  }}
+                  value={collapsibleOnPC ? "true" : "false"}
+                  label="Collapsible table just on PC"
+                  accessibilityLabel="Enable collapsible table on PC only"
+                />
+                <s-switch
+                  checked={collapsibleOnMobile}
+                  onChange={(e) => {
+                    const newValue = e.target.checked;
+                    setCollapsibleOnMobile(newValue);
+                    // Dacă activezi collapsibleOnMobile, dezactivează collapsibleOnPC (mutual exclusiv)
+                    if (newValue) {
+                      setCollapsibleOnPC(false);
+                    }
+                    // Actualizează imediat hidden input-ul
+                    const form = document.querySelector('form[data-save-bar]');
+                    if (form) {
+                      const collapsibleOnMobileInput = form.querySelector('input[name="collapsibleOnMobile"]');
+                      if (collapsibleOnMobileInput) {
+                        collapsibleOnMobileInput.value = newValue ? "true" : "false";
+                        collapsibleOnMobileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
+                      if (newValue) {
+                        const collapsibleOnPCInput = form.querySelector('input[name="collapsibleOnPC"]');
+                        if (collapsibleOnPCInput) {
+                          collapsibleOnPCInput.value = "false";
+                          collapsibleOnPCInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                      }
+                    }
+                  }}
+                  value={collapsibleOnMobile ? "true" : "false"}
+                  label="Collapsible table just on Mobile"
+                  accessibilityLabel="Enable collapsible table on Mobile only"
+                />
+              </s-stack>
+            )}
           </s-stack>
         </s-section>
 
@@ -3701,7 +3955,18 @@ export default function TemplateEditorPage() {
             <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>Preview</h2>
           </div>
           <div style={{ backgroundColor: "#ffffff", padding: "20px", borderRadius: "4px", minHeight: "400px" }}>
-            <PreviewTable styling={styling} sections={sections} isAccordion={isAccordion} seeMoreEnabled={seeMoreEnabled} splitViewPerSection={splitViewPerSection} splitViewPerMetafield={splitViewPerMetafield} />
+            <PreviewTable 
+              styling={styling} 
+              sections={sections} 
+              isAccordion={isAccordion} 
+              seeMoreEnabled={seeMoreEnabled} 
+              splitViewPerSection={splitViewPerSection} 
+              splitViewPerMetafield={splitViewPerMetafield}
+              tableName={tableName}
+              isCollapsible={isCollapsible}
+              collapsibleOnPC={collapsibleOnPC}
+              collapsibleOnMobile={collapsibleOnMobile}
+            />
           </div>
         </div>
       </div>
