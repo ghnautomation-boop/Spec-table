@@ -332,7 +332,7 @@ export async function duplicateTemplate(templateId, shopDomain) {
 /**
  * Toggle isActive pentru un template
  */
-export async function toggleTemplateActive(templateId, shopDomain, admin = null) {
+export async function toggleTemplateActive(templateId, shopDomain, admin = null, targetState = null) {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
   });
@@ -368,7 +368,13 @@ export async function toggleTemplateActive(templateId, shopDomain, admin = null)
     throw new Error("Template not found");
   }
 
-  const newActiveState = !template.isActive;
+  // Dacă targetState este specificat, folosește-l; altfel, toggle
+  const newActiveState = targetState !== null ? targetState : !template.isActive;
+  
+  // Dacă starea nu s-a schimbat, nu face nimic
+  if (newActiveState === template.isActive) {
+    return template;
+  }
 
   // Toggle isActive
   const updated = await prisma.specificationTemplate.update({
@@ -1071,6 +1077,7 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     throw new Error("Shop not found");
   }
 
+  // Reîncarcă template-ul pentru a obține starea cea mai recentă (în cazul în care a fost activat recent)
   const template = await prisma.specificationTemplate.findFirst({
     where: {
       id: templateId,
@@ -1253,13 +1260,30 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     return { success: true };
   }
 
+  // Reîncarcă template-ul pentru a obține starea cea mai recentă (în cazul în care a fost activat recent)
+  // Acest lucru este important când template-ul este activat în același request înainte de assignment
+  const refreshedTemplate = await prisma.specificationTemplate.findFirst({
+    where: {
+      id: templateId,
+      shopId: shop.id,
+    },
+  });
+
+  if (!refreshedTemplate) {
+    throw new Error("Template not found");
+  }
+
   // Dacă template-ul este inactiv, nu creăm assignment-uri
-  if (!template.isActive) {
+  if (!refreshedTemplate.isActive) {
     console.log('[saveTemplateAssignment] Template is inactive, skipping assignment creation');
     const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
     await rebuildTemplateLookup(shop.id, shopDomain, admin);
     return { success: true, skipped: true, reason: 'Template is inactive' };
   }
+  
+  // Folosește template-ul reîncărcat pentru restul funcției
+  // Actualizează proprietățile obiectului template cu valorile din refreshedTemplate
+  template.isActive = refreshedTemplate.isActive;
 
   // Elimină duplicate-urile din targetIds înainte de salvare
   const uniqueTargetIds = targetIds ? [...new Set(targetIds)] : [];
@@ -1317,7 +1341,7 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
       },
     },
   });
-  
+
   console.log(`[saveTemplateAssignment] Assignment created:`, {
     assignmentId: assignment.id,
     targetsCount: assignment.targets?.length || 0,
@@ -1532,7 +1556,7 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
   const normalizedProductId = normalizeShopifyId(productId);
   const normalizedCollectionId = normalizeShopifyId(collectionId);
   const normalizeTime = performance.now() - normalizeStart;
-  
+
   // Debug logging pentru normalizare
   console.log(`   🔍 [DEBUG] Normalization:`, {
     productId: productId,

@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "description-container-v1"
-application_url = "https://roles-completing-step-purse.trycloudflare.com"
+application_url = "https://classifieds-nights-pentium-cos.trycloudflare.com"
 embedded = true
 
 [build]
@@ -50,9 +50,9 @@ scopes = "read_products,write_products,read_collection_listings,read_themes,read
 
 [auth]
 redirect_urls = [
-  "https://roles-completing-step-purse.trycloudflare.com/auth/callback",
-  "https://roles-completing-step-purse.trycloudflare.comauth/shopify/callback",
-  "https://roles-completing-step-purse.trycloudflare.com/api/auth/callback"
+  "https://classifieds-nights-pentium-cos.trycloudflare.com/auth/callback",
+  "https://classifieds-nights-pentium-cos.trycloudflare.comauth/shopify/callback",
+  "https://classifieds-nights-pentium-cos.trycloudflare.com/api/auth/callback"
 ]
 
 

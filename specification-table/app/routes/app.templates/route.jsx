@@ -1,8 +1,10 @@
-import { useLoaderData, useFetcher, Outlet, useLocation, Form } from "react-router";
+import { useLoaderData, useFetcher, Outlet, useLocation, Form, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
+import prisma from "../../db.server.js";
 import { getTemplates, deleteTemplate, getProducts, getCollections, saveTemplateAssignment, getAllAssignments, duplicateTemplate, toggleTemplateActive } from "../../models/template.server.js";
 
 // Helper functions pentru conversie ID-uri
@@ -164,7 +166,83 @@ export const action = async ({ request }) => {
       const assignmentType = formData.get("assignmentType");
       const targetIds = formData.getAll("targetIds");
       const isExcluded = formData.get("isExcluded") === "true";
+      const pendingActiveState = formData.get("pendingActiveState");
+      
+      console.log('[action:assign] Received formData:', {
+        assignmentType,
+        targetIdsCount: targetIds.length,
+        targetIds: targetIds,
+        isExcluded,
+        pendingActiveState
+      });
+      
+      // Dacă există o modificare nesalvată care face template-ul activ, salvăm-o mai întâi
+      if (pendingActiveState === "true") {
+        // Verifică dacă template-ul este deja activ în DB
+        const shop = await prisma.shop.findUnique({
+          where: { shopDomain: session.shop },
+        });
+        
+        if (shop) {
+          const template = await prisma.specificationTemplate.findFirst({
+            where: {
+              id: templateId,
+              shopId: shop.id,
+            },
+          });
+          
+          // Dacă template-ul nu este activ în DB, îl activăm
+          if (template && !template.isActive) {
+            console.log('[action:assign] Activating template before assignment...');
+            await toggleTemplateActive(templateId, session.shop, admin, true);
+            // Așteaptă puțin pentru a se actualiza starea în DB
+            await new Promise(resolve => setTimeout(resolve, 100));
+            console.log('[action:assign] Template activated, proceeding with assignment...');
+          }
+        }
+      }
+      
+      console.log('[action:assign] Calling saveTemplateAssignment with:', {
+        templateId,
+        assignmentType,
+        targetIdsCount: targetIds.length,
+        targetIds: targetIds
+      });
+      
       const result = await saveTemplateAssignment(templateId, assignmentType, targetIds, session.shop, isExcluded, admin);
+      
+      console.log('[action:assign] saveTemplateAssignment result:', result);
+      
+      // Verifică dacă assignment-ul s-a salvat corect în DB
+      if (result.success) {
+        const shop = await prisma.shop.findUnique({
+          where: { shopDomain: session.shop },
+        });
+        
+        if (shop) {
+          const savedTemplate = await prisma.specificationTemplate.findFirst({
+            where: {
+              id: templateId,
+              shopId: shop.id,
+            },
+            include: {
+              assignments: {
+                include: {
+                  targets: true,
+                },
+              },
+            },
+          });
+          
+          console.log('[action:assign] Template after save:', {
+            templateId: savedTemplate?.id,
+            assignmentsCount: savedTemplate?.assignments?.length || 0,
+            assignment: savedTemplate?.assignments?.[0],
+            targetsCount: savedTemplate?.assignments?.[0]?.targets?.length || 0,
+            targets: savedTemplate?.assignments?.[0]?.targets || []
+          });
+        }
+      }
       return { 
         success: true,
         autoAddedCount: result.autoAddedCount || 0,
@@ -186,7 +264,9 @@ export const action = async ({ request }) => {
 
   if (actionType === "toggleActive" && templateId) {
     try {
-      await toggleTemplateActive(templateId, session.shop, admin);
+      const newActiveState = formData.get("newActiveState");
+      const targetState = newActiveState !== null ? newActiveState === "true" : null;
+      await toggleTemplateActive(templateId, session.shop, admin, targetState);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -208,7 +288,7 @@ export const action = async ({ request }) => {
   return { success: false, error: "Invalid action" };
 };
 
-function TemplateAssignment({ template, products: initialProducts, collections: initialCollections, shopify, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId }) {
+function TemplateAssignment({ template, products: initialProducts, collections: initialCollections, shopify, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId, pendingActiveChanges }) {
   const fetcher = useFetcher();
   const assignment = template.assignments?.[0];
   // Determină tipul de assignment și dacă este except
@@ -231,7 +311,7 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     console.log('[TemplateAssignment] Assignment loaded:', assignment);
     console.log('[TemplateAssignment] Selected products:', selectedProducts);
     console.log('[TemplateAssignment] Selected collections:', selectedCollections);
-  }, []);
+  }, [assignment, selectedProducts, selectedCollections]);
   
   // Actualizează state-ul când assignment-ul se schimbă (după salvare)
   useEffect(() => {
@@ -405,21 +485,65 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
+    
+    // Verifică dacă template-ul este activ în DB
+    const isActiveInDB = template.isActive;
+    // Verifică dacă există modificări nesalvate care îl fac activ
+    const hasPendingActiveChange = pendingActiveChanges && pendingActiveChanges[template.id] !== undefined;
+    const pendingActiveState = hasPendingActiveChange ? pendingActiveChanges[template.id] : null;
     
     let targetIds = [];
     let isExcluded = false;
     let actualAssignmentType = assignmentType;
     
-    if (assignmentType === "PRODUCT") {
-      targetIds = selectedProducts;
-      actualAssignmentType = "PRODUCT";
-    } else if (assignmentType === "COLLECTION") {
-      targetIds = selectedCollections;
-      actualAssignmentType = "COLLECTION";
-    } else if (assignmentType === "GLOBAL") {
-      actualAssignmentType = "DEFAULT";
+    // Încearcă să obțină targetIds din form-ul HTML dacă state-ul este gol
+    // (pentru cazul în care se face submit direct din contextual save bar)
+    if (e.currentTarget) {
+      const formDataFromForm = new FormData(e.currentTarget);
+      const targetIdsFromForm = formDataFromForm.getAll("targetIds");
+      
+      if (assignmentType === "PRODUCT") {
+        targetIds = selectedProducts.length > 0 ? selectedProducts : targetIdsFromForm;
+        actualAssignmentType = "PRODUCT";
+      } else if (assignmentType === "COLLECTION") {
+        targetIds = selectedCollections.length > 0 ? selectedCollections : targetIdsFromForm;
+        actualAssignmentType = "COLLECTION";
+      } else if (assignmentType === "GLOBAL") {
+        actualAssignmentType = "DEFAULT";
+      }
+    } else {
+      // Fallback la logica veche
+      if (assignmentType === "PRODUCT") {
+        targetIds = selectedProducts;
+        actualAssignmentType = "PRODUCT";
+      } else if (assignmentType === "COLLECTION") {
+        targetIds = selectedCollections;
+        actualAssignmentType = "COLLECTION";
+      } else if (assignmentType === "GLOBAL") {
+        actualAssignmentType = "DEFAULT";
+      }
+    }
+
+    // Debug: verifică dacă targetIds este gol
+    console.log('[TemplateAssignment] handleSave called:', {
+      assignmentType,
+      actualAssignmentType,
+      selectedProducts: selectedProducts.length,
+      selectedCollections: selectedCollections.length,
+      targetIds: targetIds.length,
+      targetIdsArray: targetIds,
+      hasPendingActiveChange,
+      pendingActiveState,
+      hasFormTarget: !!e.currentTarget
+    });
+
+    // Dacă nu există targetIds și nu este GLOBAL, nu facem nimic
+    if (targetIds.length === 0 && actualAssignmentType !== "DEFAULT") {
+      console.warn('[TemplateAssignment] No targetIds selected, skipping assignment');
+      shopify.toast.show("Please select at least one product or collection", { isError: true });
+      return;
     }
 
     const formData = new FormData();
@@ -427,8 +551,20 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     formData.append("templateId", template.id);
     formData.append("assignmentType", actualAssignmentType);
     formData.append("isExcluded", isExcluded ? "true" : "false");
+    // Trimite starea de active/inactive dacă există modificări nesalvate
+    if (hasPendingActiveChange) {
+      formData.append("pendingActiveState", pendingActiveState.toString());
+    }
     targetIds.forEach(id => {
       formData.append("targetIds", id);
+    });
+
+    console.log('[TemplateAssignment] Submitting formData:', {
+      action: formData.get("action"),
+      templateId: formData.get("templateId"),
+      assignmentType: formData.get("assignmentType"),
+      targetIdsCount: formData.getAll("targetIds").length,
+      pendingActiveState: formData.get("pendingActiveState")
     });
 
     fetcher.submit(formData, { method: "POST" });
@@ -588,6 +724,7 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         removedIds.forEach(id => conflictsCacheRef.current.collections.delete(id));
         
         // Actualizează state-ul doar cu resursele valide
+        console.log('[Resource Picker] Setting selectedCollections to:', validSelectedIds);
         setSelectedCollections(validSelectedIds);
         
         // Afișează notificare detaliată dacă au fost eliminate resurse
@@ -708,11 +845,20 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         <input type="hidden" name="templateId" value={template.id} />
         <input type="hidden" name="assignmentType" value={assignmentType === "GLOBAL" ? "DEFAULT" : assignmentType} />
         <input type="hidden" name="isExcluded" value="false" />
-        {assignmentType === "PRODUCT" && selectedProducts.map(id => (
-          <input key={id} type="hidden" name="targetIds" value={id} />
+        {/* Trimite starea de active/inactive dacă există modificări nesalvate */}
+        {pendingActiveChanges && pendingActiveChanges[template.id] !== undefined && (
+          <input 
+            type="hidden" 
+            name="pendingActiveState" 
+            value={pendingActiveChanges[template.id].toString()} 
+            key={`pendingActiveState-${pendingActiveChanges[template.id]}`}
+          />
+        )}
+        {assignmentType === "PRODUCT" && selectedProducts.map((id, index) => (
+          <input key={`product-${id}-${index}`} type="hidden" name="targetIds" value={id} />
         ))}
-        {assignmentType === "COLLECTION" && selectedCollections.map(id => (
-          <input key={id} type="hidden" name="targetIds" value={id} />
+        {assignmentType === "COLLECTION" && selectedCollections.map((id, index) => (
+          <input key={`collection-${id}-${index}`} type="hidden" name="targetIds" value={id} />
         ))}
 
         <s-stack direction="block" gap="base">
@@ -720,13 +866,35 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
             <div>
               <s-text tone="subdued">{getAssignmentInfo()}</s-text>
             </div>
-            <s-button
-              type="button"
-              variant="primary"
-              onClick={() => setIsExpanded(!isExpanded)}
-            >
-              {isExpanded ? "Hide" : "Show"}
-            </s-button>
+            <s-stack direction="block" gap="tight" style={{ alignItems: "flex-end" }}>
+              {(() => {
+                // Butonul "Show" este disabled dacă template-ul este inactiv în DB
+                // Nu folosim pendingActiveChanges pentru a determina starea butonului
+                // Butonul devine enabled doar după ce se salvează modificarea de active/inactive
+                const isActiveInDB = template.isActive;
+                const hasPendingActiveChange = pendingActiveChanges && pendingActiveChanges[template.id] !== undefined;
+                
+                return (
+                  <>
+                    <s-button
+                      type="button"
+                      variant="primary"
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      disabled={!isActiveInDB}
+                    >
+                      {isExpanded ? "Hide" : "Show"}
+                    </s-button>
+                    {!isActiveInDB && (
+                      <s-text tone="subdued" style={{ fontSize: "12px", textAlign: "center", maxWidth: "200px" }}>
+                        {hasPendingActiveChange 
+                          ? "Please save the Active/Inactive change first to enable assignments"
+                          : "In order to assign this template to a resource you have to make it Active"}
+                      </s-text>
+                    )}
+                  </>
+                );
+              })()}
+            </s-stack>
           </s-stack>
 
           {isExpanded && (
@@ -819,7 +987,7 @@ export default function TemplatesPage() {
       } else if (actionType === "duplicate") {
         shopify.toast.show("Template duplicated successfully!");
       } else if (actionType === "toggleActive") {
-        // Nu afișăm toast pentru toggle, se face automat refresh
+        shopify.toast.show("Template status updated successfully!");
       }
       
       window.location.reload();
@@ -842,12 +1010,73 @@ export default function TemplatesPage() {
     );
   };
 
-  const handleToggleActive = (templateId) => {
-    fetcher.submit(
-      { templateId, action: "toggleActive" },
-      { method: "POST" }
-    );
+  // State pentru a ține minte modificările nesalvate de isActive
+  const [pendingActiveChanges, setPendingActiveChanges] = useState({});
+  
+  const handleToggleActive = (templateId, currentActiveState) => {
+    const newActiveState = !currentActiveState;
+    
+    // Salvează modificarea în state local
+    setPendingActiveChanges(prev => ({
+      ...prev,
+      [templateId]: newActiveState
+    }));
+    
+    // Afișează warning dacă se setează ca inactive
+    if (!newActiveState && currentActiveState) {
+      shopify.toast.show(
+        "Warning: Setting this template to inactive will delete all its assignments (product, collection, and global) when you save.",
+        { 
+          isError: false,
+          duration: 5000
+        }
+      );
+    }
   };
+  
+  // Gestionează salvarea tuturor modificărilor
+  const handleSaveAllChanges = async () => {
+    const changes = Object.entries(pendingActiveChanges);
+    if (changes.length === 0) return;
+    
+    // Salvează fiecare modificare
+    for (const [templateId, newActiveState] of changes) {
+      await fetcher.submit(
+        { templateId, action: "toggleActive", newActiveState: newActiveState.toString() },
+        { method: "POST" }
+      );
+    }
+    
+    // Șterge toate modificările din state
+    setPendingActiveChanges({});
+    
+    // Ascunde save bar-ul
+    if (shopify.saveBar) {
+      shopify.saveBar.hide('active-changes-save-bar');
+    }
+  };
+  
+  // Gestionează anularea tuturor modificărilor
+  const handleDiscardAllChanges = () => {
+    // Șterge toate modificările din state
+    setPendingActiveChanges({});
+    
+    // Ascunde save bar-ul
+    if (shopify.saveBar) {
+      shopify.saveBar.hide('active-changes-save-bar');
+    }
+  };
+  
+  // Afișează/ascunde contextual save bar când există modificări
+  useEffect(() => {
+    const hasChanges = Object.keys(pendingActiveChanges).length > 0;
+    
+    if (hasChanges && shopify.saveBar) {
+      shopify.saveBar.show('active-changes-save-bar');
+    } else if (!hasChanges && shopify.saveBar) {
+      shopify.saveBar.hide('active-changes-save-bar');
+    }
+  }, [pendingActiveChanges]);
 
   const isOnDetailPage = location.pathname.includes("/templates/") && location.pathname !== "/app/templates";
 
@@ -856,8 +1085,14 @@ export default function TemplatesPage() {
     return <Outlet />;
   }
 
+  const hasChanges = Object.keys(pendingActiveChanges).length > 0;
+
   return (
     <s-page heading="Specification Templates">
+        <SaveBar id="active-changes-save-bar">
+          <button variant="primary" onClick={handleSaveAllChanges}>Save</button>
+          <button onClick={handleDiscardAllChanges}>Discard</button>
+        </SaveBar>
         <s-button slot="primary-action" href="/app/templates/new" variant="primary">
           + Create New Template
         </s-button>
@@ -924,8 +1159,13 @@ export default function TemplatesPage() {
                         <s-stack direction="inline" gap="tight" style={{ alignItems: "center" }}>
                           <s-text variant="bodyMd" tone="subdued">Active: </s-text>
                           <s-switch
-                            checked={template.isActive}
-                            onChange={() => handleToggleActive(template.id)}
+                            checked={pendingActiveChanges[template.id] !== undefined 
+                              ? pendingActiveChanges[template.id] 
+                              : template.isActive}
+                            onChange={() => handleToggleActive(template.id, 
+                              pendingActiveChanges[template.id] !== undefined 
+                                ? pendingActiveChanges[template.id] 
+                                : template.isActive)}
                           />
                         </s-stack>
                         <s-stack direction="inline" gap="tight" style={{ marginTop: "8px" }}>
@@ -955,6 +1195,21 @@ export default function TemplatesPage() {
                       </s-stack>
                     </s-stack>
                     
+                    {pendingActiveChanges[template.id] === false && template.isActive && (
+                      <div style={{ 
+                        marginTop: "16px", 
+                        display: "flex", 
+                        justifyContent: "center",
+                        width: "100%"
+                      }}>
+                        <s-banner tone="warning" style={{ maxWidth: "600px", width: "100%" }}>
+                          <s-text style={{ fontSize: "12px" }}>
+                            Setting this template to inactive will delete all its assignments (product, collection, and global) when you save.
+                          </s-text>
+                        </s-banner>
+                      </div>
+                    )}
+                    
                     <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e1e3e5" }}>
                       <TemplateAssignment
                         template={template}
@@ -965,6 +1220,7 @@ export default function TemplatesPage() {
                         assignedProducts={assignedProducts}
                         hasGlobalAssignment={hasGlobalAssignment}
                         globalAssignmentTemplateId={globalAssignmentTemplateId}
+                        pendingActiveChanges={pendingActiveChanges}
                       />
                     </div>
                   </s-stack>
