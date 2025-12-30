@@ -459,6 +459,8 @@ export default function TemplateEditorPage() {
         tooltipText: mf.tooltipText !== undefined && mf.tooltipText !== null ? mf.tooltipText : null,
         hideFromPC: mf.hideFromPC === true,
         hideFromMobile: mf.hideFromMobile === true,
+        prefix: mf.prefix !== undefined && mf.prefix !== null ? mf.prefix : null,
+        suffix: mf.suffix !== undefined && mf.suffix !== null ? mf.suffix : null,
       }))
     })) : [{ heading: "", metafields: [] }],
     isActive: template?.isActive !== undefined ? template.isActive : true,
@@ -1193,6 +1195,18 @@ export default function TemplateEditorPage() {
     newSections[sectionIndex].metafields = newSections[
       sectionIndex
     ].metafields.filter((_, i) => i !== metafieldIndex);
+    setSections(newSections);
+  };
+
+  const reorderMetafields = (sectionIndex, dragIndex, dropIndex) => {
+    if (dragIndex === dropIndex) return;
+    
+    const newSections = [...sections];
+    const metafields = [...newSections[sectionIndex].metafields];
+    const [draggedItem] = metafields.splice(dragIndex, 1);
+    metafields.splice(dropIndex, 0, draggedItem);
+    
+    newSections[sectionIndex].metafields = metafields;
     setSections(newSections);
   };
 
@@ -2071,6 +2085,9 @@ export default function TemplateEditorPage() {
                         <table style={{ width: "100%", borderCollapse: "collapse" }}>
                           <thead>
                             <tr style={{ backgroundColor: "#f6f6f7", borderBottom: "2px solid #e1e3e5" }}>
+                              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", fontSize: "14px", color: "#202223", width: "40px" }}>
+                                {/* Drag handle column */}
+                              </th>
                               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", fontSize: "14px", color: "#202223" }}>
                                 Spec Name
                               </th>
@@ -2098,11 +2115,106 @@ export default function TemplateEditorPage() {
                               return (
                                 <tr 
                                   key={metafieldKey}
+                                  draggable={true}
+                                  data-section-index={sectionIndex}
+                                  data-metafield-index={mfIndex}
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData("sectionIndex", sectionIndex.toString());
+                                    e.dataTransfer.setData("metafieldIndex", mfIndex.toString());
+                                    e.currentTarget.style.opacity = "0.5";
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.currentTarget.style.opacity = "1";
+                                    // Resetează toate rândurile la starea normală
+                                    const rows = Array.from(e.currentTarget.parentNode.children);
+                                    rows.forEach(row => {
+                                      row.style.borderTop = "";
+                                      row.style.borderBottom = "";
+                                    });
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = "move";
+                                    
+                                    const draggedSectionIndex = parseInt(e.dataTransfer.getData("sectionIndex"));
+                                    const draggedMetafieldIndex = parseInt(e.dataTransfer.getData("metafieldIndex"));
+                                    
+                                    // Verifică dacă drag-ul este în aceeași secțiune
+                                    if (draggedSectionIndex !== sectionIndex) return;
+                                    
+                                    const targetRow = e.currentTarget;
+                                    const rows = Array.from(targetRow.parentNode.children);
+                                    
+                                    // Elimină indicatorii vizuali de la toate rândurile
+                                    rows.forEach(row => {
+                                      row.style.borderTop = "";
+                                      row.style.borderBottom = "";
+                                    });
+                                    
+                                    // Calculează poziția relativă pentru a afișa indicatorul vizual
+                                    const rect = targetRow.getBoundingClientRect();
+                                    const offset = e.clientY - rect.top;
+                                    const midpoint = rect.height / 2;
+                                    
+                                    if (offset < midpoint) {
+                                      targetRow.style.borderTop = "2px solid #008060";
+                                    } else {
+                                      targetRow.style.borderBottom = "2px solid #008060";
+                                    }
+                                  }}
+                                  onDragLeave={(e) => {
+                                    // Elimină indicatorul vizual când părăsește rândul
+                                    e.currentTarget.style.borderTop = "";
+                                    e.currentTarget.style.borderBottom = "";
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    
+                                    const draggedSectionIndex = parseInt(e.dataTransfer.getData("sectionIndex"));
+                                    const draggedMetafieldIndex = parseInt(e.dataTransfer.getData("metafieldIndex"));
+                                    
+                                    // Verifică dacă drag-ul este în aceeași secțiune
+                                    if (draggedSectionIndex !== sectionIndex) return;
+                                    
+                                    // Găsește noua poziție bazată pe poziția mouse-ului
+                                    const targetRow = e.currentTarget;
+                                    const rows = Array.from(targetRow.parentNode.children);
+                                    const rect = targetRow.getBoundingClientRect();
+                                    const offset = e.clientY - rect.top;
+                                    const midpoint = rect.height / 2;
+                                    
+                                    let dropIndex = rows.indexOf(targetRow);
+                                    if (offset > midpoint) {
+                                      dropIndex += 1;
+                                    }
+                                    
+                                    // Ajustează index-ul dacă tragem în jos
+                                    if (draggedMetafieldIndex < dropIndex) {
+                                      dropIndex -= 1;
+                                    }
+                                    
+                                    // Reordonează metafields-urile
+                                    if (draggedMetafieldIndex !== dropIndex) {
+                                      reorderMetafields(sectionIndex, draggedMetafieldIndex, dropIndex);
+                                    }
+                                    
+                                    // Elimină indicatorii vizuali
+                                    rows.forEach(row => {
+                                      row.style.borderTop = "";
+                                      row.style.borderBottom = "";
+                                    });
+                                  }}
                                   style={{ 
                                     borderBottom: mfIndex < section.metafields.length - 1 ? "1px solid #e1e3e5" : "none",
-                                    backgroundColor: mfIndex % 2 === 0 ? "#ffffff" : "#fafbfb"
+                                    backgroundColor: mfIndex % 2 === 0 ? "#ffffff" : "#fafbfb",
+                                    cursor: "move"
                                   }}
                                 >
+                                  <td style={{ padding: "12px 8px", verticalAlign: "middle", width: "40px", textAlign: "center" }}>
+                                    <s-icon type="drag-handle" color="subdued" size="small" />
+                                  </td>
                                   <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
                                     <s-text>
                                       {mfDef
