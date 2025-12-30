@@ -2185,6 +2185,12 @@ export default function TemplateEditorPage() {
                               <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", fontSize: "14px", color: "#202223", width: "100px" }}>
                                 Hide from Mobile
                               </th>
+                              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", fontSize: "14px", color: "#202223", width: "100px" }}>
+                                Prefix
+                              </th>
+                              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", fontSize: "14px", color: "#202223", width: "100px" }}>
+                                Suffix
+                              </th>
                               <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: "600", fontSize: "14px", color: "#202223", width: "120px" }}>
                                 Actions
                               </th>
@@ -2360,6 +2366,48 @@ export default function TemplateEditorPage() {
                                   </td>
                                   <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
                                     {metafield.hideFromMobile ? (
+                                      <span style={{ 
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        width: "24px",
+                                        height: "24px",
+                                        borderRadius: "50%",
+                                        backgroundColor: "#008060",
+                                        color: "#ffffff",
+                                        fontSize: "14px",
+                                        fontWeight: "bold",
+                                        lineHeight: "1"
+                                      }}>
+                                        ✓
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: "#6d7175", fontSize: "12px" }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
+                                    {metafield.prefix && metafield.prefix.trim() !== "" ? (
+                                      <span style={{ 
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        width: "24px",
+                                        height: "24px",
+                                        borderRadius: "50%",
+                                        backgroundColor: "#008060",
+                                        color: "#ffffff",
+                                        fontSize: "14px",
+                                        fontWeight: "bold",
+                                        lineHeight: "1"
+                                      }}>
+                                        ✓
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: "#6d7175", fontSize: "12px" }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
+                                    {metafield.suffix && metafield.suffix.trim() !== "" ? (
                                       <span style={{ 
                                         display: "inline-flex",
                                         alignItems: "center",
