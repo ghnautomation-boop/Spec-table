@@ -473,6 +473,7 @@ export default function TemplateEditorPage() {
   });
   const [formKey, setFormKey] = useState(0); // Counter pentru a forța re-renderizarea formularului
   const isInitialMount = useRef(true); // Flag pentru a detecta prima încărcare
+  const [expandedSections, setExpandedSections] = useState({}); // State pentru secțiunile expandate (key: sectionIndex, value: boolean)
 
   // Salvează state-ul inițial pentru detectarea schimbărilor
   const initialFormState = useRef({
@@ -2420,8 +2421,22 @@ export default function TemplateEditorPage() {
                   <s-stack direction="block" gap="tight">
                     <s-text emphasis="strong">Metafields:</s-text>
                     {section.metafields && section.metafields.length > 0 ? (
-                      <div style={{ width: "100%", border: "1px solid #e1e3e5", borderRadius: "8px", overflow: "hidden" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <div style={{ width: "100%" }}>
+                        {/* Wrapper pentru tabel cu overlay */}
+                        <div style={{ 
+                          position: "relative", 
+                          width: "100%", 
+                          border: "1px solid #e1e3e5", 
+                          borderRadius: "8px", 
+                          overflow: "hidden"
+                        }}>
+                          {/* Tabelul cu metafields */}
+                          <div style={{
+                            maxHeight: section.metafields.length >= 2 && !expandedSections[sectionIndex] ? "200px" : "none",
+                            overflow: "hidden",
+                            transition: "max-height 0.3s ease"
+                          }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
                           <thead>
                             <tr style={{ backgroundColor: "#f6f6f7", borderBottom: "2px solid #e1e3e5" }}>
                               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", fontSize: "14px", color: "#202223", width: "40px" }}>
@@ -2720,6 +2735,86 @@ export default function TemplateEditorPage() {
                             })}
                           </tbody>
                         </table>
+                          </div>
+                          
+                          {/* Overlay gradient când este collapsed */}
+                          {section.metafields.length >= 2 && !expandedSections[sectionIndex] && (
+                            <div style={{
+                              position: "absolute",
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              height: "80px",
+                              background: "linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 1) 100%)",
+                              pointerEvents: "none",
+                              zIndex: 1
+                            }} />
+                          )}
+                        </div>
+                        
+                        {/* Butonul de See More / See Less */}
+                        {section.metafields.length >= 2 && (
+                          <div style={{ marginTop: "12px", textAlign: "center" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedSections(prev => ({
+                                  ...prev,
+                                  [sectionIndex]: !prev[sectionIndex]
+                                }));
+                              }}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "8px",
+                                padding: "8px 16px",
+                                backgroundColor: "transparent",
+                                border: "1px solid #e1e3e5",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                color: "#202223",
+                                fontSize: "14px",
+                                fontFamily: "inherit",
+                                transition: "all 0.2s ease"
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = "#f6f6f7";
+                                e.currentTarget.style.borderColor = "#c9cccf";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = "transparent";
+                                e.currentTarget.style.borderColor = "#e1e3e5";
+                              }}
+                            >
+                              <svg 
+                                width="16" 
+                                height="16" 
+                                viewBox="0 0 20 20" 
+                                fill="none" 
+                                xmlns="http://www.w3.org/2000/svg"
+                                style={{ 
+                                  display: "inline-block", 
+                                  transition: "transform 0.3s ease",
+                                  transform: expandedSections[sectionIndex] ? "rotate(180deg)" : "rotate(0deg)"
+                                }}
+                              >
+                                <path 
+                                  d="M5 7.5L10 12.5L15 7.5" 
+                                  stroke="currentColor" 
+                                  strokeWidth="2" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                              <span>
+                                {expandedSections[sectionIndex] 
+                                  ? "See less assignments on this section" 
+                                  : "See more assignments on this section"}
+                              </span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <s-text style={{ color: "#6d7175", fontStyle: "italic" }}>
