@@ -797,6 +797,25 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     }
   }, [fetcher.data]);
 
+  // Loading indicator pentru assignment-uri
+  useEffect(() => {
+    const isAssigning = fetcher.formData?.get("action") === "assign" && 
+                       (fetcher.state === "submitting" || fetcher.state === "loading");
+    
+    if (isAssigning && shopify.loading) {
+      shopify.loading(true);
+    } else if (fetcher.state === "idle" && shopify.loading) {
+      shopify.loading(false);
+    }
+    
+    // Cleanup: asigură-te că loading-ul este oprit când componenta se demontează
+    return () => {
+      if (shopify.loading) {
+        shopify.loading(false);
+      }
+    };
+  }, [fetcher.state, fetcher.formData, shopify]);
+
   // Toast notifications pentru save assignment
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data) {
@@ -863,6 +882,14 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         ))}
 
         <s-stack direction="block" gap="base">
+          {(fetcher.state === "submitting" || fetcher.state === "loading") && fetcher.formData?.get("action") === "assign" && (
+            <s-banner tone="info">
+              <s-stack direction="inline" gap="small" alignItems="center" suppressHydrationWarning>
+                <s-spinner accessibilityLabel="Saving assignment" size="base" suppressHydrationWarning />
+                <s-text>Saving assignment... This may take a few moments.</s-text>
+              </s-stack>
+            </s-banner>
+          )}
           <s-stack direction="inline" gap="base" alignment="space-between">
             <div>
               <s-text tone="subdued">{getAssignmentInfo()}</s-text>
