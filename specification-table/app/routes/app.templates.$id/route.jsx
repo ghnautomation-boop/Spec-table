@@ -1133,6 +1133,64 @@ export default function TemplateEditorPage() {
     setSections(newSections);
   };
 
+  const reorderSection = useCallback((sectionIndex, newPosition) => {
+    // newPosition este 1-based (poziția 1, 2, 3, etc.)
+    // Convertim la 0-based pentru array
+    const targetIndex = newPosition - 1;
+    
+    if (sectionIndex === targetIndex) return; // Nu face nimic dacă poziția este aceeași
+    
+    setSections((prevSections) => {
+      const newSections = [...prevSections];
+      const [movedSection] = newSections.splice(sectionIndex, 1);
+      newSections.splice(targetIndex, 0, movedSection);
+      return newSections;
+    });
+    
+    // Forțează re-renderizarea pentru a actualiza dropdown-urile
+    setFormKey(prev => prev + 1);
+  }, []);
+
+  // Adaugă event listeners pentru dropdown-urile de reordering secțiunilor
+  useEffect(() => {
+    if (sections.length <= 1) return;
+
+    const timeoutId = setTimeout(() => {
+      const sectionPositionSelects = document.querySelectorAll('s-select[id^="section-position-"]');
+      const selectHandlers = new Map();
+
+      sectionPositionSelects.forEach((select) => {
+        const id = select.getAttribute('id');
+        if (!id || !id.startsWith('section-position-')) return;
+
+        const sectionIndex = parseInt(id.replace('section-position-', ''));
+        if (isNaN(sectionIndex)) return;
+
+        const changeHandler = (e) => {
+          const target = e.target || e.currentTarget;
+          const newPosition = parseInt(target.value);
+          if (newPosition && newPosition !== sectionIndex + 1) {
+            reorderSection(sectionIndex, newPosition);
+          }
+        };
+
+        select.addEventListener('change', changeHandler);
+        selectHandlers.set(select, { change: changeHandler });
+      });
+
+      // Cleanup function
+      return () => {
+        selectHandlers.forEach((handlers, select) => {
+          select.removeEventListener('change', handlers.change);
+        });
+      };
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [sections, reorderSection]); // Re-run când secțiunile se schimbă (inclusiv la reordering)
+
   const addMetafieldToSection = (sectionIndex, metafieldId) => {
     if (!metafieldId) return;
     const newSections = [...sections];
@@ -2039,7 +2097,7 @@ export default function TemplateEditorPage() {
           <s-stack direction="block" gap="base">
             {sections.map((section, sectionIndex) => (
               <s-box
-                key={sectionIndex}
+                key={`section-${sectionIndex}-${section.heading || ""}-${formKey}`}
                 padding="base"
                 borderWidth="base"
                 borderRadius="base"
@@ -2049,18 +2107,45 @@ export default function TemplateEditorPage() {
                 <s-stack direction="block" gap="base">
                   <s-stack direction="inline" gap="base" alignment="space-between">
                     <s-heading level="3">Section {sectionIndex + 1}</s-heading>
-                    {sections.length > 1 && (
-                      <s-button
-                        type="button"
-                        variant="primary"
-                        icon="delete"
-                        tone="critical"
-                        onClick={() => removeSection(sectionIndex)}
-                      >
-                          Delete Section
-                      </s-button>
-                    )}
+                    <s-stack direction="inline" gap="tight" alignment="center">
+                      {sections.length > 1 && (
+                        <>
+                          <s-button
+                            type="button"
+                            variant="primary"
+                            icon="delete"
+                            tone="critical"
+                            onClick={() => removeSection(sectionIndex)}
+                            accessibilityLabel="Delete Section"
+                          >
+                            Delete Section
+                          </s-button>
+                        </>
+                      )}
+                    </s-stack>
                   </s-stack>
+                  <s-stack gap="tight" alignment="center">
+                    {sections.length > 1 && (
+                        <>
+                          <div style={{ minWidth: "140px" }}>
+                            <span>Reorder Section: </span>
+                            <s-select
+                              id={`section-position-${sectionIndex}`}
+                              label={`Section ${sectionIndex + 1} position`}
+                              labelAccessibilityVisibility="exclusive"
+                              value={(sectionIndex + 1).toString()}
+                              key={`section-position-select-${sectionIndex}-${formKey}`}
+                            >
+                              {sections.map((_, idx) => (
+                                <s-option key={idx} value={(idx + 1).toString()}>
+                                  Position {idx + 1}
+                                </s-option>
+                              ))}
+                            </s-select>
+                          </div>
+                        </>
+                      )}
+                    </s-stack>
 
                   <input
                     type="hidden"
