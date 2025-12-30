@@ -1525,21 +1525,40 @@ export default function TemplateEditorPage() {
       }))
     );
     
-    const totalRows = allMetafieldsWithSection.length;
-    const displayRows = seeMoreEnabled && !showAll ? allMetafieldsWithSection.slice(0, 10) : allMetafieldsWithSection;
-    const hasMore = seeMoreEnabled && totalRows > 10;
+    // Determină limita pentru "See More" bazată pe split view
+    // Pentru splitViewPerMetafield: metafields-urile sunt distribuite în 2 coloane, deci 20 total (10 pe coloană)
+    // Pentru splitViewPerSection: secțiunile sunt distribuite în 2 coloane, deci trebuie să calculăm separat per coloană (10 pe coloană)
+    const seeMoreLimit = splitViewPerMetafield ? 20 : (splitViewPerSection ? 20 : 10);
     
-    // Grupează rândurile afișate pe secțiuni pentru a le renderiza corect
-    const groupedBySection = displayRows.reduce((acc, item) => {
-      if (!acc[item.sectionIndex]) {
-        acc[item.sectionIndex] = {
+    const totalRows = allMetafieldsWithSection.length;
+    const displayRows = seeMoreEnabled && !showAll ? allMetafieldsWithSection.slice(0, seeMoreLimit) : allMetafieldsWithSection;
+    const hasMore = seeMoreEnabled && totalRows > seeMoreLimit;
+    
+    // Grupează toate metafields-urile pe secțiuni (nu doar cele afișate)
+    const allGroupedBySection = {};
+    allMetafieldsWithSection.forEach(item => {
+      if (!allGroupedBySection[item.sectionIndex]) {
+        allGroupedBySection[item.sectionIndex] = {
           heading: item.sectionHeading,
-          metafields: [],
+          allMetafields: [],
+          displayMetafields: [],
+          hiddenMetafields: [],
         };
       }
-      acc[item.sectionIndex].metafields.push(item);
-      return acc;
-    }, {});
+      allGroupedBySection[item.sectionIndex].allMetafields.push(item);
+    });
+    
+    // Distribuie metafields-urile în display și hidden
+    displayRows.forEach(item => {
+      allGroupedBySection[item.sectionIndex].displayMetafields.push(item);
+    });
+    
+    if (hasMore) {
+      const hiddenRows = allMetafieldsWithSection.slice(seeMoreLimit);
+      hiddenRows.forEach(item => {
+        allGroupedBySection[item.sectionIndex].hiddenMetafields.push(item);
+      });
+    }
     
     const containerStyle = {
       backgroundColor: styling.backgroundColor,
@@ -1700,199 +1719,239 @@ export default function TemplateEditorPage() {
           <div style={{ padding: "20px", textAlign: "center", color: styling.specificationTextColor || styling.valueTextColor || "#000000" }}>
             <p>Add sections to see the preview</p>
           </div>
-        ) : isAccordion ? (
-          <>
-            {Object.entries(groupedBySection).map(([sectionIndex, sectionData]) => {
-              const sectionIdx = parseInt(sectionIndex);
-              // Calculează offset-ul global pentru indexarea corectă a rândurilor
-              const globalIndexOffset = displayRows.findIndex(mf => mf.sectionIndex === sectionIdx);
-              
-              return (
-                <AccordionSection
-                  key={sectionIdx}
-                  section={sectionData}
-                  sectionIndex={sectionIdx}
-                  styling={styling}
-                  metafieldDefinitions={metafieldDefinitions}
-                  renderMetafieldRow={renderMetafieldRow}
-                  globalIndexOffset={globalIndexOffset >= 0 ? globalIndexOffset : 0}
-                />
-              );
-            })}
-            {hasMore && !showAll && (
-              <div style={{ textAlign: "center", marginTop: "12px" }}>
-                <button
-                  onClick={() => setShowAll(true)}
-                  style={{
-                    background: styling.seeMoreButtonBackground || "transparent",
-                    border: styling.seeMoreButtonBorderEnabled 
-                      ? `${styling.seeMoreButtonBorderWidth || "1px"} ${styling.seeMoreButtonBorderStyle || "solid"} ${styling.seeMoreButtonBorderColor || "#000000"}`
-                      : "none",
-                    cursor: "pointer",
-                    padding: styling.seeMoreButtonPadding || "8px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    color: styling.seeMoreButtonColor || "#000000",
-                    fontSize: styling.seeMoreButtonFontSize || "14px",
-                    fontFamily: styling.seeMoreButtonFontFamily || "Arial",
-                    fontStyle: styling.seeMoreButtonFontStyle === "italic" || styling.seeMoreButtonFontStyle === "bold italic" ? "italic" : "normal",
-                    fontWeight: styling.seeMoreButtonFontStyle === "bold" || styling.seeMoreButtonFontStyle === "bold italic" ? "bold" : "normal",
-                    borderRadius: styling.seeMoreButtonBorderRadius || "0px",
-                    width: "100%",
-                    transition: "opacity 0.2s ease",
-                  }}
-                >
-                  {(styling.seeMoreButtonStyle === "arrow" || styling.seeMoreButtonStyle === "arrow+text") && (
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease", flexShrink: 0 }}>
-                      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                  {(styling.seeMoreButtonStyle === "text" || styling.seeMoreButtonStyle === "arrow+text") && (
-                    <span>{styling.seeMoreButtonText || "See More"}</span>
-                  )}
-                </button>
-              </div>
-            )}
-          </>
-        ) : splitViewPerSection ? (
-          <>
-            {/* Split View per Section */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-              {Object.entries(groupedBySection).map(([sectionIndex, sectionData], idx) => {
+        ) : (() => {
+          // Logica pentru Split View per Section cu distribuție echilibrată
+          let leftColumnSections = [];
+          let rightColumnSections = [];
+          let finalHasMore = hasMore;
+          
+          if (splitViewPerSection) {
+            // Calculează numărul de metafields pentru fiecare secțiune
+            const sectionsWithCount = Object.keys(allGroupedBySection)
+              .map(sectionIndex => {
                 const sectionIdx = parseInt(sectionIndex);
-                const columnClass = idx % 2 === 0 ? "left" : "right";
-                return (
-                  <div key={sectionIdx} style={{ marginBottom: "20px" }}>
-                    <h3 style={headingStyle}>{sectionData.heading}</h3>
-                    {sectionData.metafields && sectionData.metafields.length > 0 ? (
-                      splitViewPerMetafield ? (
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
-                          <div>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                              <tbody>
-                                {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
-                                  const globalIndex = displayRows.indexOf(metafield);
-                                  return renderMetafieldRow(metafield, globalIndex);
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                              <tbody>
-                                {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
-                                  const globalIndex = displayRows.indexOf(metafield);
-                                  return renderMetafieldRow(metafield, globalIndex);
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ) : (
-                        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
-                          <tbody>
-                            {sectionData.metafields.map((metafield, idx) => {
-                              const globalIndex = displayRows.indexOf(metafield);
-                              return renderMetafieldRow(metafield, globalIndex);
-                            })}
-                          </tbody>
-                        </table>
-                      )
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <>
-            {Object.entries(groupedBySection).map(([sectionIndex, sectionData]) => {
-              const sectionIdx = parseInt(sectionIndex);
-              return (
-                <div key={sectionIdx} style={{ marginBottom: sectionIdx < sections.length - 1 ? "20px" : "0" }}>
-                  <h3 style={headingStyle}>{sectionData.heading}</h3>
-                  {sectionData.metafields && sectionData.metafields.length > 0 ? (
-                    splitViewPerMetafield ? (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
-                        <div>
-                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                            <tbody>
-                              {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
-                                const globalIndex = displayRows.indexOf(metafield);
-                                return renderMetafieldRow(metafield, globalIndex);
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div>
-                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                            <tbody>
-                              {sectionData.metafields.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
-                                const globalIndex = displayRows.indexOf(metafield);
-                                return renderMetafieldRow(metafield, globalIndex);
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ) : (
-                      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
+                const sectionData = allGroupedBySection[sectionIndex];
+                return {
+                  sectionIndex: sectionIdx,
+                  sectionData,
+                  metafieldCount: sectionData.allMetafields.length
+                };
+              })
+              .sort((a, b) => a.sectionIndex - b.sectionIndex);
+
+            // Funcție helper pentru a calcula suma metafields-urilor
+            const getTotalCount = (sections) => sections.reduce((sum, s) => sum + s.metafieldCount, 0);
+
+            // Găsește cea mai echilibrată distribuție folosind backtracking pentru până la 10 secțiuni
+            let bestLeft = [];
+            let bestRight = [];
+            let bestDiff = Infinity;
+
+            function findBestDistribution(index, left, right) {
+              if (index >= sectionsWithCount.length) {
+                const leftTotal = getTotalCount(left);
+                const rightTotal = getTotalCount(right);
+                const diff = Math.abs(leftTotal - rightTotal);
+                
+                if (diff < bestDiff || (diff === bestDiff && left.length > 0 && left[0].sectionIndex < bestLeft[0]?.sectionIndex)) {
+                  bestDiff = diff;
+                  bestLeft = [...left];
+                  bestRight = [...right];
+                }
+                return;
+              }
+
+              const currentSection = sectionsWithCount[index];
+              const leftTotal = getTotalCount(left);
+              const rightTotal = getTotalCount(right);
+
+              if (Math.abs(leftTotal - rightTotal) > bestDiff + currentSection.metafieldCount) {
+                return;
+              }
+
+              findBestDistribution(index + 1, [...left, currentSection], right);
+              findBestDistribution(index + 1, left, [...right, currentSection]);
+            }
+
+            if (sectionsWithCount.length <= 10) {
+              findBestDistribution(0, [], []);
+            } else {
+              // Fallback la algoritm greedy pentru multe secțiuni
+              bestLeft = [];
+              bestRight = [];
+              let leftColumnTotal = 0;
+              let rightColumnTotal = 0;
+
+              sectionsWithCount.forEach(section => {
+                if (leftColumnTotal <= rightColumnTotal) {
+                  bestLeft.push(section);
+                  leftColumnTotal += section.metafieldCount;
+                } else {
+                  bestRight.push(section);
+                  rightColumnTotal += section.metafieldCount;
+                }
+              });
+            }
+
+            leftColumnSections = bestLeft.sort((a, b) => a.sectionIndex - b.sectionIndex);
+            rightColumnSections = bestRight.sort((a, b) => a.sectionIndex - b.sectionIndex);
+
+            // Pentru splitViewPerSection, recalculăm displayMetafields per coloană (10 per coloană)
+            if (seeMoreEnabled && splitViewPerSection) {
+              const perColumnLimit = 10;
+              
+              let leftColumnMetafieldsCount = 0;
+              leftColumnSections.forEach(({ sectionIndex }) => {
+                const sectionData = allGroupedBySection[sectionIndex];
+                if (leftColumnMetafieldsCount < perColumnLimit) {
+                  const remaining = perColumnLimit - leftColumnMetafieldsCount;
+                  const displayCount = Math.min(remaining, sectionData.allMetafields.length);
+                  sectionData.displayMetafields = sectionData.allMetafields.slice(0, displayCount);
+                  sectionData.hiddenMetafields = sectionData.allMetafields.slice(displayCount);
+                  leftColumnMetafieldsCount += displayCount;
+                } else {
+                  sectionData.displayMetafields = [];
+                  sectionData.hiddenMetafields = sectionData.allMetafields;
+                }
+              });
+              
+              let rightColumnMetafieldsCount = 0;
+              rightColumnSections.forEach(({ sectionIndex }) => {
+                const sectionData = allGroupedBySection[sectionIndex];
+                if (rightColumnMetafieldsCount < perColumnLimit) {
+                  const remaining = perColumnLimit - rightColumnMetafieldsCount;
+                  const displayCount = Math.min(remaining, sectionData.allMetafields.length);
+                  sectionData.displayMetafields = sectionData.allMetafields.slice(0, displayCount);
+                  sectionData.hiddenMetafields = sectionData.allMetafields.slice(displayCount);
+                  rightColumnMetafieldsCount += displayCount;
+                } else {
+                  sectionData.displayMetafields = [];
+                  sectionData.hiddenMetafields = sectionData.allMetafields;
+                }
+              });
+              
+              finalHasMore = leftColumnSections.some(({ sectionIndex }) => {
+                const sectionData = allGroupedBySection[sectionIndex];
+                return sectionData.hiddenMetafields.length > 0;
+              }) || rightColumnSections.some(({ sectionIndex }) => {
+                const sectionData = allGroupedBySection[sectionIndex];
+                return sectionData.hiddenMetafields.length > 0;
+              });
+            }
+          }
+
+          // Funcție helper pentru a randa o secțiune
+          const renderSection = (sectionData, sectionIdx) => {
+            // Verifică dacă există metafields de afișat
+            const hasDisplayMetafields = sectionData.displayMetafields && sectionData.displayMetafields.length > 0;
+            
+            if (!hasDisplayMetafields) {
+              return null;
+            }
+
+            return (
+              <div key={sectionIdx} style={{ marginBottom: "20px" }}>
+                <h3 style={headingStyle}>{sectionData.heading}</h3>
+                {splitViewPerMetafield ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
+                    <div>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <tbody>
-                          {sectionData.metafields.map((metafield, idx) => {
-                            const globalIndex = displayRows.indexOf(metafield);
+                          {sectionData.displayMetafields.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
+                            const globalIndex = allMetafieldsWithSection.indexOf(metafield);
                             return renderMetafieldRow(metafield, globalIndex);
                           })}
                         </tbody>
                       </table>
-                    )
-                  ) : (
-                    <p style={{ marginTop: "10px", color: styling.specificationTextColor || styling.valueTextColor || "#000000", fontStyle: "italic" }}>
-                      Metafields does not exist in this section
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-            {hasMore && !showAll && (
-              <div style={{ textAlign: "center", marginTop: "12px" }}>
-                <button
-                  onClick={() => setShowAll(true)}
-                  style={{
-                    background: styling.seeMoreButtonBackground || "transparent",
-                    border: styling.seeMoreButtonBorderEnabled 
-                      ? `${styling.seeMoreButtonBorderWidth || "1px"} ${styling.seeMoreButtonBorderStyle || "solid"} ${styling.seeMoreButtonBorderColor || "#000000"}`
-                      : "none",
-                    cursor: "pointer",
-                    padding: styling.seeMoreButtonPadding || "8px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    color: styling.seeMoreButtonColor || "#000000",
-                    fontSize: styling.seeMoreButtonFontSize || "14px",
-                    fontFamily: styling.seeMoreButtonFontFamily || "Arial",
-                    fontStyle: styling.seeMoreButtonFontStyle === "italic" || styling.seeMoreButtonFontStyle === "bold italic" ? "italic" : "normal",
-                    fontWeight: styling.seeMoreButtonFontStyle === "bold" || styling.seeMoreButtonFontStyle === "bold italic" ? "bold" : "normal",
-                    borderRadius: styling.seeMoreButtonBorderRadius || "0px",
-                    width: "100%",
-                    transition: "opacity 0.2s ease",
-                  }}
-                >
-                  {(styling.seeMoreButtonStyle === "arrow" || styling.seeMoreButtonStyle === "arrow+text") && (
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease", flexShrink: 0 }}>
-                      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                  {(styling.seeMoreButtonStyle === "text" || styling.seeMoreButtonStyle === "arrow+text") && (
-                    <span>{styling.seeMoreButtonText || "See More"}</span>
-                  )}
-                </button>
+                    </div>
+                    <div>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <tbody>
+                          {sectionData.displayMetafields.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
+                            const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+                            return renderMetafieldRow(metafield, globalIndex);
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
+                    <tbody>
+                      {sectionData.displayMetafields.map((metafield, idx) => {
+                        const globalIndex = allMetafieldsWithSection.indexOf(metafield);
+                        return renderMetafieldRow(metafield, globalIndex);
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
-            )}
-          </>
-        )}
+            );
+          };
+
+          return (
+            <>
+              {splitViewPerSection ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                  <div>
+                    {leftColumnSections.map(({ sectionIndex, sectionData }) => {
+                      return renderSection(sectionData, sectionIndex);
+                    })}
+                  </div>
+                  <div>
+                    {rightColumnSections.map(({ sectionIndex, sectionData }) => {
+                      return renderSection(sectionData, sectionIndex);
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {Object.keys(allGroupedBySection).map(sectionIndex => {
+                    const sectionIdx = parseInt(sectionIndex);
+                    const sectionData = allGroupedBySection[sectionIndex];
+                    return renderSection(sectionData, sectionIdx);
+                  })}
+                </>
+              )}
+              {finalHasMore && !showAll && (
+                <div style={{ textAlign: "center", marginTop: "12px" }}>
+                  <button
+                    onClick={() => setShowAll(true)}
+                    style={{
+                      background: styling.seeMoreButtonBackground || "transparent",
+                      border: styling.seeMoreButtonBorderEnabled 
+                        ? `${styling.seeMoreButtonBorderWidth || "1px"} ${styling.seeMoreButtonBorderStyle || "solid"} ${styling.seeMoreButtonBorderColor || "#000000"}`
+                        : "none",
+                      cursor: "pointer",
+                      padding: styling.seeMoreButtonPadding || "8px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      color: styling.seeMoreButtonColor || "#000000",
+                      fontSize: styling.seeMoreButtonFontSize || "14px",
+                      fontFamily: styling.seeMoreButtonFontFamily || "Arial",
+                      fontStyle: styling.seeMoreButtonFontStyle === "italic" || styling.seeMoreButtonFontStyle === "bold italic" ? "italic" : "normal",
+                      fontWeight: styling.seeMoreButtonFontStyle === "bold" || styling.seeMoreButtonFontStyle === "bold italic" ? "bold" : "normal",
+                      borderRadius: styling.seeMoreButtonBorderRadius || "0px",
+                      width: "100%",
+                      transition: "opacity 0.2s ease",
+                    }}
+                  >
+                    {(styling.seeMoreButtonStyle === "arrow" || styling.seeMoreButtonStyle === "arrow+text") && (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease", flexShrink: 0 }}>
+                        <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                    {(styling.seeMoreButtonStyle === "text" || styling.seeMoreButtonStyle === "arrow+text") && (
+                      <span>{styling.seeMoreButtonText || "See More"}</span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
         </div> {/* Închide div-ul pentru conținutul collapsible */}
       </div>
     );

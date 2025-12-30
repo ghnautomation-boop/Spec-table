@@ -401,6 +401,14 @@ function renderTemplate(container, template) {
   const seeMoreEnabled = template.seeMoreEnabled || false;
   const seeMoreHideFromPC = template.seeMoreHideFromPC === true || template.seeMoreHideFromPC === 'true';
   const seeMoreHideFromMobile = template.seeMoreHideFromMobile === true || template.seeMoreHideFromMobile === 'true';
+  const splitViewPerSection = template.splitViewPerSection === true || template.splitViewPerSection === 'true';
+  const splitViewPerMetafield = template.splitViewPerMetafield === true || template.splitViewPerMetafield === 'true';
+
+  // Determină limita pentru "See More" bazată pe split view
+  // Pentru splitViewPerMetafield: metafields-urile sunt distribuite în 2 coloane, deci 20 total (10 pe coloană)
+  // Pentru splitViewPerSection: secțiunile sunt distribuite în 2 coloane, deci trebuie să calculăm separat per coloană (10 pe coloană)
+  // Pentru ambele: limita totală este 20, dar pentru splitViewPerSection va fi recalculată per coloană
+  const seeMoreLimit = splitViewPerMetafield ? 20 : (splitViewPerSection ? 20 : 10);
 
   const productMetafields = window.productMetafieldsData || {};
   const variantMetafields = window.variantMetafieldsData || {};
@@ -460,19 +468,19 @@ function renderTemplate(container, template) {
   if (seeMoreEnabled) {
     if (seeMoreHideFromPC) {
       displayRowsPC = visibleMetafields;
-      displayRowsMobile = visibleMetafields.slice(0, 10);
+      displayRowsMobile = visibleMetafields.slice(0, seeMoreLimit);
       hasMorePC = false;
-      hasMoreMobile = totalVisibleRows > 10;
+      hasMoreMobile = totalVisibleRows > seeMoreLimit;
     } else if (seeMoreHideFromMobile) {
-      displayRowsPC = visibleMetafields.slice(0, 10);
+      displayRowsPC = visibleMetafields.slice(0, seeMoreLimit);
       displayRowsMobile = visibleMetafields;
-      hasMorePC = totalVisibleRows > 10;
+      hasMorePC = totalVisibleRows > seeMoreLimit;
       hasMoreMobile = false;
     } else {
-      displayRowsPC = visibleMetafields.slice(0, 10);
-      displayRowsMobile = visibleMetafields.slice(0, 10);
-      hasMorePC = totalVisibleRows > 10;
-      hasMoreMobile = totalVisibleRows > 10;
+      displayRowsPC = visibleMetafields.slice(0, seeMoreLimit);
+      displayRowsMobile = visibleMetafields.slice(0, seeMoreLimit);
+      hasMorePC = totalVisibleRows > seeMoreLimit;
+      hasMoreMobile = totalVisibleRows > seeMoreLimit;
     }
   } else {
     displayRowsPC = visibleMetafields;
@@ -502,20 +510,17 @@ function renderTemplate(container, template) {
   });
 
   if (hasMorePC) {
-    const hiddenRowsPC = visibleMetafields.slice(10);
+    const hiddenRowsPC = visibleMetafields.slice(seeMoreLimit);
     hiddenRowsPC.forEach(item => {
       allGroupedBySection[item.sectionIndex].hiddenMetafieldsPC.push(item);
     });
   }
   if (hasMoreMobile) {
-    const hiddenRowsMobile = visibleMetafields.slice(10);
+    const hiddenRowsMobile = visibleMetafields.slice(seeMoreLimit);
     hiddenRowsMobile.forEach(item => {
       allGroupedBySection[item.sectionIndex].hiddenMetafieldsMobile.push(item);
     });
   }
-
-  const splitViewPerSection = template.splitViewPerSection === true || template.splitViewPerSection === 'true';
-  const splitViewPerMetafield = template.splitViewPerMetafield === true || template.splitViewPerMetafield === 'true';
 
   if (splitViewPerSection) {
     const sectionsToRender = [];
@@ -532,15 +537,155 @@ function renderTemplate(container, template) {
       }
     });
 
-    const leftColumnSections = [];
-    const rightColumnSections = [];
-    sectionsToRender.forEach((section, index) => {
-      if (index % 2 === 0) {
-        leftColumnSections.push(section);
-      } else {
-        rightColumnSections.push(section);
+    // Calculează numărul de metafields vizibile pentru fiecare secțiune
+    // PĂSTREAZĂ ordinea inițială a secțiunilor (sortate după sectionIndex)
+    const sectionsWithCount = sectionsToRender
+      .map(section => {
+        const sectionIdx = section.sectionIndex;
+        const sectionVisibleMetafields = visibleMetafields.filter(mf => mf.sectionIndex === sectionIdx);
+        return {
+          ...section,
+          metafieldCount: sectionVisibleMetafields.length
+        };
+      })
+      .sort((a, b) => a.sectionIndex - b.sectionIndex); // Sortează după ordinea inițială (sectionIndex)
+
+    // Funcție helper pentru a calcula suma metafields-urilor pentru o combinație de secțiuni
+    const getTotalCount = (sections) => sections.reduce((sum, s) => sum + s.metafieldCount, 0);
+
+    // Găsește cea mai echilibrată distribuție folosind un algoritm de backtracking simplificat
+    // pentru un număr mic de secțiuni (max 10-15), acest algoritm este eficient
+    let bestLeft = [];
+    let bestRight = [];
+    let bestDiff = Infinity;
+
+    // Funcție recursivă pentru a găsi cea mai bună distribuție
+    function findBestDistribution(index, left, right) {
+      if (index >= sectionsWithCount.length) {
+        const leftTotal = getTotalCount(left);
+        const rightTotal = getTotalCount(right);
+        const diff = Math.abs(leftTotal - rightTotal);
+        
+        if (diff < bestDiff || (diff === bestDiff && left.length > 0 && left[0].sectionIndex < bestLeft[0]?.sectionIndex)) {
+          bestDiff = diff;
+          bestLeft = [...left];
+          bestRight = [...right];
+        }
+        return;
       }
-    });
+
+      const currentSection = sectionsWithCount[index];
+      const leftTotal = getTotalCount(left);
+      const rightTotal = getTotalCount(right);
+
+      // Dacă diferența este deja mare, nu mai are sens să continuăm pe acest path
+      if (Math.abs(leftTotal - rightTotal) > bestDiff + currentSection.metafieldCount) {
+        return;
+      }
+
+      // Încearcă să plaseze secțiunea în stânga
+      findBestDistribution(index + 1, [...left, currentSection], right);
+      
+      // Încearcă să plaseze secțiunea în dreapta
+      findBestDistribution(index + 1, left, [...right, currentSection]);
+    }
+
+    // Pentru un număr mic de secțiuni, folosește algoritmul de backtracking
+    // Pentru un număr mare, folosește algoritmul greedy
+    if (sectionsWithCount.length <= 10) {
+      findBestDistribution(0, [], []);
+    } else {
+      // Fallback la algoritm greedy pentru multe secțiuni
+      bestLeft = [];
+      bestRight = [];
+      let leftColumnTotal = 0;
+      let rightColumnTotal = 0;
+
+      sectionsWithCount.forEach(section => {
+        if (leftColumnTotal <= rightColumnTotal) {
+          bestLeft.push(section);
+          leftColumnTotal += section.metafieldCount;
+        } else {
+          bestRight.push(section);
+          rightColumnTotal += section.metafieldCount;
+        }
+      });
+    }
+
+    // Sortează secțiunile din fiecare coloană după sectionIndex pentru a păstra ordinea inițială
+    const leftColumnSections = bestLeft.sort((a, b) => a.sectionIndex - b.sectionIndex);
+    const rightColumnSections = bestRight.sort((a, b) => a.sectionIndex - b.sectionIndex);
+
+    // Pentru splitViewPerSection, recalculăm displayMetafieldsPC și displayMetafieldsMobile per coloană
+    // Limita este de 10 metafields per coloană (nu 20 total)
+    if (seeMoreEnabled && splitViewPerSection) {
+      const perColumnLimit = 10; // 10 metafields per coloană pentru splitViewPerSection
+      
+      // Recalculează pentru coloana stângă
+      let leftColumnMetafieldsCount = 0;
+      leftColumnSections.forEach(({ sectionIndex }) => {
+        const sectionData = allGroupedBySection[sectionIndex];
+        const sectionVisibleMetafields = visibleMetafields.filter(mf => mf.sectionIndex === sectionIndex);
+        
+        if (leftColumnMetafieldsCount < perColumnLimit) {
+          const remaining = perColumnLimit - leftColumnMetafieldsCount;
+          const displayCount = Math.min(remaining, sectionVisibleMetafields.length);
+          
+          // Recalculează displayMetafieldsPC și displayMetafieldsMobile pentru această secțiune
+          sectionData.displayMetafieldsPC = sectionVisibleMetafields.slice(0, displayCount);
+          sectionData.displayMetafieldsMobile = sectionVisibleMetafields.slice(0, displayCount);
+          sectionData.hiddenMetafieldsPC = sectionVisibleMetafields.slice(displayCount);
+          sectionData.hiddenMetafieldsMobile = sectionVisibleMetafields.slice(displayCount);
+          
+          leftColumnMetafieldsCount += displayCount;
+        } else {
+          // Toate metafields-urile din această secțiune sunt hidden
+          sectionData.displayMetafieldsPC = [];
+          sectionData.displayMetafieldsMobile = [];
+          sectionData.hiddenMetafieldsPC = sectionVisibleMetafields;
+          sectionData.hiddenMetafieldsMobile = sectionVisibleMetafields;
+        }
+      });
+      
+      // Recalculează pentru coloana dreaptă
+      let rightColumnMetafieldsCount = 0;
+      rightColumnSections.forEach(({ sectionIndex }) => {
+        const sectionData = allGroupedBySection[sectionIndex];
+        const sectionVisibleMetafields = visibleMetafields.filter(mf => mf.sectionIndex === sectionIndex);
+        
+        if (rightColumnMetafieldsCount < perColumnLimit) {
+          const remaining = perColumnLimit - rightColumnMetafieldsCount;
+          const displayCount = Math.min(remaining, sectionVisibleMetafields.length);
+          
+          // Recalculează displayMetafieldsPC și displayMetafieldsMobile pentru această secțiune
+          sectionData.displayMetafieldsPC = sectionVisibleMetafields.slice(0, displayCount);
+          sectionData.displayMetafieldsMobile = sectionVisibleMetafields.slice(0, displayCount);
+          sectionData.hiddenMetafieldsPC = sectionVisibleMetafields.slice(displayCount);
+          sectionData.hiddenMetafieldsMobile = sectionVisibleMetafields.slice(displayCount);
+          
+          rightColumnMetafieldsCount += displayCount;
+        } else {
+          // Toate metafields-urile din această secțiune sunt hidden
+          sectionData.displayMetafieldsPC = [];
+          sectionData.displayMetafieldsMobile = [];
+          sectionData.hiddenMetafieldsPC = sectionVisibleMetafields;
+          sectionData.hiddenMetafieldsMobile = sectionVisibleMetafields;
+        }
+      });
+      
+      // Recalculează hasMorePC și hasMoreMobile bazat pe coloane
+      const leftColumnHasMore = leftColumnSections.some(({ sectionIndex }) => {
+        const sectionData = allGroupedBySection[sectionIndex];
+        return sectionData.hiddenMetafieldsPC.length > 0 || sectionData.hiddenMetafieldsMobile.length > 0;
+      });
+      const rightColumnHasMore = rightColumnSections.some(({ sectionIndex }) => {
+        const sectionData = allGroupedBySection[sectionIndex];
+        return sectionData.hiddenMetafieldsPC.length > 0 || sectionData.hiddenMetafieldsMobile.length > 0;
+      });
+      
+      hasMorePC = leftColumnHasMore || rightColumnHasMore;
+      hasMoreMobile = leftColumnHasMore || rightColumnHasMore;
+    }
 
     if (sectionsToRender.length > 0) {
       html += '<div class="dc_split_view_sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
@@ -608,7 +753,7 @@ function renderTemplate(container, template) {
       const sectionData = allGroupedBySection[sectionIndex];
 
       if (sectionData.hiddenMetafieldsPC.length > 0) {
-        html += '<div id="spec-hidden-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="pc">';
+        html += '<div id="spec-hidden-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="pc" data-section-heading="' + escapeHtml(sectionData.heading) + '">';
         html += '<table style="display: none;"><tbody>';
         html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsPC, styling, escapedTemplateId, sectionIdx, allMetafieldsWithSection);
         html += '</tbody></table>';
@@ -616,7 +761,7 @@ function renderTemplate(container, template) {
       }
 
       if (sectionData.hiddenMetafieldsMobile.length > 0) {
-        html += '<div id="spec-hidden-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="mobile">';
+        html += '<div id="spec-hidden-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" data-section-index="' + sectionIdx + '" data-device="mobile" data-section-heading="' + escapeHtml(sectionData.heading) + '">';
         html += '<table style="display: none;"><tbody>';
         html += renderHiddenRowsAsTable(sectionData.hiddenMetafieldsMobile, styling, escapedTemplateId, sectionIdx, allMetafieldsWithSection);
         html += '</tbody></table>';
@@ -647,37 +792,52 @@ function renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId
   const showAccordionPC = template.isAccordion && !isAccordionHideFromPC;
   const showAccordionMobile = template.isAccordion && !isAccordionHideFromMobile;
 
+  // Verifică dacă există metafields de afișat pentru PC
+  const hasDisplayMetafieldsPC = sectionData.displayMetafieldsPC && sectionData.displayMetafieldsPC.length > 0;
+  // Verifică dacă există metafields de afișat pentru Mobile
+  const hasDisplayMetafieldsMobile = sectionData.displayMetafieldsMobile && sectionData.displayMetafieldsMobile.length > 0;
+
+  // IMPORTANT: Afișăm secțiunea DOAR dacă are metafields de afișat (displayMetafields)
+  // Dacă toate metafields-urile sunt hidden, secțiunea nu se afișează deloc până la apăsarea "See More"
+  if (!hasDisplayMetafieldsPC && !hasDisplayMetafieldsMobile) {
+    return '';
+  }
+
   let html = '<div class="dc_section">';
   html += '<div class="dc_accordion_pc_version">';
-  if (showAccordionPC) {
-    html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'pc\')">';
-    html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
-    html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
-    html += '</div>';
-    html += '<div id="spec-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-    html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
-    html += '</div>';
-  } else {
-    html += '<h3 class="dc_heading">';
-    html += escapeHtml(sectionData.heading);
-    html += '</h3>';
-    html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+  if (hasDisplayMetafieldsPC) {
+    if (showAccordionPC) {
+      html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'pc\')">';
+      html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+      html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+      html += '</div>';
+      html += '<div id="spec-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+      html += '</div>';
+    } else {
+      html += '<h3 class="dc_heading">';
+      html += escapeHtml(sectionData.heading);
+      html += '</h3>';
+      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+    }
   }
   html += '</div>';
   html += '<div class="dc_accordion_mobile_version">';
-  if (showAccordionMobile) {
-    html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'mobile\')">';
-    html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
-    html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
-    html += '</div>';
-    html += '<div id="spec-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-    html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
-    html += '</div>';
-  } else {
-    html += '<h3 class="dc_heading">';
-    html += escapeHtml(sectionData.heading);
-    html += '</h3>';
-    html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+  if (hasDisplayMetafieldsMobile) {
+    if (showAccordionMobile) {
+      html += '<div class="dc_section_header" onclick="toggleSpecSection(' + sectionIdx + ', \'' + escapedTemplateId + '\', \'mobile\')">';
+      html += '<span>' + escapeHtml(sectionData.heading) + '</span>';
+      html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
+      html += '</div>';
+      html += '<div id="spec-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
+      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+      html += '</div>';
+    } else {
+      html += '<h3 class="dc_heading">';
+      html += escapeHtml(sectionData.heading);
+      html += '</h3>';
+      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+    }
   }
   html += '</div>';
   html += '</div>';
@@ -842,37 +1002,271 @@ window.showAllTableRows = function(templateId, event, device) {
   const selector = '[id^="spec-hidden-section-' + device + '-' + templateId + '-"]';
   const hiddenSections = hiddenContainer.querySelectorAll(selector);
 
+  // Găsește container-ul principal al tabelului o singură dată
+  const mainContainer = document.getElementById('specification-table-' + templateId);
+  if (!mainContainer) {
+    console.warn('[showAllTableRows] Main container not found for templateId:', templateId);
+    return;
+  }
+
   hiddenSections.forEach(sectionContainer => {
     const sectionIndex = sectionContainer.getAttribute('data-section-index');
     const tableId = 'spec-table-' + device + '-' + templateId + '-' + sectionIndex;
 
-    const seeMoreVersionClass = device === 'pc' ? 'dc_see_more_pc_version' : 'dc_see_more_mobile_version';
-    let deviceContainer = document.querySelector('.' + seeMoreVersionClass + ' #' + tableId + '-container');
+    // Caută container-ul tabelului - poate fi în split view sections sau în structura normală
+    let deviceContainer = document.querySelector('#' + tableId + '-container');
+    
+    if (!deviceContainer) {
+      // Încearcă să găsească în split view sections
+      deviceContainer = document.querySelector('.dc_split_view_sections #' + tableId + '-container');
+    }
+
+    if (!deviceContainer) {
+      // Încearcă să găsească în structura normală (fără split view)
+      const seeMoreVersionClass = device === 'pc' ? 'dc_see_more_pc_version' : 'dc_see_more_mobile_version';
+      deviceContainer = document.querySelector('.' + seeMoreVersionClass + ' #' + tableId + '-container');
+    }
 
     if (!deviceContainer) {
       const accordionVersionClass = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
       deviceContainer = document.querySelector('.' + accordionVersionClass + ' #' + tableId + '-container');
     }
 
+    // Dacă container-ul nu există, înseamnă că secțiunea nu a fost renderizată deloc (toate metafields-urile erau hidden)
+    // Trebuie să creăm secțiunea și container-ul
     if (!deviceContainer) {
-      return;
+
+      // Verifică dacă este split view per section
+      const splitViewSections = mainContainer.querySelector('.dc_split_view_sections');
+      if (splitViewSections) {
+        // Găsește coloanele existente
+        let leftColumn = splitViewSections.querySelector('.dc_split_view_left');
+        let rightColumn = splitViewSections.querySelector('.dc_split_view_right');
+        
+        // Dacă nu există coloane, le creăm
+        if (!leftColumn) {
+          leftColumn = document.createElement('div');
+          leftColumn.className = 'dc_split_view_column dc_split_view_left';
+          splitViewSections.appendChild(leftColumn);
+        }
+        if (!rightColumn) {
+          rightColumn = document.createElement('div');
+          rightColumn.className = 'dc_split_view_column dc_split_view_right';
+          splitViewSections.appendChild(rightColumn);
+        }
+        
+        // Determină în ce coloană ar trebui să fie secțiunea bazat pe distribuția optimă
+        // Colectează toate secțiunile existente din ambele coloane cu indexurile lor
+        const leftSectionIndices = Array.from(leftColumn.querySelectorAll('.dc_section')).map(section => {
+          const sectionContainer = section.querySelector('[id$="-container"]');
+          if (sectionContainer) {
+            const id = sectionContainer.id;
+            // Caută pattern-ul: spec-table-{device}-{templateId}-{sectionIndex}-container
+            const match = id.match(/spec-table-(?:pc|mobile)-\d+-(\d+)-container/);
+            return match ? parseInt(match[1]) : null;
+          }
+          return null;
+        }).filter(idx => idx !== null).sort((a, b) => a - b);
+        
+        const rightSectionIndices = Array.from(rightColumn.querySelectorAll('.dc_section')).map(section => {
+          const sectionContainer = section.querySelector('[id$="-container"]');
+          if (sectionContainer) {
+            const id = sectionContainer.id;
+            const match = id.match(/spec-table-(?:pc|mobile)-\d+-(\d+)-container/);
+            return match ? parseInt(match[1]) : null;
+          }
+          return null;
+        }).filter(idx => idx !== null).sort((a, b) => a - b);
+        
+        const currentSectionIndex = parseInt(sectionIndex);
+        
+        // Determină coloana bazat pe distribuția optimă
+        // Ideea: dacă există o "găură" în distribuție (de ex. Section 1, 2 în stânga, Section 4 în dreapta),
+        // atunci Section 3 ar trebui să fie în stânga pentru a menține ordinea
+        const maxLeftIndex = leftSectionIndices.length > 0 ? Math.max(...leftSectionIndices) : -1;
+        const minRightIndex = rightSectionIndices.length > 0 ? Math.min(...rightSectionIndices) : Infinity;
+        
+        let column;
+        // Dacă există o "găură" între stânga și dreapta (de ex. maxLeftIndex < currentSectionIndex < minRightIndex),
+        // atunci secțiunea curentă ar trebui să fie în stânga pentru a menține ordinea
+        if (maxLeftIndex < currentSectionIndex && currentSectionIndex < minRightIndex) {
+          // Există o găură, punem secțiunea în stânga
+          column = leftColumn;
+        } else if (currentSectionIndex <= maxLeftIndex) {
+          // Secțiunea este mai mică sau egală cu maxLeftIndex, o punem în stânga
+          column = leftColumn;
+        } else if (currentSectionIndex >= minRightIndex) {
+          // Secțiunea este mai mare sau egală cu minRightIndex, o punem în dreapta
+          column = rightColumn;
+        } else {
+          // Fallback: folosim logica simplă bazată pe număr
+          const leftSections = leftSectionIndices.length;
+          const rightSections = rightSectionIndices.length;
+          column = leftSections <= rightSections ? leftColumn : rightColumn;
+        }
+
+        // Creează secțiunea
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'dc_section';
+        
+        const versionDiv = document.createElement('div');
+        versionDiv.className = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+        
+        // Creează heading-ul
+        const heading = document.createElement('h3');
+        heading.className = 'dc_heading';
+        heading.textContent = sectionContainer.getAttribute('data-section-heading') || 'Section ' + sectionIndex;
+        
+        // Creează container-ul tabelului
+        deviceContainer = document.createElement('div');
+        deviceContainer.id = tableId + '-container';
+        
+        versionDiv.appendChild(heading);
+        versionDiv.appendChild(deviceContainer);
+        sectionDiv.appendChild(versionDiv);
+        column.appendChild(sectionDiv);
+      } else {
+        // Structură normală (fără split view)
+        const versionDiv = document.createElement('div');
+        versionDiv.className = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+        
+        // Creează heading-ul
+        const heading = document.createElement('h3');
+        heading.className = 'dc_heading';
+        heading.textContent = sectionContainer.getAttribute('data-section-heading') || 'Section ' + sectionIndex;
+        
+        // Creează secțiunea
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'dc_section';
+        
+        // Creează container-ul tabelului
+        deviceContainer = document.createElement('div');
+        deviceContainer.id = tableId + '-container';
+        
+        versionDiv.appendChild(heading);
+        versionDiv.appendChild(deviceContainer);
+        sectionDiv.appendChild(versionDiv);
+        mainContainer.appendChild(sectionDiv);
+      }
     }
 
-    const tbody = deviceContainer.querySelector('#' + tableId + '-tbody');
+    // Verifică dacă există deja tbody-urile în container (pentru split view per metafield sau tabel normal)
+    // Pentru split view per metafield, există două tabele separate: tableId + '-left' și tableId + '-right'
+    // Pentru tabel normal, există un singur tabel: tableId
+    let tbodyLeft = deviceContainer.querySelector('#' + tableId + '-tbody-left');
+    let tbodyRight = deviceContainer.querySelector('#' + tableId + '-tbody-right');
+    let tbody = deviceContainer.querySelector('#' + tableId + '-tbody');
 
-    if (!tbody) {
-      return;
+    // Verifică dacă există deja tbody-uri cu -tbody-left și -tbody-right în alte secțiuni pentru a determina dacă este split view per metafield
+    const existingTableWithSplit = mainContainer.querySelector('table[id^="spec-table-' + device + '-' + templateId + '-"] tbody[id$="-tbody-left"]');
+    const isSplitViewPerMetafield = existingTableWithSplit !== null;
+
+    if (!tbody && !tbodyLeft && !tbodyRight) {
+      // Nu există tbody-uri, trebuie să creăm structura
+      if (isSplitViewPerMetafield) {
+        // Split view per metafield: două tabele separate
+        const containerDiv = document.createElement('div');
+        containerDiv.id = tableId + '-container';
+        containerDiv.className = 'dc_table_container dc_split_view_metafields';
+        containerDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 20px;';
+        
+        // Tabel stânga
+        const leftDiv = document.createElement('div');
+        leftDiv.className = 'dc_split_view_metafield_column dc_split_view_metafield_left';
+        const leftTable = document.createElement('table');
+        leftTable.className = 'dc_table';
+        leftTable.id = tableId + '-left';
+        tbodyLeft = document.createElement('tbody');
+        tbodyLeft.id = tableId + '-tbody-left';
+        leftTable.appendChild(tbodyLeft);
+        leftDiv.appendChild(leftTable);
+        
+        // Tabel dreapta
+        const rightDiv = document.createElement('div');
+        rightDiv.className = 'dc_split_view_metafield_column dc_split_view_metafield_right';
+        const rightTable = document.createElement('table');
+        rightTable.className = 'dc_table';
+        rightTable.id = tableId + '-right';
+        tbodyRight = document.createElement('tbody');
+        tbodyRight.id = tableId + '-tbody-right';
+        rightTable.appendChild(tbodyRight);
+        rightDiv.appendChild(rightTable);
+        
+        containerDiv.appendChild(leftDiv);
+        containerDiv.appendChild(rightDiv);
+        deviceContainer.appendChild(containerDiv);
+      } else {
+        // Tabel normal: un singur tabel
+        const table = document.createElement('table');
+        table.className = 'dc_table';
+        table.id = tableId;
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        tbody = document.createElement('tbody');
+        tbody.id = tableId + '-tbody';
+        table.appendChild(tbody);
+        deviceContainer.appendChild(table);
+      }
+    } else if (isSplitViewPerMetafield && (!tbodyLeft || !tbodyRight)) {
+      // Este split view per metafield dar nu găsește tbody-urile, le recreează
+      if (!tbodyLeft) {
+        const leftTable = deviceContainer.querySelector('#' + tableId + '-left');
+        if (leftTable) {
+          tbodyLeft = document.createElement('tbody');
+          tbodyLeft.id = tableId + '-tbody-left';
+          leftTable.appendChild(tbodyLeft);
+        }
+      }
+      if (!tbodyRight) {
+        const rightTable = deviceContainer.querySelector('#' + tableId + '-right');
+        if (rightTable) {
+          tbodyRight = document.createElement('tbody');
+          tbodyRight.id = tableId + '-tbody-right';
+          rightTable.appendChild(tbodyRight);
+        }
+      }
     }
 
     const tempTable = sectionContainer.querySelector('table');
-    if (tempTable) {
-      const tempTbody = tempTable.querySelector('tbody');
-      if (tempTbody) {
-        const rows = Array.from(tempTbody.querySelectorAll('tr'));
-        rows.forEach(row => {
-          tbody.appendChild(row);
-        });
-      }
+    if (!tempTable) {
+      console.warn('[showAllTableRows] Temp table not found for section:', sectionIndex);
+      return;
+    }
+
+    const tempTbody = tempTable.querySelector('tbody');
+    if (!tempTbody) {
+      console.warn('[showAllTableRows] Temp tbody not found for section:', sectionIndex);
+      return;
+    }
+
+    const rows = Array.from(tempTbody.querySelectorAll('tr'));
+    console.log('[showAllTableRows] Found', rows.length, 'rows for section', sectionIndex, 'tableId:', tableId);
+
+    if (rows.length === 0) {
+      console.warn('[showAllTableRows] No rows found in tempTbody for section:', sectionIndex);
+      return;
+    }
+
+    if (tbodyLeft && tbodyRight) {
+      // Split view per metafield: distribuie rândurile alternativ între cele două coloane
+      rows.forEach((row, index) => {
+        if (index % 2 === 0) {
+          tbodyLeft.appendChild(row);
+        } else {
+          tbodyRight.appendChild(row);
+        }
+      });
+      console.log('[showAllTableRows] Added', rows.length, 'rows to split view tbody for section:', sectionIndex);
+    } else if (tbody) {
+      // Tabel normal: adaugă toate rândurile în tbody
+      rows.forEach(row => {
+        tbody.appendChild(row);
+      });
+      console.log('[showAllTableRows] Added', rows.length, 'rows to normal tbody for section:', sectionIndex);
+    } else {
+      console.warn('[showAllTableRows] No tbody found for tableId:', tableId, 'section:', sectionIndex);
+      console.warn('[showAllTableRows] tbodyLeft:', tbodyLeft, 'tbodyRight:', tbodyRight, 'tbody:', tbody);
+      return;
     }
   });
 
@@ -886,7 +1280,7 @@ window.showAllTableRows = function(templateId, event, device) {
     arrow.style.transform = 'rotate(180deg)';
   }
 
-  const container = document.getElementById('specification-table-container-' + templateId);
+  const container = document.getElementById('specification-table-' + templateId);
   if (container) {
     updateMetafieldValuesFromLiquid(container);
   }
