@@ -1,6 +1,6 @@
 import { useLoaderData, useFetcher, Outlet, useLocation, Form, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { SaveBar } from "@shopify/app-bridge-react";
+import { SaveBar, Modal, TitleBar } from "@shopify/app-bridge-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
@@ -975,6 +975,8 @@ export default function TemplatesPage() {
   const shopify = useAppBridge();
   const location = useLocation();
   const [isMounted, setIsMounted] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState(null);
 
   // Client-side mounting pentru a evita problemele de hidratare cu web components
   useEffect(() => {
@@ -1011,12 +1013,25 @@ export default function TemplatesPage() {
   }, [fetcher.data, fetcher.formData, shopify]);
 
   const handleDelete = (templateId) => {
-    if (confirm("You are about to delete this template. Are you sure you want to continue?")) {
+    const template = templates.find(t => t.id === templateId);
+    setTemplateToDelete({ id: templateId, name: template?.name || "this template" });
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (templateToDelete) {
       fetcher.submit(
-        { templateId, action: "delete" },
+        { templateId: templateToDelete.id, action: "delete" },
         { method: "POST" }
       );
+      setDeleteModalOpen(false);
+      setTemplateToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalOpen(false);
+    setTemplateToDelete(null);
   };
 
   const handleDuplicate = (templateId) => {
@@ -1130,6 +1145,18 @@ export default function TemplatesPage() {
           <button variant="primary" onClick={handleSaveAllChanges}>Save</button>
           <button onClick={handleDiscardAllChanges}>Discard</button>
         </SaveBar>
+        <Modal id="delete-template-modal" open={deleteModalOpen}>
+          <p style={{ fontFamily: "math", textAlign: "center" }}>Are you sure you want to delete "{templateToDelete?.name}"?</p>
+          <p style={{ color: "#8b6914", fontSize: "14px", marginTop: "8px" }}>
+            This action cannot be undone. All assignments (product, collection, and global) will be permanently deleted.
+          </p>
+          <TitleBar title="Delete template">
+            <button variant="primary" tone="critical" onClick={confirmDelete}>
+              Delete
+            </button>
+            <button onClick={cancelDelete}>Cancel</button>
+          </TitleBar>
+        </Modal>
         <s-button slot="primary-action" href="/app/templates/new" variant="primary" suppressHydrationWarning>
           + Create New Template
         </s-button>
