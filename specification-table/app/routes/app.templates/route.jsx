@@ -6,6 +6,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
 import prisma from "../../db.server.js";
 import { getTemplates, deleteTemplate, getProducts, getCollections, saveTemplateAssignment, getAllAssignments, duplicateTemplate, toggleTemplateActive } from "../../models/template.server.js";
+import styles from "./styles.module.css";
 
 // Helper functions pentru conversie ID-uri
 function shopifyIdToGraphQL(shopifyId, resourceType = 'Product') {
@@ -831,7 +832,7 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
   }, [fetcher.state, fetcher.data, shopify, handleReset]);
 
   return (
-    <s-box padding="base" borderWidth="base" borderRadius="base" background="base">
+    <s-box padding="base" borderWidth="base" borderRadius="base" background="base" suppressHydrationWarning>
       <Form
         data-save-bar
         data-discard-confirmation
@@ -866,7 +867,7 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
             <div>
               <s-text tone="subdued">{getAssignmentInfo()}</s-text>
             </div>
-            <s-stack direction="block" gap="tight" style={{ alignItems: "flex-end" }}>
+            <div className={styles.actionsColumn}>
               {(() => {
                 // Butonul "Show" este disabled dacă template-ul este inactiv în DB
                 // Nu folosim pendingActiveChanges pentru a determina starea butonului
@@ -875,26 +876,35 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
                 const hasPendingActiveChange = pendingActiveChanges && pendingActiveChanges[template.id] !== undefined;
                 
                 return (
-                  <>
-                    <s-button
-                      type="button"
-                      variant="primary"
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      disabled={!isActiveInDB}
-                    >
-                      {isExpanded ? "Hide" : "Show"}
-                    </s-button>
-                    {!isActiveInDB && (
-                      <s-text tone="subdued" style={{ fontSize: "12px", textAlign: "center", maxWidth: "200px" }}>
-                        {hasPendingActiveChange 
-                          ? "Please save the Active/Inactive change first to enable assignments"
-                          : "In order to assign this template to a resource you have to make it Active"}
-                      </s-text>
-                    )}
-                  </>
+                  <s-button
+                    type="button"
+                    variant="primary"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    disabled={!isActiveInDB}
+                    accessibilityLabel={isExpanded ? `Hide assignment options for template ${template.name}` : `Show assignment options for template ${template.name}`}
+                  >
+                    {isExpanded ? "Hide" : "Show"}
+                  </s-button>
                 );
               })()}
-            </s-stack>
+            </div>
+            {(() => {
+              const isActiveInDB = template.isActive;
+              const hasPendingActiveChange = pendingActiveChanges && pendingActiveChanges[template.id] !== undefined;
+              
+              if (!isActiveInDB) {
+                return (
+                  <div className={styles.assignmentWarningMessage}>
+                    <p className={styles.assignmentWarningText}>
+                      {hasPendingActiveChange 
+                        ? "Please save the Active/Inactive change first to enable assignments"
+                        : "In order to assign this template to a resource you have to make it Active"}
+                    </p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </s-stack>
 
           {isExpanded && (
@@ -964,6 +974,12 @@ export default function TemplatesPage() {
   const fetcher = useFetcher();
   const shopify = useAppBridge();
   const location = useLocation();
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Client-side mounting pentru a evita problemele de hidratare cu web components
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Afișează performance metrics în consola browser-ului (doar în development)
   useEffect(() => {
@@ -1051,8 +1067,10 @@ export default function TemplatesPage() {
     setPendingActiveChanges({});
     
     // Ascunde save bar-ul
-    if (shopify.saveBar) {
-      shopify.saveBar.hide('active-changes-save-bar');
+    if (shopify.saveBar && isMounted) {
+      shopify.saveBar.hide('active-changes-save-bar').catch(() => {
+        // Ignoră erorile dacă SaveBar nu este încă disponibil
+      });
     }
   };
   
@@ -1062,21 +1080,30 @@ export default function TemplatesPage() {
     setPendingActiveChanges({});
     
     // Ascunde save bar-ul
-    if (shopify.saveBar) {
-      shopify.saveBar.hide('active-changes-save-bar');
+    if (shopify.saveBar && isMounted) {
+      shopify.saveBar.hide('active-changes-save-bar').catch(() => {
+        // Ignoră erorile dacă SaveBar nu este încă disponibil
+      });
     }
   };
   
   // Afișează/ascunde contextual save bar când există modificări
   useEffect(() => {
+    // Așteaptă până când componenta este montată pe client
+    if (!isMounted) return;
+    
     const hasChanges = Object.keys(pendingActiveChanges).length > 0;
     
     if (hasChanges && shopify.saveBar) {
-      shopify.saveBar.show('active-changes-save-bar');
+      shopify.saveBar.show('active-changes-save-bar').catch(() => {
+        // Ignoră erorile dacă SaveBar nu este încă disponibil
+      });
     } else if (!hasChanges && shopify.saveBar) {
-      shopify.saveBar.hide('active-changes-save-bar');
+      shopify.saveBar.hide('active-changes-save-bar').catch(() => {
+        // Ignoră erorile dacă SaveBar nu este încă disponibil
+      });
     }
-  }, [pendingActiveChanges]);
+  }, [pendingActiveChanges, isMounted]);
 
   const isOnDetailPage = location.pathname.includes("/templates/") && location.pathname !== "/app/templates";
 
@@ -1087,76 +1114,74 @@ export default function TemplatesPage() {
 
   const hasChanges = Object.keys(pendingActiveChanges).length > 0;
 
+  // Render skeleton pe server pentru a evita problemele de hidratare
+  if (!isMounted) {
+    return (
+      <div style={{ minHeight: "100vh", padding: "20px" }}>
+        <h1>Specification Templates</h1>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <s-page heading="Specification Templates">
         <SaveBar id="active-changes-save-bar">
           <button variant="primary" onClick={handleSaveAllChanges}>Save</button>
           <button onClick={handleDiscardAllChanges}>Discard</button>
         </SaveBar>
-        <s-button slot="primary-action" href="/app/templates/new" variant="primary">
+        <s-button slot="primary-action" href="/app/templates/new" variant="primary" suppressHydrationWarning>
           + Create New Template
         </s-button>
 
         {templates.length === 0 ? (
-          <s-section>
-            <div style={{
-              textAlign: "center",
-              padding: "60px 20px",
-              backgroundColor: "#f6f6f7",
-              borderRadius: "8px",
-              border: "2px dashed #c9cccf"
-            }}>
-              <div style={{ fontSize: "48px", marginBottom: "20px" }}>📋</div>
-              <s-heading level="2" style={{ marginBottom: "16px" }}>
-                You don't have any templates yet
-              </s-heading>
-              <s-paragraph tone="subdued" style={{ marginBottom: "24px", maxWidth: "500px", margin: "0 auto 24px" }}>
-                Create your first template to start organizing your product metafields in a structured and professional way.
-              </s-paragraph>
+          <s-section suppressHydrationWarning>
+            <div className={styles.emptyStateContainer}>
+              <div className={styles.emptyStateIcon}>📋</div>
+              <div className={styles.emptyStateHeading}>
+                <s-heading level="2">
+                  You don't have any templates yet
+                </s-heading>
+              </div>
+              <div className={styles.emptyStateParagraph}>
+                <s-paragraph tone="subdued">
+                  Create your first template to start organizing your product metafields in a structured and professional way.
+                </s-paragraph>
+              </div>
               <s-button href="/app/templates/new" variant="primary" size="large">
                 + Create Your First Template
               </s-button>
             </div>
           </s-section>
         ) : (
-          <s-section>
-            <s-stack direction="block" gap="base">
+          <s-section suppressHydrationWarning>
+            <s-stack direction="block" gap="base" suppressHydrationWarning>
               {templates.map((template) => (
                 <div
                   key={template.id}
-                  style={{
-                    padding: "24px",
-                    border: "1px solid #e1e3e5",
-                    borderRadius: "8px",
-                    backgroundColor: "#ffffff",
-                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                    transition: "box-shadow 0.2s ease",
-                    marginBottom: "16px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.15)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.1)";
-                  }}
+                  className={styles.templateCard}
                 >
                   <s-stack direction="block" gap="base">
-                    <s-stack direction="inline" gap="base" alignment="space-between" style={{ alignItems: "flex-start" }}>
-                      <div style={{ flex: 1 }}>
-                        <s-heading level="3" style={{ marginBottom: "8px" }}>
-                          {template.name}
-                        </s-heading>
-                        <s-text tone="subdued" style={{ marginBottom: "12px" }}>
-                          {template.sections.length} {template.sections.length === 1 ? "section" : "sections"},{" "}
-                          {template.sections.reduce(
-                            (acc, section) => acc + section.metafields.length,
-                            0
-                          )}{" "}
-                          {template.sections.reduce((acc, section) => acc + section.metafields.length, 0) === 1 ? "metafield" : "metafields"}
-                        </s-text>
+                    <s-stack direction="inline" gap="base" alignment="space-between">
+                      <div className={styles.flexOne}>
+                        <div className={styles.marginBottom8}>
+                          <s-heading level="3">
+                            {template.name}
+                          </s-heading>
+                        </div>
+                        <div className={styles.marginBottom12}>
+                          <s-text tone="subdued">
+                            {template.sections.length} {template.sections.length === 1 ? "section" : "sections"},{" "}
+                            {template.sections.reduce(
+                              (acc, section) => acc + section.metafields.length,
+                              0
+                            )}{" "}
+                            {template.sections.reduce((acc, section) => acc + section.metafields.length, 0) === 1 ? "metafield" : "metafields"}
+                          </s-text>
+                        </div>
                       </div>
-                      <s-stack direction="block" gap="tight" style={{ alignItems: "flex-end" }}>
-                        <s-stack direction="inline" gap="tight" style={{ alignItems: "center" }}>
+                      <div className={styles.actionsColumn}>
+                        <div className={styles.actionsRow}>
                           <s-text variant="bodyMd" tone="subdued">Active: </s-text>
                           <s-switch
                             checked={pendingActiveChanges[template.id] !== undefined 
@@ -1166,9 +1191,10 @@ export default function TemplatesPage() {
                               pendingActiveChanges[template.id] !== undefined 
                                 ? pendingActiveChanges[template.id] 
                                 : template.isActive)}
+                            accessibilityLabel={`Toggle active status for template ${template.name}`}
                           />
-                        </s-stack>
-                        <s-stack direction="inline" gap="tight" style={{ marginTop: "8px" }}>
+                        </div>
+                        <div className={styles.actionsRowWithMargin}>
                           <s-button
                             href={`/app/templates/${template.id}`}
                             variant="primary"
@@ -1191,26 +1217,25 @@ export default function TemplatesPage() {
                           >
                             Delete
                           </s-button>
-                        </s-stack>
-                      </s-stack>
+                        </div>
+                      </div>
                     </s-stack>
                     
                     {pendingActiveChanges[template.id] === false && template.isActive && (
-                      <div style={{ 
-                        marginTop: "16px", 
-                        display: "flex", 
-                        justifyContent: "center",
-                        width: "100%"
-                      }}>
-                        <s-banner tone="warning" style={{ maxWidth: "600px", width: "100%" }}>
-                          <s-text style={{ fontSize: "12px" }}>
-                            Setting this template to inactive will delete all its assignments (product, collection, and global) when you save.
-                          </s-text>
-                        </s-banner>
+                      <div className={styles.warningBannerContainer}>
+                        <div className={styles.warningBannerWrapper}>
+                          <s-banner tone="warning">
+                            <div className={styles.warningBannerText}>
+                              <s-text>
+                                Setting this template to inactive will delete all its assignments (product, collection, and global) when you save.
+                              </s-text>
+                            </div>
+                          </s-banner>
+                        </div>
                       </div>
                     )}
                     
-                    <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e1e3e5" }}>
+                    <div className={styles.assignmentSection}>
                       <TemplateAssignment
                         template={template}
                         products={products}

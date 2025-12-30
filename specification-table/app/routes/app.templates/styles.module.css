@@ -1,0 +1,154 @@
+/* Layout classes pentru pagina de templates */
+.actionsColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.actionsRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.actionsRowWithMargin {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.flexOne {
+  flex: 1;
+}
+
+.marginBottom8 {
+  margin-bottom: 8px;
+}
+
+.marginBottom12 {
+  margin-bottom: 12px;
+}
+
+.marginBottom16 {
+  margin-bottom: 16px;
+}
+
+.marginBottom20 {
+  margin-bottom: 20px;
+}
+
+.marginBottom24 {
+  margin-bottom: 24px;
+}
+
+.textCenter {
+  text-align: center;
+}
+
+.maxWidth200 {
+  max-width: 200px;
+}
+
+.maxWidth500 {
+  max-width: 500px;
+}
+
+.maxWidth600 {
+  max-width: 600px;
+}
+
+.width100 {
+  width: 100%;
+}
+
+.fontSize12 {
+  font-size: 12px;
+}
+
+.fontSize48 {
+  font-size: 48px;
+}
+
+.emptyStateContainer {
+  text-align: center;
+  padding: 60px 20px;
+  background-color: #f6f6f7;
+  border-radius: 8px;
+  border: 2px dashed #c9cccf;
+}
+
+.emptyStateIcon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.emptyStateHeading {
+  margin-bottom: 16px;
+}
+
+.emptyStateParagraph {
+  margin-bottom: 24px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.templateCard {
+  padding: 24px;
+  border: 1px solid #e1e3e5;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+  margin-bottom: 16px;
+}
+
+.templateCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Clase pentru hover effects fără inline styles */
+.templateCardHover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.warningBannerContainer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.warningBannerWrapper {
+  max-width: 600px;
+  width: 100%;
+}
+
+.warningBannerText {
+  font-size: 12px;
+}
+
+.assignmentSection {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e1e3e5;
+}
+
+.assignmentWarningMessage {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background-color: #fff4e5;
+  border: 1px solid #ffd89e;
+  border-radius: 6px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.assignmentWarningText {
+  font-size: 12px;
+  color: #8b6914;
+  text-align: left;
+  margin: 0;
+}
+
