@@ -687,32 +687,65 @@ function renderTemplate(container, template) {
       hasMoreMobile = leftColumnHasMore || rightColumnHasMore;
     }
 
-    if (sectionsToRender.length > 0) {
-      html += '<div class="dc_split_view_sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
-      html += '<div class="dc_split_view_column dc_split_view_left">';
-      leftColumnSections.forEach(({ sectionIndex, sectionData }) => {
-        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
-      });
-      html += '</div>';
-      html += '<div class="dc_split_view_column dc_split_view_right">';
-      rightColumnSections.forEach(({ sectionIndex, sectionData }) => {
-        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
-      });
-      html += '</div>';
-      html += '</div>';
-    }
-  } else {
-    Object.keys(allGroupedBySection).forEach(sectionIndex => {
-      const sectionIdx = parseInt(sectionIndex);
-      const sectionData = allGroupedBySection[sectionIndex];
-
-      if (sectionData.displayMetafieldsPC.length === 0 && sectionData.displayMetafieldsMobile.length === 0 &&
-          sectionData.hiddenMetafieldsPC.length === 0 && sectionData.hiddenMetafieldsMobile.length === 0) {
-        return;
+    // Extrage culoarea de background pentru gradient (calculat o singură dată pentru ambele cazuri)
+    const bgColor = styling.backgroundColor || '#ffffff';
+    let r = 255, g = 255, b = 255;
+    if (bgColor.startsWith('#')) {
+      let hex = bgColor.slice(1);
+      if (hex.length === 3) {
+        hex = hex.split('').map(c => c + c).join('');
       }
+      if (hex.length === 6) {
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+      }
+    }
+    const fogGradient = 'linear-gradient(to bottom, rgba(' + r + ', ' + g + ', ' + b + ', 0) 0%, rgba(' + r + ', ' + g + ', ' + b + ', 0.8) 50%, rgba(' + r + ', ' + g + ', ' + b + ', 1) 100%)';
 
-      html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
-    });
+    // Wrap secțiunile într-un div cu position relative pentru overlay
+    html += '<div style="position: relative;">';
+    
+    if (splitViewPerSection) {
+      if (sectionsToRender.length > 0) {
+        html += '<div class="dc_split_view_sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
+        html += '<div class="dc_split_view_column dc_split_view_left">';
+        leftColumnSections.forEach(({ sectionIndex, sectionData }) => {
+          html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+        });
+        html += '</div>';
+        html += '<div class="dc_split_view_column dc_split_view_right">';
+        rightColumnSections.forEach(({ sectionIndex, sectionData }) => {
+          html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+        });
+        html += '</div>';
+        html += '</div>';
+      }
+    } else {
+      Object.keys(allGroupedBySection).forEach(sectionIndex => {
+        const sectionIdx = parseInt(sectionIndex);
+        const sectionData = allGroupedBySection[sectionIndex];
+
+        if (sectionData.displayMetafieldsPC.length === 0 && sectionData.displayMetafieldsMobile.length === 0 &&
+            sectionData.hiddenMetafieldsPC.length === 0 && sectionData.hiddenMetafieldsMobile.length === 0) {
+          return;
+        }
+
+        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+      });
+    }
+    
+    // Adaugă fog overlay în interiorul wrapper-ului cu secțiunile (comun pentru ambele cazuri)
+    if (hasMorePC || hasMoreMobile) {
+      if (hasMorePC) {
+        html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_pc" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
+      }
+      if (hasMoreMobile) {
+        html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_mobile" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
+      }
+    }
+    
+    html += '</div>'; // Închide wrapper-ul cu position relative
   }
 
   const seeMoreButtonStyle = styling.seeMoreButtonStyle || 'arrow';
@@ -722,7 +755,7 @@ function renderTemplate(container, template) {
 
   if (hasMorePC || hasMoreMobile) {
     if (hasMorePC) {
-      html += '<div class="dc_see_more dc_see_more_pc">';
+      html += '<div class="dc_see_more dc_see_more_pc" style="position: relative; z-index: 2;">';
       html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + escapedTemplateId + '\', event, \'pc\')">';
       if (showArrow) {
         html += '<span id="see-more-arrow-pc-' + escapedTemplateId + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
@@ -735,7 +768,7 @@ function renderTemplate(container, template) {
     }
 
     if (hasMoreMobile) {
-      html += '<div class="dc_see_more dc_see_more_mobile">';
+      html += '<div class="dc_see_more dc_see_more_mobile" style="position: relative; z-index: 2;">';
       html += '<button class="dc_see_more_button" onclick="showAllTableRows(\'' + escapedTemplateId + '\', event, \'mobile\')">';
       if (showArrow) {
         html += '<span id="see-more-arrow-mobile-' + escapedTemplateId + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
@@ -1273,6 +1306,12 @@ window.showAllTableRows = function(templateId, event, device) {
   const button = event ? event.target.closest('button') : document.querySelector('.dc_see_more_' + device + ' .dc_see_more_button');
   if (button) {
     button.style.display = 'none';
+  }
+
+  // Ascunde overlay-ul de ceată când se apasă "See More"
+  const fogOverlay = document.querySelector('.dc_see_more_fog_overlay_' + device);
+  if (fogOverlay) {
+    fogOverlay.style.display = 'none';
   }
 
   const arrow = document.getElementById('see-more-arrow-' + device + '-' + templateId);

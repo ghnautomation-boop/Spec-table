@@ -9,6 +9,7 @@
   border-radius: var(--dc-border-radius, 0px);
   padding: var(--dc-padding, 20px);
   font-family: var(--dc-text-font-family, inherit);
+  position: relative; /* Necesar pentru poziționarea absolută a overlay-ului de ceată */
 }
 
 /* Split View Styles */
@@ -218,6 +219,38 @@
 /* See More Text */
 .dc_see_more_text {
   display: inline-block;
+}
+
+/* See More Fog Overlay - efect de ceată când există conținut hidden */
+.dc_see_more_fog_overlay {
+  position: absolute;
+  bottom: 0px;
+  left: 0;
+  right: 0;
+  height: 250px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 1) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Versiuni PC și Mobile pentru fog overlay */
+@media (min-width: 768px) {
+  .dc_see_more_fog_overlay_mobile {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .dc_see_more_fog_overlay_pc {
+    display: none;
+  }
+}
+
+/* Container pentru tabel cu See More - trebuie să fie position relative */
+.dc_table_with_see_more {
+  position: relative;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Accordion Arrow */

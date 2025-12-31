@@ -1731,6 +1731,7 @@ export default function TemplateEditorPage() {
           transition: "max-height 0.3s ease, opacity 0.3s ease",
           maxHeight: isCollapsible && isCollapsed ? "0" : "10000px",
           opacity: isCollapsible && isCollapsed ? 0 : 1,
+          position: "relative",
         }}>
         {sections.length === 0 ? (
           <div style={{ padding: "20px", textAlign: "center", color: styling.specificationTextColor || styling.valueTextColor || "#000000" }}>
@@ -2054,8 +2055,32 @@ export default function TemplateEditorPage() {
                   })}
                 </>
               )}
+              {/* Fog overlay când See More este activat și există conținut hidden */}
+              {seeMoreEnabled && finalHasMore && !showAll && (() => {
+                // Extrage culoarea de background și o convertește pentru gradient
+                const bgColor = styling.backgroundColor || "#ffffff";
+                const rgbaColor = hexToRgba(bgColor);
+                // Extrage valorile RGB din rgba
+                const rgbMatch = rgbaColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                const r = rgbMatch ? rgbMatch[1] : "255";
+                const g = rgbMatch ? rgbMatch[2] : "255";
+                const b = rgbMatch ? rgbMatch[3] : "255";
+                
+                return (
+                  <div style={{
+                    position: "absolute",
+                    bottom: "60px", // Poziționat deasupra butonului "See More"
+                    left: 0,
+                    right: 0,
+                    height: "80px",
+                    background: `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 0) 0%, rgba(${r}, ${g}, ${b}, 0.8) 50%, rgba(${r}, ${g}, ${b}, 1) 100%)`,
+                    pointerEvents: "none",
+                    zIndex: 1,
+                  }} />
+                );
+              })()}
               {finalHasMore && !showAll && (
-              <div style={{ textAlign: "center", marginTop: "12px" }}>
+              <div style={{ textAlign: "center", marginTop: "12px", position: "relative", zIndex: 2 }}>
                 <button
                   onClick={() => setShowAll(true)}
                   style={{
