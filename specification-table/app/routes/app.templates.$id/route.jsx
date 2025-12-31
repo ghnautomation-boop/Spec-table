@@ -3570,63 +3570,6 @@ export default function TemplateEditorPage() {
               value={seeMoreEnabled ? "true" : "false"}
               label="See more button (Show first 10 rows)"
             />
-            <s-switch
-              id="split-view-per-section-switch"
-              name="splitViewPerSection"
-              checked={splitViewPerSection}
-              onChange={(e) => {
-                const newValue = e.target.checked;
-                setSplitViewPerSection(newValue);
-                // Dacă activezi splitViewPerSection, dezactivează splitViewPerMetafield (mutual exclusiv)
-                if (newValue) {
-                  setSplitViewPerMetafield(false);
-                }
-              }}
-              value={splitViewPerSection ? "true" : "false"}
-              label="Split View per Section (distribute sections in 2 columns)"
-            />
-            {splitViewPerSection && (
-              <div style={{
-                marginLeft: "24px",
-                backgroundColor: "#fff4e5",
-                border: "1px solid #f5d07b",
-                padding:"5px",
-                borderRadius: "6px"
-              }}>
-                <s-text style={{ color: "#8b6914", fontSize: "13px" }}>
-                  This setting will not be applied on mobile devices.
-                </s-text>
-              </div>
-            )}
-            <s-switch
-              id="split-view-per-metafield-switch"
-              name="splitViewPerMetafield"
-              checked={splitViewPerMetafield}
-              onChange={(e) => {
-                const newValue = e.target.checked;
-                setSplitViewPerMetafield(newValue);
-                // Dacă activezi splitViewPerMetafield, dezactivează splitViewPerSection (mutual exclusiv)
-                if (newValue) {
-                  setSplitViewPerSection(false);
-                }
-              }}
-              value={splitViewPerMetafield ? "true" : "false"}
-              label="Split View per Metafield (distribute metafields in 2 columns)"
-            />
-            {splitViewPerMetafield && (
-              <div style={{
-                marginLeft: "24px",
-
-                padding: "5px",
-                backgroundColor: "#fff4e5",
-                border: "1px solid #f5d07b",
-                borderRadius: "6px"
-              }}>
-                <s-text style={{ color: "#8b6914", fontSize: "13px" }}>
-                  This setting will not be applied on mobile devices.
-                </s-text>
-              </div>
-            )}
             {seeMoreEnabled && (
               <s-box 
                 padding="base" 
@@ -3734,6 +3677,63 @@ export default function TemplateEditorPage() {
                   )}
                 </s-stack>
               </s-box>
+            )}
+            <s-switch
+              id="split-view-per-section-switch"
+              name="splitViewPerSection"
+              checked={splitViewPerSection}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setSplitViewPerSection(newValue);
+                // Dacă activezi splitViewPerSection, dezactivează splitViewPerMetafield (mutual exclusiv)
+                if (newValue) {
+                  setSplitViewPerMetafield(false);
+                }
+              }}
+              value={splitViewPerSection ? "true" : "false"}
+              label="Split View per Section (distribute sections in 2 columns)"
+            />
+            {splitViewPerSection && (
+              <div style={{
+                marginLeft: "24px",
+                backgroundColor: "#fff4e5",
+                border: "1px solid #f5d07b",
+                padding:"5px",
+                borderRadius: "6px"
+              }}>
+                <s-text style={{ color: "#8b6914", fontSize: "13px" }}>
+                  This setting will not be applied on mobile devices.
+                </s-text>
+              </div>
+            )}
+            <s-switch
+              id="split-view-per-metafield-switch"
+              name="splitViewPerMetafield"
+              checked={splitViewPerMetafield}
+              onChange={(e) => {
+                const newValue = e.target.checked;
+                setSplitViewPerMetafield(newValue);
+                // Dacă activezi splitViewPerMetafield, dezactivează splitViewPerSection (mutual exclusiv)
+                if (newValue) {
+                  setSplitViewPerSection(false);
+                }
+              }}
+              value={splitViewPerMetafield ? "true" : "false"}
+              label="Split View per Metafield (distribute metafields in 2 columns)"
+            />
+            {splitViewPerMetafield && (
+              <div style={{
+                marginLeft: "24px",
+
+                padding: "5px",
+                backgroundColor: "#fff4e5",
+                border: "1px solid #f5d07b",
+                borderRadius: "6px"
+              }}>
+                <s-text style={{ color: "#8b6914", fontSize: "13px" }}>
+                  This setting will not be applied on mobile devices.
+                </s-text>
+              </div>
             )}
           </s-stack>
         </s-section>

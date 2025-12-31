@@ -291,8 +291,7 @@ export default function Index() {
       content: (
         <s-stack direction="block" gap="base">
           <s-paragraph>
-            Select the theme where you want to apply the extension. We recommend
-            selecting the active (live) theme.
+            Select the theme where you want to apply the extension. 
           </s-paragraph>
           {themes.length > 0 ? (
             <s-stack direction="block" gap="tight">
