@@ -194,6 +194,15 @@ export default function Index() {
     progress?.step1_selectedThemeName || null
   );
 
+  // Sortează temele astfel încât tema activă (MAIN) să fie prima
+  const sortedThemes = [...(themes || [])].sort((a, b) => {
+    // Tema activă (MAIN) primește prioritate
+    if (a.role === "MAIN" && b.role !== "MAIN") return -1;
+    if (a.role !== "MAIN" && b.role === "MAIN") return 1;
+    // Restul rămân în ordinea originală
+    return 0;
+  });
+
   const isLoading = fetcher.state === "submitting";
 
   // State pentru vizibilitate și expandare
@@ -293,9 +302,9 @@ export default function Index() {
           <s-paragraph>
             Select the theme where you want to apply the extension. 
           </s-paragraph>
-          {themes.length > 0 ? (
+          {sortedThemes.length > 0 ? (
             <s-stack direction="block" gap="tight">
-              {themes.map((theme) => (
+              {sortedThemes.map((theme) => (
                 <s-box
                   key={theme.id}
                   padding="base"
@@ -335,7 +344,7 @@ export default function Index() {
                     </s-stack>
                     <s-stack direction="inline" gap="base" blockAlignment="center">
                       {theme.role === "MAIN" && (
-                        <s-badge tone="success">Active</s-badge>
+                        <s-badge tone="success">Active theme in shop</s-badge>
                       )}
                       {theme.role === "DEVELOPMENT" && (
                         <s-badge tone="info">Development</s-badge>

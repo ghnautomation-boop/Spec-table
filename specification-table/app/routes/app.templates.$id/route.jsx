@@ -2611,7 +2611,7 @@ export default function TemplateEditorPage() {
           </s-stack>
         </s-section>
 
-        <s-section heading="Specification Table settings">
+        <s-section heading="Specification Table settings" style={{ marginTop: "32px" }}>
           <s-stack direction="block" gap="base">
             <s-text-field
               name="tableName"
@@ -2637,8 +2637,16 @@ export default function TemplateEditorPage() {
               onChange={(e) => {
                 const newValue = e.target.checked;
                 setIsCollapsible(newValue);
-                // Dacă dezactivezi collapsible, dezactivează și opțiunile PC/Mobile
-                if (!newValue) {
+                // Dacă activezi collapsible, dezactivează accordion și seeMore (mutual exclusiv)
+                if (newValue) {
+                  setIsAccordion(false);
+                  setIsAccordionHideFromPC(false);
+                  setIsAccordionHideFromMobile(false);
+                  setSeeMoreEnabled(false);
+                  setSeeMoreHideFromPC(false);
+                  setSeeMoreHideFromMobile(false);
+                } else {
+                  // Dacă dezactivezi collapsible, dezactivează și opțiunile PC/Mobile
                   setCollapsibleOnPC(false);
                   setCollapsibleOnMobile(false);
                 }
@@ -2723,7 +2731,7 @@ export default function TemplateEditorPage() {
           </s-stack>
         </s-section>
 
-        <s-section heading="Sections and Metafields">
+        <s-section heading="Sections and Specifications" style={{ marginTop: "32px" }}>
           <s-stack direction="block" gap="base">
             {sections.map((section, sectionIndex) => (
               <s-box
@@ -3206,7 +3214,7 @@ export default function TemplateEditorPage() {
                     )}
 
                     <div
-                      style={{ display: "flex", gap: "8px", position: "relative", width: "100%" }}
+                      style={{ display: "flex", gap: "8px", position: "relative", width: "100%",marginTop: "20px" }}
                       data-metafield-selector
                     >
                       <div style={{ position: "relative", flex: 1 }}>
@@ -3447,15 +3455,16 @@ export default function TemplateEditorPage() {
                 </s-stack>
               </s-box>
             ))}
-
+            <s-stack direction="block" gap="base" alignItems="center">
             <s-button 
               type="button" 
               onClick={addSection}
-              variant="success"
-              icon="add"
+              variant="secondary"
+              icon="plus"
             >
                Add New Section
             </s-button>
+            </s-stack>
           </s-stack>
           
           {/* Setări pentru afișare */}
@@ -3467,11 +3476,14 @@ export default function TemplateEditorPage() {
               onChange={(e) => {
                 const newValue = e.target.checked;
                 setIsAccordion(newValue);
-                // Dacă activezi accordion, dezactivează seeMore (mutual exclusiv)
+                // Dacă activezi accordion, dezactivează seeMore și collapsible (mutual exclusiv)
                 if (newValue) {
                   setSeeMoreEnabled(false);
                   setSeeMoreHideFromPC(false);
                   setSeeMoreHideFromMobile(false);
+                  setIsCollapsible(false);
+                  setCollapsibleOnPC(false);
+                  setCollapsibleOnMobile(false);
                 } else {
                   // Dacă dezactivezi accordion, resetează și flag-urile hide
                   setIsAccordionHideFromPC(false);
@@ -3556,11 +3568,14 @@ export default function TemplateEditorPage() {
               onChange={(e) => {
                 const newValue = e.target.checked;
                 setSeeMoreEnabled(newValue);
-                // Dacă activezi seeMore, dezactivează accordion (mutual exclusiv)
+                // Dacă activezi seeMore, dezactivează accordion și collapsible (mutual exclusiv)
                 if (newValue) {
                   setIsAccordion(false);
                   setIsAccordionHideFromPC(false);
                   setIsAccordionHideFromMobile(false);
+                  setIsCollapsible(false);
+                  setCollapsibleOnPC(false);
+                  setCollapsibleOnMobile(false);
                 } else {
                   // Dacă dezactivezi seeMore, resetează și flag-urile hide
                   setSeeMoreHideFromPC(false);
@@ -4541,6 +4556,10 @@ export default function TemplateEditorPage() {
                                     }));
                                   }}
                                 />
+                                <s-paragraph>
+                                  <s-text type="strong">More settings can be found in Theme settings </s-text>
+
+                                </s-paragraph>
                               </s-stack>
                             )}
                           </s-stack>
@@ -4555,7 +4574,7 @@ export default function TemplateEditorPage() {
         {/* Partea dreaptă - Preview (70%) */}
         <div style={{ width: "70%", border: "1px solid #e1e3e5", borderRadius: "8px", padding: "20px", backgroundColor: "#f6f6f7", overflowY: "auto" }}>
           <div style={{ marginBottom: "16px" }}>
-            <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>Preview</h2>
+            <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>Preview ( Desktop Version )</h2>
           </div>
           <div style={{ backgroundColor: "#ffffff", padding: "20px", borderRadius: "4px", minHeight: "400px" }}>
             <PreviewTable 
