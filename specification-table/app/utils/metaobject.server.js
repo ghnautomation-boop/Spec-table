@@ -31,21 +31,40 @@ export async function createOrUpdateMetaobject(admin, template) {
   const templateStructure = {
     sections: template.sections?.map(section => ({
       heading: section.heading,
-      metafields: section.metafields?.map(mf => ({
-        namespace: mf.metafieldDefinition.namespace,
-        key: mf.metafieldDefinition.key,
-        ownerType: mf.metafieldDefinition.ownerType,
-        name: mf.metafieldDefinition.name || null,
-        type: mf.metafieldDefinition.type,
-        customName: mf.customName || null,
-        tooltipEnabled: mf.tooltipEnabled === true,
-        tooltipText: mf.tooltipText || null,
-        hideFromPC: mf.hideFromPC === true,
-        hideFromMobile: mf.hideFromMobile === true,
-        prefix: mf.prefix || null,
-        suffix: mf.suffix || null,
-        order: mf.order,
-      })) || [],
+      metafields: section.metafields?.map(mf => {
+        // Dacă este product spec, returnează structura pentru product spec
+        if (mf.type === 'product_spec') {
+          return {
+            type: 'product_spec',
+            productSpecType: mf.productSpecType || null,
+            customName: mf.customName || null,
+            tooltipEnabled: mf.tooltipEnabled === true,
+            tooltipText: mf.tooltipText || null,
+            hideFromPC: mf.hideFromPC === true,
+            hideFromMobile: mf.hideFromMobile === true,
+            prefix: mf.prefix || null,
+            suffix: mf.suffix || null,
+            order: mf.order,
+          };
+        }
+        // Altfel, este metafield normal
+        return {
+          type: 'metafield',
+          namespace: mf.metafieldDefinition?.namespace || null,
+          key: mf.metafieldDefinition?.key || null,
+          ownerType: mf.metafieldDefinition?.ownerType || null,
+          name: mf.metafieldDefinition?.name || null,
+          metafieldType: mf.metafieldDefinition?.type || null,
+          customName: mf.customName || null,
+          tooltipEnabled: mf.tooltipEnabled === true,
+          tooltipText: mf.tooltipText || null,
+          hideFromPC: mf.hideFromPC === true,
+          hideFromMobile: mf.hideFromMobile === true,
+          prefix: mf.prefix || null,
+          suffix: mf.suffix || null,
+          order: mf.order,
+        };
+      }) || [],
       order: section.order,
     })) || [],
   };

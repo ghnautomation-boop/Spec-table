@@ -544,11 +544,25 @@
     {% endif %}
   };
   
+  // ConstruieÈ™te obiectul JavaScript cu TOATE product specifications disponibile din Liquid
+  {% assign current_variant = product.selected_or_first_available_variant %}
+  window.productSpecsFromLiquid = {
+    vendor: {% if product.vendor != blank %}{{ product.vendor | json }}{% else %}null{% endif %},
+    inventory_quantity: {% if current_variant %}{% if current_variant.inventory_quantity != blank %}{{ current_variant.inventory_quantity }}{% else %}0{% endif %}{% else %}null{% endif %},
+    weight: {% if current_variant and current_variant.weight != blank %}{{ current_variant.weight }}{% else %}null{% endif %},
+    weight_unit: {% if current_variant and current_variant.weight_unit != blank %}{{ current_variant.weight_unit | json }}{% else %}null{% endif %},
+    sku: {% if current_variant and current_variant.sku != blank %}{{ current_variant.sku | json }}{% else %}null{% endif %},
+    barcode: {% if current_variant and current_variant.barcode != blank %}{{ current_variant.barcode | json }}{% else %}null{% endif %},
+    variant_sku: {% if current_variant and current_variant.sku != blank %}{{ current_variant.sku | json }}{% else %}null{% endif %},
+    compare_at_price: {% if current_variant and current_variant.compare_at_price != blank %}{{ current_variant.compare_at_price }}{% else %}null{% endif %},
+    product_type: {% if product.type != blank %}{{ product.type | json }}{% else %}null{% endif %},
+    collection_names: {% if product.collections.size > 0 %}{% assign collection_names_array = '' %}{% for collection in product.collections %}{% if forloop.first %}{% assign collection_names_array = collection.title %}{% else %}{% assign collection_names_array = collection_names_array | append: ', ' | append: collection.title %}{% endif %}{% endfor %}{{ collection_names_array | json }}{% else %}null{% endif %}
+  };
+  
   // ConstruieÈ™te obiectul JavaScript cu TOATE metafield-urile VARIANT disponibile din Liquid
   // Folosim varianta curentÄƒ (selected_or_first_available_variant) pentru a obÈ›ine metafield-urile
   // Pentru file_reference, folosim image_url filter pentru a obÈ›ine URL-ul imaginii
   window.allVariantMetafieldsFromLiquid = {};
-  {% assign current_variant = product.selected_or_first_available_variant %}
   {% if current_variant %}
     {% assign current_variant_id = current_variant.id | split: '/' | last %}
     window.allVariantMetafieldsFromLiquid['{{ current_variant_id }}'] = {

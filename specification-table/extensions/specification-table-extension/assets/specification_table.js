@@ -97,8 +97,10 @@ function updateMetafieldValuesFromLiquid(container) {
   if (!templateContainer) return;
 
   const metafieldCells = templateContainer.querySelectorAll('td[data-namespace][data-key]');
+  const productSpecCells = templateContainer.querySelectorAll('td[data-product-spec-type]');
   const productMetafields = window.productMetafieldsData || {};
   const variantMetafields = window.variantMetafieldsData || {};
+  const productSpecs = window.productSpecsFromLiquid || {};
 
   // Obține varianta curentă din URL
   function getCurrentVariantId() {
@@ -108,6 +110,69 @@ function updateMetafieldValuesFromLiquid(container) {
 
   const currentVariantId = getCurrentVariantId();
 
+  // Procesează product specs
+  productSpecCells.forEach(cell => {
+    const productSpecType = cell.dataset.productSpecType;
+    const valueElement = cell.querySelector('[data-product-spec-value]');
+    if (!valueElement) return;
+
+    // Extrage prefix și suffix din data-attributes
+    const prefix = valueElement.getAttribute('data-prefix') || '';
+    const suffix = valueElement.getAttribute('data-suffix') || '';
+
+    let value = null;
+    if (productSpecs[productSpecType] !== undefined) {
+      value = productSpecs[productSpecType];
+    }
+
+    // Formatează valoarea în funcție de tipul product spec
+    let formattedValue = value;
+    if (value !== null && value !== undefined) {
+      if (productSpecType === 'compare_at_price' && typeof value === 'number') {
+        // Formatează prețul
+        formattedValue = (value / 100).toFixed(2);
+      } else if (productSpecType === 'weight' && typeof value === 'number') {
+        // Formatează greutatea - weight este în grame în Shopify
+        // Trebuie să convertim în unitatea de măsură setată
+        const weightUnit = productSpecs.weight_unit || 'kg';
+        let convertedWeight = value;
+        
+        // Conversie în funcție de unitate
+        if (weightUnit === 'kg') {
+          // Convertim din grame în kg (1 kg = 1000 g)
+          convertedWeight = (value / 1000).toFixed(2);
+        } else if (weightUnit === 'g') {
+          // Rămâne în grame
+          convertedWeight = value.toFixed(2);
+        } else if (weightUnit === 'lb') {
+          // Convertim din grame în lire (1 lb = 453.592 g)
+          convertedWeight = (value / 453.592).toFixed(2);
+        } else if (weightUnit === 'oz') {
+          // Convertim din grame în uncii (1 oz = 28.3495 g)
+          convertedWeight = (value / 28.3495).toFixed(2);
+        } else {
+          // Pentru alte unități necunoscute, afișăm valoarea originală
+          convertedWeight = value.toFixed(2);
+        }
+        
+        formattedValue = convertedWeight + ' ' + weightUnit;
+      } else if (productSpecType === 'inventory_quantity') {
+        // Pentru inventory_quantity, afișăm valoarea chiar dacă este 0
+        if (value === null || value === undefined) {
+          formattedValue = '0';
+        } else {
+          formattedValue = value.toString();
+        }
+      } else {
+        formattedValue = String(value);
+      }
+    }
+
+    // Randare diferită în funcție de tipul product spec
+    renderMetafieldValue(valueElement, formattedValue, 'single_line_text_field', 'PRODUCT', null, null, container.getAttribute('data-image-height') || '100', prefix, suffix);
+  });
+
+  // Procesează metafields normale
   metafieldCells.forEach(cell => {
     const namespace = cell.dataset.namespace;
     const key = cell.dataset.key;
@@ -377,23 +442,49 @@ function renderTemplate(container, template) {
 
     if (section.metafields && section.metafields.length > 0) {
       section.metafields.forEach((metafield, mfIndex) => {
-        allMetafieldsWithSection.push({
-          namespace: metafield.namespace,
-          key: metafield.key,
-          ownerType: metafield.ownerType,
-          name: metafield.name,
-          type: metafield.type,
-          customName: metafield.customName,
-          tooltipEnabled: metafield.tooltipEnabled,
-          tooltipText: metafield.tooltipText,
-          hideFromPC: metafield.hideFromPC !== undefined ? metafield.hideFromPC : false,
-          hideFromMobile: metafield.hideFromMobile !== undefined ? metafield.hideFromMobile : false,
-          prefix: metafield.prefix || null,
-          suffix: metafield.suffix || null,
-          sectionIndex: sectionIndex,
-          sectionHeading: section.heading,
-          mfIndex: mfIndex
-        });
+        // Dacă este product spec, folosește structura pentru product spec
+        if (metafield.type === 'product_spec') {
+          allMetafieldsWithSection.push({
+            type: 'product_spec',
+            productSpecType: metafield.productSpecType,
+            namespace: null,
+            key: null,
+            ownerType: null,
+            name: null,
+            metafieldType: null,
+            customName: metafield.customName,
+            tooltipEnabled: metafield.tooltipEnabled,
+            tooltipText: metafield.tooltipText,
+            hideFromPC: metafield.hideFromPC !== undefined ? metafield.hideFromPC : false,
+            hideFromMobile: metafield.hideFromMobile !== undefined ? metafield.hideFromMobile : false,
+            prefix: metafield.prefix || null,
+            suffix: metafield.suffix || null,
+            sectionIndex: sectionIndex,
+            sectionHeading: section.heading,
+            mfIndex: mfIndex
+          });
+        } else {
+          // Altfel, este metafield normal
+          allMetafieldsWithSection.push({
+            type: 'metafield',
+            namespace: metafield.namespace,
+            key: metafield.key,
+            ownerType: metafield.ownerType,
+            name: metafield.name,
+            metafieldType: metafield.metafieldType || metafield.type,
+            productSpecType: null,
+            customName: metafield.customName,
+            tooltipEnabled: metafield.tooltipEnabled,
+            tooltipText: metafield.tooltipText,
+            hideFromPC: metafield.hideFromPC !== undefined ? metafield.hideFromPC : false,
+            hideFromMobile: metafield.hideFromMobile !== undefined ? metafield.hideFromMobile : false,
+            prefix: metafield.prefix || null,
+            suffix: metafield.suffix || null,
+            sectionIndex: sectionIndex,
+            sectionHeading: section.heading,
+            mfIndex: mfIndex
+          });
+        }
       });
     }
   });
@@ -414,6 +505,26 @@ function renderTemplate(container, template) {
   const variantMetafields = window.variantMetafieldsData || {};
 
   function metafieldHasValue(metafield) {
+    // Dacă este product spec, verifică în productSpecsFromLiquid
+    if (metafield.type === 'product_spec') {
+      const productSpecs = window.productSpecsFromLiquid || {};
+      const value = productSpecs[metafield.productSpecType];
+      
+      // Pentru inventory_quantity, acceptăm și valoarea 0
+      if (metafield.productSpecType === 'inventory_quantity') {
+        return value !== null && value !== undefined && value !== '';
+      }
+      
+      return value !== null &&
+             value !== undefined &&
+             value !== '' &&
+             (typeof value !== 'string' || value.trim() !== '') &&
+             value !== 'null' &&
+             value !== 'undefined' &&
+             (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+    }
+    
+    // Altfel, este metafield normal
     let hasValue = false;
     let value = null;
 
@@ -929,7 +1040,26 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     let hasValue = false;
     let value = null;
 
-    if (metafield.ownerType === 'PRODUCT') {
+    // Dacă este product spec, verifică în productSpecsFromLiquid
+    if (metafield.type === 'product_spec') {
+      const productSpecs = window.productSpecsFromLiquid || {};
+      if (productSpecs[metafield.productSpecType] !== undefined) {
+        value = productSpecs[metafield.productSpecType];
+        
+        // Pentru inventory_quantity, acceptăm și valoarea 0
+        if (metafield.productSpecType === 'inventory_quantity') {
+          hasValue = value !== null && value !== undefined && value !== '';
+        } else {
+          hasValue = value !== null &&
+                    value !== undefined &&
+                    value !== '' &&
+                    (typeof value !== 'string' || value.trim() !== '') &&
+                    value !== 'null' &&
+                    value !== 'undefined' &&
+                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
+        }
+      }
+    } else if (metafield.ownerType === 'PRODUCT') {
       if (productMetafields[metafield.namespace] &&
           productMetafields[metafield.namespace][metafield.key] !== undefined) {
         value = productMetafields[metafield.namespace][metafield.key];
@@ -997,7 +1127,24 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
 
     rowsHtml += '<tr class="' + rowClasses + '">';
     rowsHtml += '<td class="dc_table_td_label"' + (specBackgroundStyle ? ' style="' + specBackgroundStyle + '"' : '') + '>';
-    const displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
+    // Dacă este product spec, folosește numele corespunzător
+    let displayName;
+    if (metafield.type === 'product_spec') {
+      const productSpecLabels = {
+        'vendor': 'Vendor',
+        'inventory_quantity': 'Stock quantity',
+        'weight': 'Weight',
+        'sku': 'SKU',
+        'barcode': 'Barcode',
+        'variant_sku': 'Variant SKU',
+        'compare_at_price': 'Compare at price',
+        'product_type': 'Product category',
+        'collection_names': 'Collection name'
+      };
+      displayName = metafield.customName || productSpecLabels[metafield.productSpecType] || metafield.productSpecType;
+    } else {
+      displayName = metafield.customName || metafield.name || metafield.namespace + '.' + metafield.key;
+    }
     let nameHtml = escapeHtml(displayName);
     if (metafield.tooltipEnabled && metafield.tooltipText) {
       nameHtml += ' <span class="dc_tooltip" title="' + escapeHtml(metafield.tooltipText) + '" data-tooltip-text="' + escapeHtml(metafield.tooltipText) + '" data-metafield-name="' + escapeHtml(displayName) + '">i</span>';
@@ -1006,10 +1153,18 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     rowsHtml += '</td>';
     const prefixValue = (metafield.prefix !== null && metafield.prefix !== undefined) ? String(metafield.prefix) : '';
     const suffixValue = (metafield.suffix !== null && metafield.suffix !== undefined) ? String(metafield.suffix) : '';
-    rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '">';
-    rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.type || 'single_line_text_field') + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
-    rowsHtml += '</td>';
-    rowsHtml += '</tr>';
+    // Dacă este product spec, folosește data-product-spec-type
+    if (metafield.type === 'product_spec') {
+      rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-product-spec-type="' + escapeHtml(metafield.productSpecType) + '">';
+      rowsHtml += '<span data-product-spec-value data-product-spec-type="' + escapeHtml(metafield.productSpecType) + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
+      rowsHtml += '</td>';
+      rowsHtml += '</tr>';
+    } else {
+      rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.metafieldType || metafield.type || 'single_line_text_field') + '">';
+      rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.metafieldType || metafield.type || 'single_line_text_field') + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
+      rowsHtml += '</td>';
+      rowsHtml += '</tr>';
+    }
   });
 
   return rowsHtml;

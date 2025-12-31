@@ -146,7 +146,9 @@ model TemplateSection {
 model TemplateSectionMetafield {
   id                    String   @id @default(uuid())
   sectionId             String
-  metafieldDefinitionId String
+  metafieldDefinitionId String? // Nullable pentru product specifications
+  type                  String   @default("metafield") // "metafield" sau "product_spec"
+  productSpecType       String? // Tipul product specification: "vendor", "inventory_quantity", "weight", "sku", "barcode", "variant_sku", "compare_at_price", "product_type", "collection_names"
   order                 Int      @default(0)
   customName            String? // Nume personalizat pentru acest template
   tooltipEnabled        Boolean  @default(false) // Dacă tooltip-ul este activat
@@ -158,9 +160,10 @@ model TemplateSectionMetafield {
   createdAt             DateTime @default(now())
 
   section             TemplateSection     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  metafieldDefinition MetafieldDefinition @relation(fields: [metafieldDefinitionId], references: [id], onDelete: Cascade)
+  metafieldDefinition MetafieldDefinition? @relation(fields: [metafieldDefinitionId], references: [id], onDelete: Cascade)
 
   @@unique([sectionId, metafieldDefinitionId])
+  @@unique([sectionId, productSpecType])
   @@index([sectionId])
   @@index([sectionId, order])
 }

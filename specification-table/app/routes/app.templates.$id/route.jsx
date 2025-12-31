@@ -265,7 +265,50 @@ export const action = async ({ request, params }) => {
 
     for (let j = 0; j < metafieldCount; j++) {
       const metafieldId = formData.get(`section_${i}_metafield_${j}`);
-      if (metafieldId) {
+      const metafieldType = formData.get(`section_${i}_metafield_${j}_type`) || 'metafield';
+      const productSpecType = formData.get(`section_${i}_metafield_${j}_productSpecType`);
+      
+      // Verifică dacă este product spec sau metafield
+      if (metafieldType === 'product_spec' && productSpecType) {
+        const customNameRaw = formData.get(`section_${i}_metafield_${j}_customName`);
+        const customName = customNameRaw && customNameRaw.trim() !== "" ? customNameRaw.trim() : null;
+        const tooltipEnabledRaw = formData.get(`section_${i}_metafield_${j}_tooltipEnabled`);
+        const tooltipEnabled = tooltipEnabledRaw === "true";
+        const tooltipTextRaw = formData.get(`section_${i}_metafield_${j}_tooltipText`);
+        const tooltipText = tooltipTextRaw && tooltipTextRaw.trim() !== "" ? tooltipTextRaw.trim() : null;
+        const hideFromPCRaw = formData.get(`section_${i}_metafield_${j}_hideFromPC`);
+        const hideFromPC = hideFromPCRaw === "true";
+        const hideFromMobileRaw = formData.get(`section_${i}_metafield_${j}_hideFromMobile`);
+        const hideFromMobile = hideFromMobileRaw === "true";
+        const prefixRaw = formData.get(`section_${i}_metafield_${j}_prefix`);
+        const prefix = prefixRaw && prefixRaw.trim() !== "" ? prefixRaw.trim() : null;
+        const suffixRaw = formData.get(`section_${i}_metafield_${j}_suffix`);
+        const suffix = suffixRaw && suffixRaw.trim() !== "" ? suffixRaw.trim() : null;
+        
+        console.log(`Product Spec ${j} in section ${i}:`, {
+          productSpecType,
+          customName,
+          tooltipEnabled,
+          tooltipText,
+          hideFromPC,
+          hideFromMobile,
+          prefix,
+          suffix,
+        });
+        
+        metafields.push({
+          type: 'product_spec',
+          metafieldDefinitionId: null,
+          productSpecType: productSpecType,
+          customName,
+          tooltipEnabled,
+          tooltipText,
+          hideFromPC,
+          hideFromMobile,
+          prefix,
+          suffix,
+        });
+      } else if (metafieldId) {
         const customNameRaw = formData.get(`section_${i}_metafield_${j}_customName`);
         const customName = customNameRaw && customNameRaw.trim() !== "" ? customNameRaw.trim() : null;
         const tooltipEnabledRaw = formData.get(`section_${i}_metafield_${j}_tooltipEnabled`);
@@ -293,7 +336,9 @@ export const action = async ({ request, params }) => {
         });
         
         metafields.push({
+          type: 'metafield',
           metafieldDefinitionId: metafieldId,
+          productSpecType: null,
           customName,
           tooltipEnabled,
           tooltipText,
@@ -459,6 +504,20 @@ export default function TemplateEditorPage() {
 
   const [openSelectIndex, setOpenSelectIndex] = useState(null);
   const [selectedMetafieldsForSection, setSelectedMetafieldsForSection] = useState({});
+  const [openProductSpecIndex, setOpenProductSpecIndex] = useState(null);
+  
+  // Tipurile disponibile de product specifications
+  const productSpecTypes = [
+    { value: 'vendor', label: 'Vendor' },
+    { value: 'inventory_quantity', label: 'Inventory Quantity' },
+    { value: 'weight', label: 'Weight' },
+    { value: 'sku', label: 'SKU' },
+    { value: 'barcode', label: 'Barcode' },
+    { value: 'variant_sku', label: 'Variant SKU' },
+    { value: 'compare_at_price', label: 'Compare at price' },
+    { value: 'product_type', label: 'Product Type' },
+    { value: 'collection_names', label: 'Collection Names' },
+  ];
   const [metafieldSearchTerm, setMetafieldSearchTerm] = useState({});
   const [templateName, setTemplateName] = useState(template?.name || "");
   const [editingMetafield, setEditingMetafield] = useState(null); // { sectionIndex, metafieldIndex }
@@ -728,7 +787,16 @@ export default function TemplateEditorPage() {
       setStyling(parsedStyling);
     }
     if (template?.sections) {
-      setSections(template.sections);
+      // Asigură-te că toate metafields-urile au type setat
+      const sectionsWithType = template.sections.map(section => ({
+        ...section,
+        metafields: section.metafields?.map(mf => ({
+          ...mf,
+          type: mf.type || 'metafield',
+          productSpecType: mf.productSpecType || null,
+        })) || [],
+      }));
+      setSections(sectionsWithType);
     }
     if (template?.isActive !== undefined) {
       setIsActive(template.isActive);
@@ -874,7 +942,9 @@ export default function TemplateEditorPage() {
 
         if (!initialMf) return true;
 
-        if (currentMf.metafieldDefinitionId !== initialMf.metafieldDefinitionId ||
+        if (currentMf.type !== (initialMf.type || 'metafield') ||
+            currentMf.metafieldDefinitionId !== initialMf.metafieldDefinitionId ||
+            currentMf.productSpecType !== (initialMf.productSpecType || null) ||
             currentMf.customName !== initialMf.customName ||
             currentMf.tooltipEnabled !== initialMf.tooltipEnabled ||
             currentMf.tooltipText !== initialMf.tooltipText ||
@@ -1262,14 +1332,48 @@ export default function TemplateEditorPage() {
       newSections[sectionIndex].metafields = [];
     }
     newSections[sectionIndex].metafields.push({
+      type: 'metafield',
       metafieldDefinitionId: metafieldId,
+      productSpecType: null,
       customName: null,
       tooltipEnabled: false,
       tooltipText: null,
+      hideFromPC: false,
+      hideFromMobile: false,
       prefix: null,
       suffix: null,
     });
     setSections(newSections);
+  };
+
+  const addProductSpecToSection = (sectionIndex, productSpecType) => {
+    if (!productSpecType) return;
+    const newSections = [...sections];
+    if (!newSections[sectionIndex].metafields) {
+      newSections[sectionIndex].metafields = [];
+    }
+    // Verifică dacă product spec-ul de acest tip există deja în secțiune
+    const alreadyExists = newSections[sectionIndex].metafields.some(
+      mf => mf.type === 'product_spec' && mf.productSpecType === productSpecType
+    );
+    if (alreadyExists) {
+      shopify.toast.show(`Product specification "${productSpecType}" already exists in this section`, { isError: true });
+      return;
+    }
+    newSections[sectionIndex].metafields.push({
+      type: 'product_spec',
+      metafieldDefinitionId: null,
+      productSpecType: productSpecType,
+      customName: null,
+      tooltipEnabled: false,
+      tooltipText: null,
+      hideFromPC: false,
+      hideFromMobile: false,
+      prefix: null,
+      suffix: null,
+    });
+    setSections(newSections);
+    setOpenProductSpecIndex(null);
   };
 
   const toggleMetafieldSelection = (sectionIndex, metafieldId) => {
@@ -1295,14 +1399,16 @@ export default function TemplateEditorPage() {
 
     selectedIds.forEach((id) => {
       newSections[sectionIndex].metafields.push({
+        type: 'metafield',
         metafieldDefinitionId: id,
+        productSpecType: null,
         customName: null,
         tooltipEnabled: false,
         tooltipText: null,
         hideFromPC: false,
         hideFromMobile: false,
-          prefix: null,
-          suffix: null,
+        prefix: null,
+        suffix: null,
       });
       // Șterge selecția după adăugare
       delete selectedMetafieldsForSection[`${sectionIndex}_${id}`];
@@ -1597,14 +1703,33 @@ export default function TemplateEditorPage() {
     };
 
     const renderMetafieldRow = (metafield, globalIndex) => {
-      const mfDef = metafieldDefinitions?.find(
+      const isProductSpec = metafield.type === 'product_spec';
+      const mfDef = !isProductSpec ? metafieldDefinitions?.find(
         (mf) => mf.id === metafield.metafieldDefinitionId
-      );
-      const metafieldName = metafield.customName 
-        ? metafield.customName
-        : (mfDef
-            ? (mfDef.name || `${mfDef.namespace}.${mfDef.key}`)
-            : "Metafield");
+      ) : null;
+      
+      // Dacă este product spec, folosește numele corespunzător
+      let metafieldName;
+      if (isProductSpec) {
+        const productSpecLabels = {
+          'vendor': 'Vendor',
+          'inventory_quantity': 'Stock Quantity',
+          'weight': 'Weight',
+          'sku': 'SKU',
+          'barcode': 'Barcode / EAN',
+          'variant_sku': 'Variant SKU',
+          'compare_at_price': 'Compare at price',
+          'product_type': 'Product Category',
+          'collection_names': 'Collection name'
+        };
+        metafieldName = metafield.customName || productSpecLabels[metafield.productSpecType] || metafield.productSpecType || "Product Specification";
+      } else {
+        metafieldName = metafield.customName 
+          ? metafield.customName
+          : (mfDef
+              ? (mfDef.name || `${mfDef.namespace}.${mfDef.key}`)
+              : "Metafield");
+      }
       const isOdd = globalIndex % 2 === 0;
       
       // NOUA LOGICĂ: Column background (Odd/Even) sau Row background (Odd/Even)
@@ -1675,7 +1800,22 @@ export default function TemplateEditorPage() {
               textTransform: styling.textTransform,
             }}
           >
-            Example value
+            {isProductSpec ? (
+              (() => {
+                const exampleValues = {
+                  'vendor': 'Example Vendor',
+                  'inventory_quantity': '100',
+                  'weight': '1.5 kg',
+                  'sku': 'SKU-12345',
+                  'barcode': '1234567890123',
+                  'variant_sku': 'VAR-SKU-12345',
+                  'compare_at_price': '$99.99',
+                  'product_type': 'Example Type',
+                  'collection_names': 'Collection 1, Collection 2'
+                };
+                return exampleValues[metafield.productSpecType] || 'Example value';
+              })()
+            ) : 'Example value'}
           </td>
         </tr>
       );
@@ -2400,7 +2540,17 @@ export default function TemplateEditorPage() {
                         <input
                         type="hidden"
                         name={`section_${sectionIndex}_metafield_${mfIndex}`}
-                        value={mf.metafieldDefinitionId || mf.id}
+                        value={mf.metafieldDefinitionId || mf.id || ""}
+                        />
+                        <input
+                        type="hidden"
+                        name={`section_${sectionIndex}_metafield_${mfIndex}_type`}
+                        value={mf.type || 'metafield'}
+                        />
+                        <input
+                        type="hidden"
+                        name={`section_${sectionIndex}_metafield_${mfIndex}_productSpecType`}
+                        value={mf.productSpecType || ""}
                         />
 
                         <input
@@ -2692,11 +2842,15 @@ export default function TemplateEditorPage() {
                           </thead>
                           <tbody>
                             {section.metafields.map((metafield, mfIndex) => {
-                              const mfDef = metafieldDefinitions.find(
+                              const isProductSpec = metafield.type === 'product_spec';
+                              const mfDef = !isProductSpec ? metafieldDefinitions.find(
                                 (mf) => mf.id === metafield.metafieldDefinitionId
-                              );
+                              ) : null;
+                              const productSpecLabel = isProductSpec 
+                                ? productSpecTypes.find(ps => ps.value === metafield.productSpecType)?.label || metafield.productSpecType
+                                : null;
                               // Forțează re-renderizarea când se schimbă valorile
-                              const metafieldKey = `${sectionIndex}-${mfIndex}-${metafield.customName || ""}-${metafield.tooltipEnabled}-${metafield.tooltipText || ""}-${metafield.prefix || ""}-${metafield.suffix || ""}`;
+                              const metafieldKey = `${sectionIndex}-${mfIndex}-${metafield.type || 'metafield'}-${metafield.customName || ""}-${metafield.tooltipEnabled}-${metafield.tooltipText || ""}-${metafield.prefix || ""}-${metafield.suffix || ""}`;
                               return (
                                 <tr 
                                   key={metafieldKey}
@@ -2802,9 +2956,11 @@ export default function TemplateEditorPage() {
                                   </td>
                                   <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
                                     <s-text>
-                                      {mfDef
-                                        ? (metafield.customName || mfDef.name || `${mfDef.namespace}.${mfDef.key}`)
-                                        : "Metafield deleted"}
+                                      {isProductSpec
+                                        ? (metafield.customName || productSpecLabel || "Product Specification")
+                                        : (mfDef
+                                          ? (metafield.customName || mfDef.name || `${mfDef.namespace}.${mfDef.key}`)
+                                          : "Metafield deleted")}
                                       {metafield.tooltipEnabled && metafield.tooltipText && (
                                         <span 
                                           title={metafield.tooltipText} 
@@ -2832,9 +2988,11 @@ export default function TemplateEditorPage() {
                                   </td>
                                   <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
                                     <s-text style={{ color: "#6d7175", fontSize: "13px" }}>
-                                      {mfDef
-                                        ? `${mfDef.namespace}.${mfDef.key} (${mfDef.ownerType})`
-                                        : "N/A"}
+                                      {isProductSpec
+                                        ? "Product Specification"
+                                        : (mfDef
+                                          ? `${mfDef.namespace}.${mfDef.key} (${mfDef.ownerType})`
+                                          : "N/A")}
                                     </s-text>
                                   </td>
                                   <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
@@ -3048,25 +3206,26 @@ export default function TemplateEditorPage() {
                     )}
 
                     <div
-                      style={{ position: "relative", width: "100%" }}
+                      style={{ display: "flex", gap: "8px", position: "relative", width: "100%" }}
                       data-metafield-selector
                     >
-                      <s-button
-                        type="button"
-                        variant="secondary"
-                        icon = "search"
-                        onClick={() =>
-                          setOpenSelectIndex(
-                            openSelectIndex === sectionIndex ? null : sectionIndex
-                          )
-                      }
-                      >
-                        {openSelectIndex === sectionIndex
-                          ? "Close the list"
-                          : getAvailableMetafields(sectionIndex).length > 0
-                          ? `Select metafields (${getAvailableMetafields(sectionIndex).length} available)`
-                          : "No any metafields available"}
-                      </s-button>
+                      <div style={{ position: "relative", flex: 1 }}>
+                        <s-button
+                          type="button"
+                          variant="secondary"
+                          icon = "search"
+                          onClick={() =>
+                            setOpenSelectIndex(
+                              openSelectIndex === sectionIndex ? null : sectionIndex
+                            )
+                        }
+                        >
+                          {openSelectIndex === sectionIndex
+                            ? "Close the list"
+                            : getAvailableMetafields(sectionIndex).length > 0
+                            ? `Select metafields (${getAvailableMetafields(sectionIndex).length} available)`
+                            : "No any metafields available"}
+                        </s-button>
                       {openSelectIndex === sectionIndex &&
                         getAvailableMetafields(sectionIndex).length > 0 && (
                           <s-box
@@ -3196,6 +3355,93 @@ export default function TemplateEditorPage() {
                               </div>
                           </s-box>
                         )}
+                      </div>
+                      
+                      <div style={{ position: "relative", flex: 1 }}>
+                        <s-button
+                          type="button"
+                          variant="secondary"
+                          icon="tag"
+                          onClick={() =>
+                            setOpenProductSpecIndex(
+                              openProductSpecIndex === sectionIndex ? null : sectionIndex
+                            )
+                          }
+                        >
+                          {openProductSpecIndex === sectionIndex
+                            ? "Close the list"
+                            : "Add Product Specification"}
+                        </s-button>
+                        {openProductSpecIndex === sectionIndex && (
+                          <s-box
+                            padding="base"
+                            borderWidth="base"
+                            borderRadius="base"
+                            background="base"
+                            style={{
+                              position: "absolute",
+                              top: "100%",
+                              left: 0,
+                              right: 0,
+                              zIndex: 1000,
+                              marginTop: "8px",
+                              maxHeight: "400px",
+                              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                              border: "1px solid #e1e3e5",
+                              display: "flex",
+                              flexDirection: "column",
+                            }}
+                          >
+                            <s-stack direction="block" gap="base" style={{ flexShrink: 0 }}>
+                              <s-text emphasis="strong">
+                                Select Product Specification:
+                              </s-text>
+                            </s-stack>
+                            <div
+                              style={{ 
+                                maxHeight: "300px", 
+                                overflowY: "auto",
+                                overflowX: "hidden",
+                                border: "1px solid #e1e3e5",
+                                borderRadius: "4px",
+                                padding: "8px",
+                                marginTop: "8px",
+                                flex: "1 1 auto",
+                                minHeight: 0
+                              }}
+                            >
+                              <s-stack direction="block" gap="tight">
+                                {productSpecTypes.map((specType) => {
+                                  // Verifică dacă product spec-ul de acest tip există deja în secțiune
+                                  const alreadyExists = sections[sectionIndex]?.metafields?.some(
+                                    mf => mf.type === 'product_spec' && mf.productSpecType === specType.value
+                                  );
+                                  return (
+                                    <s-button
+                                      key={specType.value}
+                                      type="button"
+                                      variant={alreadyExists ? "tertiary" : "primary"}
+                                      disabled={alreadyExists}
+                                      onClick={() => addProductSpecToSection(sectionIndex, specType.value)}
+                                      style={{ width: "100%", justifyContent: "flex-start" }}
+                                    >
+                                      {specType.label} {alreadyExists && "(Already added)"}
+                                    </s-button>
+                                  );
+                                })}
+                              </s-stack>
+                            </div>
+                            <s-button
+                              type="button"
+                              variant="tertiary"
+                              onClick={() => setOpenProductSpecIndex(null)}
+                              style={{ marginTop: "12px" }}
+                            >
+                              Cancel
+                            </s-button>
+                          </s-box>
+                        )}
+                      </div>
                     </div>
                   </s-stack>
                 </s-stack>

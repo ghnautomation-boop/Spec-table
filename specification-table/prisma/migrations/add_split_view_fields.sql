@@ -6,3 +6,6 @@ ALTER TABLE "SpecificationTemplate"
 ADD COLUMN IF NOT EXISTS "splitViewPerMetafield" BOOLEAN NOT NULL DEFAULT false;
 
 
+
+
+

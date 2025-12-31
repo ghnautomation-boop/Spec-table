@@ -190,8 +190,13 @@ export async function createTemplate(data, shopDomain, admin = null) {
               const prefix = metafield.prefix && metafield.prefix.trim() !== "" ? metafield.prefix.trim() : null;
               const suffix = metafield.suffix && metafield.suffix.trim() !== "" ? metafield.suffix.trim() : null;
               
+              const type = metafield.type || 'metafield';
+              const productSpecType = metafield.productSpecType && metafield.productSpecType.trim() !== "" ? metafield.productSpecType.trim() : null;
+              
               return {
-                metafieldDefinitionId: metafield.metafieldDefinitionId,
+                metafieldDefinitionId: type === 'metafield' ? metafield.metafieldDefinitionId : null,
+                type: type,
+                productSpecType: productSpecType,
                 order: metafieldIndex,
                 customName,
                 tooltipEnabled: metafield.tooltipEnabled || false,
@@ -596,8 +601,13 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
               const prefix = metafield.prefix && metafield.prefix.trim() !== "" ? metafield.prefix.trim() : null;
               const suffix = metafield.suffix && metafield.suffix.trim() !== "" ? metafield.suffix.trim() : null;
               
+              const type = metafield.type || 'metafield';
+              const productSpecType = metafield.productSpecType && metafield.productSpecType.trim() !== "" ? metafield.productSpecType.trim() : null;
+              
               return {
-                metafieldDefinitionId: metafield.metafieldDefinitionId,
+                metafieldDefinitionId: type === 'metafield' ? metafield.metafieldDefinitionId : null,
+                type: type,
+                productSpecType: productSpecType,
                 order: metafieldIndex,
                 customName,
                 tooltipEnabled: metafield.tooltipEnabled || false,
