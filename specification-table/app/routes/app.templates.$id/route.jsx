@@ -561,6 +561,7 @@ export default function TemplateEditorPage() {
   const [formKey, setFormKey] = useState(0); // Counter pentru a forța re-renderizarea formularului
   const isInitialMount = useRef(true); // Flag pentru a detecta prima încărcare
   const [expandedSections, setExpandedSections] = useState({}); // State pentru secțiunile expandate (key: sectionIndex, value: boolean)
+  const [selectedSectionIndex, setSelectedSectionIndex] = useState(0); // State pentru secțiunea selectată în layout-ul cu 2 coloane
 
   // Salvează state-ul inițial pentru detectarea schimbărilor
   const initialFormState = useRef({
@@ -1329,11 +1330,21 @@ export default function TemplateEditorPage() {
   }, [openSelectIndex]);
 
   const addSection = () => {
+    const newIndex = sections.length;
     setSections([...sections, { heading: "", metafields: [] }]);
+    // Selectează automat noua secțiune
+    setSelectedSectionIndex(newIndex);
   };
 
   const removeSection = (index) => {
-    setSections(sections.filter((_, i) => i !== index));
+    const newSections = sections.filter((_, i) => i !== index);
+    setSections(newSections);
+    // Ajustează selectedSectionIndex dacă este necesar
+    if (selectedSectionIndex >= newSections.length) {
+      setSelectedSectionIndex(Math.max(0, newSections.length - 1));
+    } else if (selectedSectionIndex > index) {
+      setSelectedSectionIndex(selectedSectionIndex - 1);
+    }
   };
 
   const updateSectionHeading = (index, heading) => {
@@ -1342,63 +1353,6 @@ export default function TemplateEditorPage() {
     setSections(newSections);
   };
 
-  const reorderSection = useCallback((sectionIndex, newPosition) => {
-    // newPosition este 1-based (poziția 1, 2, 3, etc.)
-    // Convertim la 0-based pentru array
-    const targetIndex = newPosition - 1;
-    
-    if (sectionIndex === targetIndex) return; // Nu face nimic dacă poziția este aceeași
-    
-    setSections((prevSections) => {
-      const newSections = [...prevSections];
-      const [movedSection] = newSections.splice(sectionIndex, 1);
-      newSections.splice(targetIndex, 0, movedSection);
-      return newSections;
-    });
-    
-    // Forțează re-renderizarea pentru a actualiza dropdown-urile
-    setFormKey(prev => prev + 1);
-  }, []);
-
-  // Adaugă event listeners pentru dropdown-urile de reordering secțiunilor
-  useEffect(() => {
-    if (sections.length <= 1) return;
-
-    const timeoutId = setTimeout(() => {
-      const sectionPositionSelects = document.querySelectorAll('s-select[id^="section-position-"]');
-      const selectHandlers = new Map();
-
-      sectionPositionSelects.forEach((select) => {
-        const id = select.getAttribute('id');
-        if (!id || !id.startsWith('section-position-')) return;
-
-        const sectionIndex = parseInt(id.replace('section-position-', ''));
-        if (isNaN(sectionIndex)) return;
-
-        const changeHandler = (e) => {
-          const target = e.target || e.currentTarget;
-          const newPosition = parseInt(target.value);
-          if (newPosition && newPosition !== sectionIndex + 1) {
-            reorderSection(sectionIndex, newPosition);
-          }
-        };
-
-        select.addEventListener('change', changeHandler);
-        selectHandlers.set(select, { change: changeHandler });
-      });
-
-      // Cleanup function
-      return () => {
-        selectHandlers.forEach((handlers, select) => {
-          select.removeEventListener('change', handlers.change);
-        });
-      };
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [sections, reorderSection]); // Re-run când secțiunile se schimbă (inclusiv la reordering)
 
   const addMetafieldToSection = (sectionIndex, metafieldId) => {
     if (!metafieldId) return;
@@ -1511,6 +1465,25 @@ export default function TemplateEditorPage() {
     
     newSections[sectionIndex].metafields = metafields;
     setSections(newSections);
+  };
+
+  const reorderSections = (dragIndex, dropIndex) => {
+    if (dragIndex === dropIndex) return;
+    
+    const newSections = [...sections];
+    const [draggedSection] = newSections.splice(dragIndex, 1);
+    newSections.splice(dropIndex, 0, draggedSection);
+    
+    setSections(newSections);
+    
+    // Actualizează selectedSectionIndex dacă este necesar
+    if (selectedSectionIndex === dragIndex) {
+      setSelectedSectionIndex(dropIndex);
+    } else if (selectedSectionIndex > dragIndex && selectedSectionIndex <= dropIndex) {
+      setSelectedSectionIndex(selectedSectionIndex - 1);
+    } else if (selectedSectionIndex < dragIndex && selectedSectionIndex >= dropIndex) {
+      setSelectedSectionIndex(selectedSectionIndex + 1);
+    }
   };
 
   const updateMetafieldData = (sectionIndex, metafieldIndex, data) => {
@@ -2882,118 +2855,252 @@ export default function TemplateEditorPage() {
         </s-section>
 
         <s-section heading="Sections and Specifications" style={{ marginTop: "32px" }}>
-          <s-stack direction="block" gap="base">
-            {sections.map((section, sectionIndex) => (
-              <s-box
-                key={`section-${sectionIndex}-${section.heading || ""}-${formKey}`}
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-                style={{ position: "relative", overflow: "visible" }}
-              >
-                <s-stack direction="block" gap="base">
-                  <s-stack direction="inline" gap="base" alignment="space-between">
-                    <s-heading level="3">Section {sectionIndex + 1}</s-heading>
-                    <s-stack direction="inline" gap="tight" alignment="center">
-                    {sections.length > 1 && (
-                        <>
-                      <s-button
-                        type="button"
-                        variant="primary"
-                        icon="delete"
-                        tone="critical"
-                        onClick={() => removeSection(sectionIndex)}
-                            accessibilityLabel="Delete Section"
+          <s-grid gridTemplateColumns="1fr 3fr" gap="base">
+            {/* Coloana stângă - Lista de secțiuni */}
+            <s-grid-item>
+              <s-box padding="base" background="subdued" borderRadius="base" borderWidth="base">
+                <s-stack direction="block" gap="small">
+                  {sections.length === 0 ? (
+                    <s-text color="subdued">No sections yet. Add a new section to get started.</s-text>
+                  ) : (
+                    sections.map((section, index) => (
+                      <div
+                        key={`section-list-${index}-${formKey}`}
+                        draggable={sections.length > 1}
+                        data-section-index={index}
+                        onClick={() => setSelectedSectionIndex(index)}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("sectionIndex", index.toString());
+                          e.currentTarget.style.opacity = "0.5";
+                        }}
+                        onDragEnd={(e) => {
+                          e.currentTarget.style.opacity = "1";
+                          // Resetează toate secțiunile la starea normală
+                          const sectionItems = Array.from(e.currentTarget.parentNode.children);
+                          sectionItems.forEach(item => {
+                            if (item !== e.currentTarget && item.tagName !== 'BUTTON') {
+                              item.style.borderTop = "";
+                              item.style.borderBottom = "";
+                            }
+                          });
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.dataTransfer.dropEffect = "move";
+                          
+                          const draggedSectionIndex = parseInt(e.dataTransfer.getData("sectionIndex"));
+                          if (isNaN(draggedSectionIndex) || draggedSectionIndex === index) return;
+                          
+                          const targetItem = e.currentTarget;
+                          const sectionItems = Array.from(targetItem.parentNode.children).filter(
+                            item => item.tagName !== 'BUTTON'
+                          );
+                          
+                          // Elimină indicatorii vizuali de la toate secțiunile
+                          sectionItems.forEach(item => {
+                            item.style.borderTop = "";
+                            item.style.borderBottom = "";
+                          });
+                          
+                          // Calculează poziția relativă pentru a afișa indicatorul vizual
+                          const rect = targetItem.getBoundingClientRect();
+                          const offset = e.clientY - rect.top;
+                          const midpoint = rect.height / 2;
+                          
+                          if (offset < midpoint) {
+                            targetItem.style.borderTop = "2px solid #008060";
+                          } else {
+                            targetItem.style.borderBottom = "2px solid #008060";
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          // Elimină indicatorul vizual când părăsește secțiunea
+                          e.currentTarget.style.borderTop = "";
+                          e.currentTarget.style.borderBottom = "";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          
+                          const draggedSectionIndex = parseInt(e.dataTransfer.getData("sectionIndex"));
+                          if (isNaN(draggedSectionIndex) || draggedSectionIndex === index) return;
+                          
+                          // Găsește noua poziție bazată pe poziția mouse-ului
+                          const targetItem = e.currentTarget;
+                          const sectionItems = Array.from(targetItem.parentNode.children).filter(
+                            item => item.tagName !== 'BUTTON'
+                          );
+                          const rect = targetItem.getBoundingClientRect();
+                          const offset = e.clientY - rect.top;
+                          const midpoint = rect.height / 2;
+                          
+                          let dropIndex = sectionItems.indexOf(targetItem);
+                          if (offset > midpoint) {
+                            dropIndex += 1;
+                          }
+                          
+                          // Ajustează index-ul dacă tragem în jos
+                          if (draggedSectionIndex < dropIndex) {
+                            dropIndex -= 1;
+                          }
+                          
+                          // Reordonează secțiunile
+                          if (draggedSectionIndex !== dropIndex) {
+                            reorderSections(draggedSectionIndex, dropIndex);
+                          }
+                          
+                          // Elimină indicatorii vizuali
+                          sectionItems.forEach(item => {
+                            item.style.borderTop = "";
+                            item.style.borderBottom = "";
+                          });
+                        }}
+                        style={{
+                          padding: "12px",
+                          borderRadius: "6px",
+                          backgroundColor: selectedSectionIndex === index ? "#ffffff" : "transparent",
+                          border: selectedSectionIndex === index ? "1px solid #008060" : "1px solid transparent",
+                          cursor: sections.length > 1 ? "move" : "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          userSelect: "none"
+                        }}
                       >
-                          Delete Section
-                      </s-button>
-                        </>
-                      )}
-                    </s-stack>
-                  </s-stack>
-                  <s-stack gap="tight" alignment="center">
-                    {sections.length > 1 && (
-                        <>
-                          <div style={{ minWidth: "140px" }}>
-                            <span>Reorder Section: </span>
-                            <s-select
-                              id={`section-position-${sectionIndex}`}
-                              label={`Section ${sectionIndex + 1} position`}
-                              labelAccessibilityVisibility="exclusive"
-                              value={(sectionIndex + 1).toString()}
-                              key={`section-position-select-${sectionIndex}-${formKey}`}
-                            >
-                              {sections.map((_, idx) => (
-                                <s-option key={idx} value={(idx + 1).toString()}>
-                                  Position {idx + 1}
-                                </s-option>
-                              ))}
-                            </s-select>
-                          </div>
-                        </>
-                    )}
-                  </s-stack>
+                        {sections.length > 1 && (
+                          <s-icon 
+                            type="drag-handle" 
+                            color="subdued" 
+                            size="small"
+                            style={{ flexShrink: 0 }}
+                          />
+                        )}
+                        <s-text 
+                          type={selectedSectionIndex === index ? "strong" : "generic"}
+                          style={{ flex: 1 }}
+                        >
+                          {section.heading || `Section ${index + 1}`}
+                        </s-text>
+                      </div>
+                    ))
+                  )}
+                  <s-button 
+                    type="button" 
+                    onClick={addSection}
+                    variant="secondary"
+                    icon="plus"
+                    style={{ marginTop: "8px" }}
+                  >
+                    Add New Section
+                  </s-button>
+                </s-stack>
+              </s-box>
+            </s-grid-item>
 
-                  <input
-                    type="hidden"
-                    name={`section_${sectionIndex}_metafieldCount`}
-                    value={section.metafields?.length || 0}
-                  />
+            {/* Coloana dreaptă - Setările secțiunii selectate */}
+            <s-grid-item>
+              {sections.length === 0 ? (
+                <s-box padding="large" background="base" borderRadius="base" borderWidth="base">
+                  <s-text color="subdued" style={{ textAlign: "center" }}>
+                    No sections available. Click "Add New Section" to create your first section.
+                  </s-text>
+                </s-box>
+              ) : (
+                <s-box
+                  key={`section-${selectedSectionIndex}-${sections[selectedSectionIndex]?.heading || ""}-${formKey}`}
+                  padding="base"
+                  borderWidth="base"
+                  borderRadius="base"
+                  background="base"
+                  style={{ position: "relative", overflow: "visible" }}
+                >
+                  {(() => {
+                    const section = sections[selectedSectionIndex];
+                    const sectionIndex = selectedSectionIndex;
+                    return (
+                      <s-stack direction="block" gap="base">
+                        <s-stack direction="inline" gap="base" alignment="space-between">
+                          <s-heading level="3">Section {sectionIndex + 1}</s-heading>
+                          <s-stack direction="inline" gap="tight" alignment="center">
+                            {sections.length > 1 && (
+                              <s-button
+                                type="button"
+                                variant="primary"
+                                icon="delete"
+                                tone="critical"
+                                onClick={() => removeSection(sectionIndex)}
+                                accessibilityLabel="Delete Section"
+                              >
+                                Delete Section
+                              </s-button>
+                            )}
+                          </s-stack>
+                        </s-stack>
 
-                  <s-text-field
-                    name={`section_${sectionIndex}_heading`}
-                    label="Section Title"
-                    value={section.heading}
-                    onChange={(e) =>
-                      updateSectionHeading(sectionIndex, e.target.value)
-                    }
-                    required
-                  />
+                        <input
+                          type="hidden"
+                          name={`section_${sectionIndex}_metafieldCount`}
+                          value={section.metafields?.length || 0}
+                        />
 
-                  <s-stack direction="block" gap="tight">
-                    <s-text emphasis="strong">Metafields:</s-text>
-                    {section.metafields && section.metafields.length > 0 ? (
-                      <div style={{ width: "100%" }}>
-                        {/* Wrapper pentru tabel cu overlay */}
-                        <div style={{ 
-                          position: "relative", 
-                          width: "100%", 
-                          border: "1px solid #e1e3e5", 
-                          borderRadius: "8px", 
-                          overflow: "hidden"
-                        }}>
-                          {/* Tabelul cu metafields */}
-                          <div style={{
-                            maxHeight: section.metafields.length >= 2 && !expandedSections[sectionIndex] ? "200px" : "none",
-                            overflow: "hidden",
-                            transition: "max-height 0.3s ease"
-                          }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <s-text-field
+                          name={`section_${sectionIndex}_heading`}
+                          label="Section Title"
+                          value={section.heading}
+                          onChange={(e) =>
+                            updateSectionHeading(sectionIndex, e.target.value)
+                          }
+                          required
+                        />
+                        <s-stack direction="block" gap="small">
+                          <s-text emphasis="strong">Metafields:</s-text>
+                          {section.metafields && section.metafields.length > 0 ? (
+                            <div style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+                              {/* Wrapper pentru tabel cu overlay */}
+                              <div style={{ 
+                                position: "relative", 
+                                width: "100%", 
+                                maxWidth: "100%",
+                                border: "1px solid #e1e3e5", 
+                                borderRadius: "8px", 
+                                overflow: "hidden"
+                              }}>
+                                {/* Tabelul cu metafields */}
+                                <div style={{
+                                  maxHeight: section.metafields.length > 10 && !expandedSections[sectionIndex] ? "450px" : "none",
+                                  overflow: "hidden",
+                                  transition: "max-height 0.3s ease",
+                                  width: "100%",
+                                  maxWidth: "100%"
+                                }}>
+                                  <table style={{ width: "100%", maxWidth: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                           <thead>
                             <tr style={{ backgroundColor: "#f6f6f7", borderBottom: "2px solid #e1e3e5" }}>
-                              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", fontSize: "14px", color: "#202223", width: "40px" }}>
+                              <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: "600", fontSize: "13px", color: "#202223", width: "32px" }}>
                                 {/* Drag handle column */}
                               </th>
-                              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", fontSize: "14px", color: "#202223" }}>
+                              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: "600", fontSize: "13px", color: "#202223" }}>
                                 Spec Name
                               </th>
-                              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", fontSize: "14px", color: "#202223" }}>
+                              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: "600", fontSize: "13px", color: "#202223" }}>
                                 Spec Definition
                               </th>
-                              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", fontSize: "14px", color: "#202223", width: "100px" }}>
+                              <th style={{ padding: "8px 4px", textAlign: "center", fontWeight: "600", fontSize: "13px", color: "#202223", width: "50px" }}>
                                 Hide from PC
                               </th>
-                              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", fontSize: "14px", color: "#202223", width: "100px" }}>
+                              <th style={{ padding: "8px 4px", textAlign: "center", fontWeight: "600", fontSize: "13px", color: "#202223", width: "50px" }}>
                                 Hide from Mobile
                               </th>
-                              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", fontSize: "14px", color: "#202223", width: "100px" }}>
+                              <th style={{ padding: "8px 4px", textAlign: "center", fontWeight: "600", fontSize: "13px", color: "#202223", width: "45px" }}>
                                 Prefix
                               </th>
-                              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", fontSize: "14px", color: "#202223", width: "100px" }}>
+                              <th style={{ padding: "8px 4px", textAlign: "center", fontWeight: "600", fontSize: "13px", color: "#202223", width: "45px" }}>
                                 Suffix
                               </th>
-                              <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: "600", fontSize: "14px", color: "#202223", width: "120px" }}>
+                              <th style={{ padding: "8px 10px", textAlign: "right", fontWeight: "600", fontSize: "13px", color: "#202223", width: "100px" }}>
                                 Actions
                               </th>
                             </tr>
@@ -3109,11 +3216,11 @@ export default function TemplateEditorPage() {
                                     cursor: "move"
                                   }}
                                 >
-                                  <td style={{ padding: "12px 8px", verticalAlign: "middle", width: "40px", textAlign: "center" }}>
+                                  <td style={{ padding: "8px 6px", verticalAlign: "middle", width: "32px", textAlign: "center" }}>
                                     <s-icon type="drag-handle" color="subdued" size="small" />
                                   </td>
-                                  <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                                    <s-text>
+                                  <td style={{ padding: "8px 12px", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    <s-text style={{ fontSize: "13px" }}>
                                       {isProductSpec
                                         ? (metafield.customName || productSpecLabel || "Product Specification")
                                         : (mfDef
@@ -3123,17 +3230,17 @@ export default function TemplateEditorPage() {
                                         <span 
                                           title={metafield.tooltipText} 
                                           style={{ 
-                                            marginLeft: "8px", 
+                                            marginLeft: "6px", 
                                             cursor: "help", 
                                             display: "inline-flex",
                                             alignItems: "center",
                                             justifyContent: "center",
-                                            width: "16px",
-                                            height: "16px",
+                                            width: "14px",
+                                            height: "14px",
                                             borderRadius: "50%",
                                             backgroundColor: "#202223",
                                             color: "#ffffff",
-                                            fontSize: "11px",
+                                            fontSize: "10px",
                                             fontWeight: "bold",
                                             lineHeight: "1",
                                             verticalAlign: "middle"
@@ -3144,8 +3251,8 @@ export default function TemplateEditorPage() {
                                       )}
                                     </s-text>
                                   </td>
-                                  <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                                    <s-text style={{ color: "#6d7175", fontSize: "13px" }}>
+                                  <td style={{ padding: "8px 12px", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    <s-text style={{ color: "#6d7175", fontSize: "12px" }}>
                                       {isProductSpec
                                         ? "Product Specification"
                                         : (mfDef
@@ -3153,92 +3260,92 @@ export default function TemplateEditorPage() {
                                           : "N/A")}
                                     </s-text>
                                   </td>
-                                  <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
+                                  <td style={{ padding: "8px 2px", verticalAlign: "middle", textAlign: "center", width: "50px" }}>
                                     {metafield.hideFromPC ? (
                                       <span style={{ 
                                         display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        width: "24px",
-                                        height: "24px",
+                                        width: "16px",
+                                        height: "16px",
                                         borderRadius: "50%",
                                         backgroundColor: "#008060",
                                         color: "#ffffff",
-                                        fontSize: "14px",
+                                        fontSize: "10px",
                                         fontWeight: "bold",
                                         lineHeight: "1"
                                       }}>
                                         ✓
                                       </span>
                                     ) : (
-                                      <span style={{ color: "#6d7175", fontSize: "12px" }}>—</span>
+                                      <span style={{ color: "#6d7175", fontSize: "11px" }}>—</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
+                                  <td style={{ padding: "8px 2px", verticalAlign: "middle", textAlign: "center", width: "50px" }}>
                                     {metafield.hideFromMobile ? (
                                       <span style={{ 
                                         display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        width: "24px",
-                                        height: "24px",
+                                        width: "16px",
+                                        height: "16px",
                                         borderRadius: "50%",
                                         backgroundColor: "#008060",
                                         color: "#ffffff",
-                                        fontSize: "14px",
+                                        fontSize: "10px",
                                         fontWeight: "bold",
                                         lineHeight: "1"
                                       }}>
                                         ✓
                                       </span>
                                     ) : (
-                                      <span style={{ color: "#6d7175", fontSize: "12px" }}>—</span>
+                                      <span style={{ color: "#6d7175", fontSize: "11px" }}>—</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
+                                  <td style={{ padding: "8px 2px", verticalAlign: "middle", textAlign: "center", width: "45px" }}>
                                     {metafield.prefix && metafield.prefix.trim() !== "" ? (
                                       <span style={{ 
                                         display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        width: "24px",
-                                        height: "24px",
+                                        width: "16px",
+                                        height: "16px",
                                         borderRadius: "50%",
                                         backgroundColor: "#008060",
                                         color: "#ffffff",
-                                        fontSize: "14px",
+                                        fontSize: "10px",
                                         fontWeight: "bold",
                                         lineHeight: "1"
                                       }}>
                                         ✓
                                       </span>
                                     ) : (
-                                      <span style={{ color: "#6d7175", fontSize: "12px" }}>—</span>
+                                      <span style={{ color: "#6d7175", fontSize: "11px" }}>—</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "center" }}>
+                                  <td style={{ padding: "8px 2px", verticalAlign: "middle", textAlign: "center", width: "45px" }}>
                                     {metafield.suffix && metafield.suffix.trim() !== "" ? (
                                       <span style={{ 
                                         display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        width: "24px",
-                                        height: "24px",
+                                        width: "16px",
+                                        height: "16px",
                                         borderRadius: "50%",
                                         backgroundColor: "#008060",
                                         color: "#ffffff",
-                                        fontSize: "14px",
+                                        fontSize: "10px",
                                         fontWeight: "bold",
                                         lineHeight: "1"
                                       }}>
                                         ✓
                                       </span>
                                     ) : (
-                                      <span style={{ color: "#6d7175", fontSize: "12px" }}>—</span>
+                                      <span style={{ color: "#6d7175", fontSize: "11px" }}>—</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "right" }}>
-                                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                                  <td style={{ padding: "8px 8px", verticalAlign: "middle", textAlign: "right", width: "100px" }}>
+                                    <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
                                       <s-button
                                         type="button"
                                         variant="primary"
@@ -3279,7 +3386,7 @@ export default function TemplateEditorPage() {
                           </div>
                           
                           {/* Overlay gradient când este collapsed */}
-                          {section.metafields.length >= 2 && !expandedSections[sectionIndex] && (
+                          {section.metafields.length > 10 && !expandedSections[sectionIndex] && (
                             <div style={{
                               position: "absolute",
                               bottom: 0,
@@ -3294,7 +3401,7 @@ export default function TemplateEditorPage() {
                         </div>
                         
                         {/* Butonul de See More / See Less */}
-                        {section.metafields.length >= 2 && (
+                        {section.metafields.length > 10 && (
                           <div style={{ marginTop: "12px", textAlign: "center" }}>
                             <button
                               type="button"
@@ -3356,37 +3463,37 @@ export default function TemplateEditorPage() {
                             </button>
                           </div>
                         )}
-                      </div>
-                    ) : (
-                      <s-text style={{ color: "#6d7175", fontStyle: "italic" }}>
-                        No metafields added in this section
-                      </s-text>
-                    )}
+                            </div>
+                          ) : (
+                            <s-text style={{ color: "#6d7175", fontStyle: "italic" }}>
+                              No metafields added in this section
+                            </s-text>
+                          )}
 
-                    <div
-                      style={{ display: "flex", gap: "8px", position: "relative", width: "100%",marginTop: "20px" }}
-                      data-metafield-selector
-                    >
-                      <div style={{ position: "relative", flex: 1 }}>
-                        <s-button
-                          type="button"
-                          variant="secondary"
-                          icon = "search"
-                          onClick={() =>
-                            setOpenSelectIndex(
-                              openSelectIndex === sectionIndex ? null : sectionIndex
-                            )
-                        }
-                        >
-                          {openSelectIndex === sectionIndex
-                            ? "Close the list"
-                            : getAvailableMetafields(sectionIndex).length > 0
-                            ? `Select metafields (${getAvailableMetafields(sectionIndex).length} available)`
-                            : "No any metafields available"}
-                        </s-button>
-                      {openSelectIndex === sectionIndex &&
-                        getAvailableMetafields(sectionIndex).length > 0 && (
-                          <s-box
+                          <div
+                            style={{ display: "flex", gap: "8px", position: "relative", width: "100%",marginTop: "20px" }}
+                            data-metafield-selector
+                          >
+                            <div style={{ position: "relative", flex: 1 }}>
+                              <s-button
+                                type="button"
+                                variant="secondary"
+                                icon = "search"
+                                onClick={() =>
+                                  setOpenSelectIndex(
+                                    openSelectIndex === sectionIndex ? null : sectionIndex
+                                  )
+                                }
+                              >
+                                {openSelectIndex === sectionIndex
+                                  ? "Close the list"
+                                  : getAvailableMetafields(sectionIndex).length > 0
+                                  ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
+                                  : "No any metafields available"}
+                              </s-button>
+                              {openSelectIndex === sectionIndex &&
+                                getAvailableMetafields(sectionIndex).length > 0 && (
+                                  <s-box
                             padding="base"
                             borderWidth="base"
                             borderRadius="base"
@@ -3511,27 +3618,27 @@ export default function TemplateEditorPage() {
                                   </a>
                                 </s-text>
                               </div>
-                          </s-box>
-                        )}
-                      </div>
-                      
-                      <div style={{ position: "relative", flex: 1 }}>
-                        <s-button
-                          type="button"
-                          variant="secondary"
-                          icon="tag"
-                          onClick={() =>
-                            setOpenProductSpecIndex(
-                              openProductSpecIndex === sectionIndex ? null : sectionIndex
-                            )
-                          }
-                        >
-                          {openProductSpecIndex === sectionIndex
-                            ? "Close the list"
-                            : "Add Product Specification"}
-                        </s-button>
-                        {openProductSpecIndex === sectionIndex && (
-                          <s-box
+                                  </s-box>
+                                )}
+                              </div>
+                              
+                              <div style={{ position: "relative", flex: 1 }}>
+                                <s-button
+                                  type="button"
+                                  variant="secondary"
+                                  icon="tag"
+                                  onClick={() =>
+                                    setOpenProductSpecIndex(
+                                      openProductSpecIndex === sectionIndex ? null : sectionIndex
+                                    )
+                                  }
+                                >
+                                  {openProductSpecIndex === sectionIndex
+                                    ? "Close the list"
+                                    : "+ Add Product Specification"}
+                                </s-button>
+                                {openProductSpecIndex === sectionIndex && (
+                                  <s-box
                             padding="base"
                             borderWidth="base"
                             borderRadius="base"
@@ -3597,28 +3704,23 @@ export default function TemplateEditorPage() {
                             >
                               Cancel
                             </s-button>
-                          </s-box>
-                        )}
-                      </div>
-                    </div>
-                  </s-stack>
-                </s-stack>
-              </s-box>
-            ))}
-            <s-stack direction="block" gap="base" alignItems="center">
-            <s-button 
-              type="button" 
-              onClick={addSection}
-              variant="secondary"
-              icon="plus"
-            >
-               Add New Section
-            </s-button>
-            </s-stack>
-          </s-stack>
-          
-          {/* Setări pentru afișare */}
-          <s-stack direction="block" gap="base" style={{ marginTop: "24px" }}>
+                                  </s-box>
+                                )}
+                              </div>
+                            </div>
+                        </s-stack>
+                      </s-stack>
+                    );
+                  })()}
+                </s-box>
+              )}
+            </s-grid-item>
+          </s-grid>
+        </s-section>
+        
+        {/* Setări pentru afișare */}
+        <s-section heading="Display Settings" style={{ marginTop: "32px" }}>
+          <s-stack direction="block" gap="base">
             <s-switch
               id="accordion-switch"
               name="isAccordion"
@@ -3641,7 +3743,7 @@ export default function TemplateEditorPage() {
                 }
               }}
               value={isAccordion ? "true" : "false"}
-              label="Show as accordion (expandable)"
+              label="Collapsible sections (expandable)"
             />
             {isAccordion && (
               <s-box 
@@ -3678,7 +3780,7 @@ export default function TemplateEditorPage() {
                       }, 0);
                     }}
                     value={isAccordionHideFromPC ? "true" : "false"}
-                    label="Show as accordion just on mobile"
+                    label="Collapsible sections just on mobile"
                   />
                   <s-switch
                     id="accordion-hide-from-mobile-switch"
@@ -3706,7 +3808,7 @@ export default function TemplateEditorPage() {
                       }, 0);
                     }}
                     value={isAccordionHideFromMobile ? "true" : "false"}
-                    label="Show as accordion just on PC"
+                    label="Collapsible sections just on PC"
                   />
                 </s-stack>
               </s-box>
