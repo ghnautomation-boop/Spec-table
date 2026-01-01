@@ -110,6 +110,8 @@ model SpecificationTemplate {
   seeMoreEnabled            Boolean  @default(false)
   seeMoreHideFromPC         Boolean  @default(false) // Ascunde "See more" pe desktop
   seeMoreHideFromMobile     Boolean  @default(false) // Ascunde "See more" pe mobile
+  seeLessHideFromPC         Boolean  @default(false) // Ascunde "See less" pe desktop
+  seeLessHideFromMobile     Boolean  @default(false) // Ascunde "See less" pe mobile
   splitViewPerSection       Boolean  @default(false) // Split view per section (distribuie secțiunile în 2 coloane)
   splitViewPerMetafield     Boolean  @default(false) // Split view per metafield (distribuie metafields-urile în 2 coloane)
   tableName                  String   @default("Specifications") // Numele tabelului de specificații

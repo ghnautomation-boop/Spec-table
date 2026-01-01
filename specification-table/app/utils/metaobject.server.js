@@ -81,6 +81,8 @@ export async function createOrUpdateMetaobject(admin, template) {
     seeMoreEnabled: template.seeMoreEnabled || false,
     seeMoreHideFromPC: template.seeMoreHideFromPC === true,
     seeMoreHideFromMobile: template.seeMoreHideFromMobile === true,
+    seeLessHideFromPC: template.seeLessHideFromPC === true,
+    seeLessHideFromMobile: template.seeLessHideFromMobile === true,
     splitViewPerSection: template.splitViewPerSection === true,
     splitViewPerMetafield: template.splitViewPerMetafield === true,
     tableName: template.tableName || "Specifications",

@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "description-container-v1"
-application_url = "https://sally-lounge-qualify-westminster.trycloudflare.com"
+application_url = "https://brave-sorry-string-browser.trycloudflare.com"
 embedded = true
 
 [build]
@@ -50,9 +50,9 @@ scopes = "read_products,write_products,read_collection_listings,read_themes,read
 
 [auth]
 redirect_urls = [
-  "https://sally-lounge-qualify-westminster.trycloudflare.com/auth/callback",
-  "https://sally-lounge-qualify-westminster.trycloudflare.comauth/shopify/callback",
-  "https://sally-lounge-qualify-westminster.trycloudflare.com/api/auth/callback"
+  "https://brave-sorry-string-browser.trycloudflare.com/auth/callback",
+  "https://brave-sorry-string-browser.trycloudflare.comauth/shopify/callback",
+  "https://brave-sorry-string-browser.trycloudflare.com/api/auth/callback"
 ]
 
 

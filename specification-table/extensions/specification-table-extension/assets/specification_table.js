@@ -35,8 +35,15 @@ window.initSpecificationTable = function(containerId, templateData) {
     // Parsează JSON-urile din metaobject
     // Dacă sunt deja obiecte, le folosim direct; altfel le parsează
     const templateStructure = typeof templateStructureJson === 'string' ? JSON.parse(templateStructureJson) : templateStructureJson;
-    const templateStyling = typeof templateStylingJson === 'string' ? JSON.parse(templateStylingJson) : templateStylingJson;
+    let templateStyling = typeof templateStylingJson === 'string' ? JSON.parse(templateStylingJson) : templateStylingJson;
     const templateSettings = typeof templateSettingsJson === 'string' ? JSON.parse(templateSettingsJson) : templateSettingsJson;
+    
+    // Debug: verifică dacă seeMoreButtonText există în styling
+    if (!templateStyling.seeMoreButtonText) {
+      console.warn('[initSpecificationTable] seeMoreButtonText not found in templateStyling. Available keys:', Object.keys(templateStyling));
+      console.warn('[initSpecificationTable] templateStylingJson:', templateStylingJson);
+      console.warn('[initSpecificationTable] Parsed templateStyling:', JSON.stringify(templateStyling, null, 2));
+    }
 
     // Construiește obiectul template
     const template = {
@@ -58,6 +65,23 @@ window.initSpecificationTable = function(containerId, templateData) {
       collapsibleOnPC: templateSettings.collapsibleOnPC || false,
       collapsibleOnMobile: templateSettings.collapsibleOnMobile || false
     };
+
+    // Salvează template-ul în window.templateData pentru a fi accesat mai târziu (pentru See Less button, etc.)
+    if (!window.templateData) {
+      window.templateData = {};
+    }
+    window.templateData[templateIdValue] = {
+      structure: templateStructure,
+      styling: templateStyling,
+      settings: templateSettings,
+      id: templateIdValue
+    };
+    
+    // Debug: verifică dacă seeLessButtonStyle și seeLessButtonText există în styling
+    console.log('[initSpecificationTable] Template styling keys:', Object.keys(templateStyling));
+    console.log('[initSpecificationTable] seeLessButtonStyle:', templateStyling.seeLessButtonStyle);
+    console.log('[initSpecificationTable] seeLessButtonText:', templateStyling.seeLessButtonText);
+    console.log('[initSpecificationTable] seeMoreButtonStyle:', templateStyling.seeMoreButtonStyle);
 
     // Construiește obiectul cu metafield-urile din Liquid folosind template-ul
     if (window.buildMetafieldsFromTemplate) {
@@ -353,9 +377,15 @@ function setupVariantChangeListener(container, template) {
 
 // Funcție pentru a randa template-ul
 function renderTemplate(container, template) {
-  const styling = template.styling;
+  const styling = template.styling || {};
   const firstColumnWidth = container.dataset.firstColumnWidth || '40';
   const escapedTemplateId = escapeHtml(template.id);
+  
+  // Debug: verifică dacă seeMoreButtonText există în styling
+  if (!styling.seeMoreButtonText) {
+    console.warn('[renderTemplate] seeMoreButtonText not found in styling. Available keys:', Object.keys(styling));
+    console.warn('[renderTemplate] Full styling object:', JSON.stringify(styling, null, 2));
+  }
 
   // Construiește CSS variables pentru stilurile dinamice
   let cssVars = '--dc-bg-color: ' + (styling.backgroundColor || '#ffffff') + '; ';
@@ -859,10 +889,23 @@ function renderTemplate(container, template) {
     html += '</div>'; // Închide wrapper-ul cu position relative
   }
 
-  const seeMoreButtonStyle = styling.seeMoreButtonStyle || 'arrow';
-  const seeMoreButtonText = styling.seeMoreButtonText || 'See More';
+  // Obține seeMoreButtonStyle și seeMoreButtonText din styling
+  // Verifică atât în styling direct, cât și în nested objects
+  const seeMoreButtonStyle = styling?.seeMoreButtonStyle || styling?.see_more_button_style || 'arrow';
+  const seeMoreButtonText = styling?.seeMoreButtonText || styling?.see_more_button_text || 'See More';
   const showArrow = seeMoreButtonStyle === 'arrow' || seeMoreButtonStyle === 'arrow+text';
   const showText = seeMoreButtonStyle === 'text' || seeMoreButtonStyle === 'arrow+text';
+  
+  // Debug logging pentru a vedea ce se întâmplă
+  console.log('[See More Button Debug]', {
+    seeMoreButtonStyle,
+    seeMoreButtonText,
+    showArrow,
+    showText,
+    stylingKeys: Object.keys(styling || {}),
+    hasSeeMoreButtonText: !!(styling?.seeMoreButtonText),
+    stylingSeeMoreButtonText: styling?.seeMoreButtonText
+  });
 
   if (hasMorePC || hasMoreMobile) {
     if (hasMorePC) {
@@ -871,8 +914,9 @@ function renderTemplate(container, template) {
       if (showArrow) {
         html += '<span id="see-more-arrow-pc-' + escapedTemplateId + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
       }
-      if (showText) {
-        html += '<span class="dc_see_more_text">' + escapeHtml(seeMoreButtonText) + '</span>';
+      if (showText && seeMoreButtonText) {
+        const escapedText = escapeHtml(String(seeMoreButtonText));
+        html += '<span class="dc_see_more_text" style="display: inline-block;">' + escapedText + '</span>';
       }
       html += '</button>';
       html += '</div>';
@@ -884,8 +928,9 @@ function renderTemplate(container, template) {
       if (showArrow) {
         html += '<span id="see-more-arrow-mobile-' + escapedTemplateId + '" class="dc_see_more_arrow">' + arrowDownSvg + '</span>';
       }
-      if (showText) {
-        html += '<span class="dc_see_more_text">' + escapeHtml(seeMoreButtonText) + '</span>';
+      if (showText && seeMoreButtonText) {
+        const escapedText = escapeHtml(String(seeMoreButtonText));
+        html += '<span class="dc_see_more_text" style="display: inline-block;">' + escapedText + '</span>';
       }
       html += '</button>';
       html += '</div>';
@@ -1438,6 +1483,8 @@ window.showAllTableRows = function(templateId, event, device) {
     if (tbodyLeft && tbodyRight) {
       // Split view per metafield: distribuie rândurile alternativ între cele două coloane
       rows.forEach((row, index) => {
+        // Marchează rândurile mutate cu un atribut pentru a le identifica în showLessTableRows
+        row.setAttribute('data-see-more-added', 'true');
         if (index % 2 === 0) {
           tbodyLeft.appendChild(row);
         } else {
@@ -1448,6 +1495,8 @@ window.showAllTableRows = function(templateId, event, device) {
     } else if (tbody) {
       // Tabel normal: adaugă toate rândurile în tbody
       rows.forEach(row => {
+        // Marchează rândurile mutate cu un atribut pentru a le identifica în showLessTableRows
+        row.setAttribute('data-see-more-added', 'true');
         tbody.appendChild(row);
       });
       console.log('[showAllTableRows] Added', rows.length, 'rows to normal tbody for section:', sectionIndex);
@@ -1477,6 +1526,227 @@ window.showAllTableRows = function(templateId, event, device) {
   const container = document.getElementById('specification-table-' + templateId);
   if (container) {
     updateMetafieldValuesFromLiquid(container);
+    
+    // Obține setările din template
+    const templateData = window.templateData && window.templateData[templateId];
+    const styling = templateData ? templateData.styling : {};
+    const settings = templateData ? templateData.settings : {};
+    
+    // Verifică dacă butonul "See Less" trebuie să fie ascuns pentru acest device
+    const seeLessHideFromPC = settings.seeLessHideFromPC === true || settings.seeLessHideFromPC === 'true';
+    const seeLessHideFromMobile = settings.seeLessHideFromMobile === true || settings.seeLessHideFromMobile === 'true';
+    
+    // Verifică dacă butonul trebuie să fie afișat pentru acest device
+    const shouldShowForPC = device === 'pc' && !seeLessHideFromPC;
+    const shouldShowForMobile = device === 'mobile' && !seeLessHideFromMobile;
+    
+    if (!shouldShowForPC && !shouldShowForMobile) {
+      // Butonul trebuie să fie ascuns pentru acest device
+      console.log('[See Less Button] Hidden for device:', device, 'seeLessHideFromPC:', seeLessHideFromPC, 'seeLessHideFromMobile:', seeLessHideFromMobile);
+      return;
+    }
+    
+    // Adaugă butonul "Show Less" după ce se apasă "See More"
+    const seeMoreContainer = container.querySelector('.dc_see_more_' + device);
+    if (seeMoreContainer) {
+      // Verifică dacă butonul "Show Less" nu există deja
+      let seeLessContainer = container.querySelector('.dc_see_less_' + device);
+      if (!seeLessContainer) {
+        seeLessContainer = document.createElement('div');
+        seeLessContainer.className = 'dc_see_less dc_see_less_' + device;
+        seeLessContainer.style.cssText = 'position: relative; z-index: 2; text-align: center; margin-top: 12px;';
+        
+        const seeLessButton = document.createElement('button');
+        seeLessButton.className = 'dc_see_less_button';
+        seeLessButton.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          showLessTableRows(templateId, e, device);
+        };
+        
+        const seeLessButtonStyle = styling.seeLessButtonStyle || styling.seeMoreButtonStyle || 'arrow';
+        const seeLessButtonText = styling.seeLessButtonText || 'See Less';
+        const showArrow = seeLessButtonStyle === 'arrow' || seeLessButtonStyle === 'arrow+text';
+        const showText = seeLessButtonStyle === 'text' || seeLessButtonStyle === 'arrow+text';
+        
+        // Debug logging pentru See Less button
+        console.log('[See Less Button Debug]', {
+          templateId,
+          device,
+          templateData: templateData,
+          settings: settings,
+          styling: styling,
+          seeLessHideFromPC,
+          seeLessHideFromMobile,
+          shouldShowForPC,
+          shouldShowForMobile,
+          seeLessButtonStyle,
+          seeLessButtonText,
+          showArrow,
+          showText,
+          hasSeeLessButtonText: !!(styling.seeLessButtonText),
+          stylingSeeLessButtonText: styling.seeLessButtonText,
+          stylingSeeLessButtonStyle: styling.seeLessButtonStyle,
+          stylingSeeMoreButtonStyle: styling.seeMoreButtonStyle,
+          stylingKeys: Object.keys(styling || {}),
+          settingsKeys: Object.keys(settings || {}),
+          allTemplateDataKeys: window.templateData ? Object.keys(window.templateData) : 'window.templateData is undefined'
+        });
+        
+        // Aplică stilurile (folosește aceleași ca pentru See More)
+        seeLessButton.style.cssText = 
+          'background: ' + (styling.seeMoreButtonBackground || 'transparent') + '; ' +
+          'border: ' + (styling.seeMoreButtonBorderEnabled 
+            ? (styling.seeMoreButtonBorderWidth || '1px') + ' ' + (styling.seeMoreButtonBorderStyle || 'solid') + ' ' + (styling.seeMoreButtonBorderColor || '#000000')
+            : 'none') + '; ' +
+          'cursor: pointer; ' +
+          'padding: ' + (styling.seeMoreButtonPadding || '8px') + '; ' +
+          'display: inline-flex; ' +
+          'align-items: center; ' +
+          'justify-content: center; ' +
+          'gap: 8px; ' +
+          'color: ' + (styling.seeMoreButtonColor || '#000000') + '; ' +
+          'font-size: ' + (styling.seeMoreButtonFontSize || '14px') + '; ' +
+          'font-family: ' + (styling.seeMoreButtonFontFamily || 'Arial') + '; ' +
+          'font-style: ' + ((styling.seeMoreButtonFontStyle === 'italic' || styling.seeMoreButtonFontStyle === 'bold italic') ? 'italic' : 'normal') + '; ' +
+          'font-weight: ' + ((styling.seeMoreButtonFontStyle === 'bold' || styling.seeMoreButtonFontStyle === 'bold italic') ? 'bold' : 'normal') + '; ' +
+          'border-radius: ' + (styling.seeMoreButtonBorderRadius || '0px') + '; ' +
+          'width: 100%; ' +
+          'transition: opacity 0.2s ease;';
+        
+        if (showArrow) {
+          const arrowSpan = document.createElement('span');
+          arrowSpan.id = 'see-less-arrow-' + device + '-' + templateId;
+          arrowSpan.className = 'dc_see_less_arrow';
+          arrowSpan.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease; transform: rotate(180deg);"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          seeLessButton.appendChild(arrowSpan);
+        }
+        
+        if (showText && seeLessButtonText) {
+          const textSpan = document.createElement('span');
+          textSpan.className = 'dc_see_less_text';
+          textSpan.style.cssText = 'display: inline-block;';
+          textSpan.textContent = String(seeLessButtonText);
+          seeLessButton.appendChild(textSpan);
+          console.log('[See Less Button] Added text span with text:', seeLessButtonText);
+        } else {
+          console.warn('[See Less Button] Not adding text span. showText:', showText, 'seeLessButtonText:', seeLessButtonText);
+        }
+        
+        seeLessContainer.appendChild(seeLessButton);
+        seeMoreContainer.parentNode.insertBefore(seeLessContainer, seeMoreContainer.nextSibling);
+      } else {
+        seeLessContainer.style.display = 'block';
+      }
+    }
+  }
+};
+
+// Funcție globală pentru "Show Less"
+window.showLessTableRows = function(templateId, event, device) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const mainContainer = document.getElementById('specification-table-' + templateId);
+  if (!mainContainer) {
+    console.warn('[showLessTableRows] Main container not found for templateId:', templateId);
+    return;
+  }
+
+  // Găsește toate rândurile care trebuie ascunse (cele care au fost adăugate de "See More")
+  const hiddenContainer = document.getElementById('spec-table-hidden-' + templateId);
+  if (!hiddenContainer) {
+    return;
+  }
+
+  const selector = '[id^="spec-hidden-section-' + device + '-' + templateId + '-"]';
+  const hiddenSections = hiddenContainer.querySelectorAll(selector);
+
+  // Recolectează rândurile care trebuie ascunse
+  hiddenSections.forEach(sectionContainer => {
+    const sectionIndex = sectionContainer.getAttribute('data-section-index');
+    const tableId = 'spec-table-' + device + '-' + templateId + '-' + sectionIndex;
+
+    // Găsește container-ul tabelului
+    let deviceContainer = document.querySelector('#' + tableId + '-container');
+    if (!deviceContainer) {
+      deviceContainer = document.querySelector('.dc_split_view_sections #' + tableId + '-container');
+    }
+    if (!deviceContainer) {
+      const seeMoreVersionClass = device === 'pc' ? 'dc_see_more_pc_version' : 'dc_see_more_mobile_version';
+      deviceContainer = document.querySelector('.' + seeMoreVersionClass + ' #' + tableId + '-container');
+    }
+    if (!deviceContainer) {
+      const accordionVersionClass = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+      deviceContainer = document.querySelector('.' + accordionVersionClass + ' #' + tableId + '-container');
+    }
+
+    if (!deviceContainer) {
+      return;
+    }
+
+    // Găsește tbody-urile
+    const tbody = deviceContainer.querySelector('tbody');
+    const tbodyLeft = deviceContainer.querySelector('tbody.dc_tbody_left');
+    const tbodyRight = deviceContainer.querySelector('tbody.dc_tbody_right');
+
+    // Găsește tabelul temporar cu rândurile ascunse
+    const tempTable = sectionContainer.querySelector('table');
+    if (!tempTable) {
+      return;
+    }
+
+    const tempTbody = tempTable.querySelector('tbody');
+    if (!tempTbody) {
+      return;
+    }
+
+    // Colectează toate rândurile care au fost adăugate de "See More" (marcate cu data-see-more-added)
+    const rowsToHide = [];
+    
+    if (tbodyLeft && tbodyRight) {
+      // Split view per metafield: colectăm toate rândurile marcate din ambele coloane
+      const leftRows = Array.from(tbodyLeft.querySelectorAll('tr[data-see-more-added="true"]'));
+      const rightRows = Array.from(tbodyRight.querySelectorAll('tr[data-see-more-added="true"]'));
+      rowsToHide.push(...leftRows, ...rightRows);
+    } else if (tbody) {
+      // Tabel normal: colectăm toate rândurile marcate din tbody
+      const allRows = Array.from(tbody.querySelectorAll('tr[data-see-more-added="true"]'));
+      rowsToHide.push(...allRows);
+    }
+
+    // Mută rândurile înapoi în container-ul ascuns
+    rowsToHide.forEach(row => {
+      // Elimină atributul de marcare
+      row.removeAttribute('data-see-more-added');
+      tempTbody.appendChild(row);
+    });
+  });
+
+  // Afișează din nou butonul "See More"
+  const seeMoreButton = mainContainer.querySelector('.dc_see_more_' + device + ' .dc_see_more_button');
+  if (seeMoreButton) {
+    seeMoreButton.style.display = '';
+  }
+
+  // Afișează din nou overlay-ul de ceată
+  const fogOverlay = mainContainer.querySelector('.dc_see_more_fog_overlay_' + device);
+  if (fogOverlay) {
+    fogOverlay.style.display = '';
+  }
+
+  // Resetează arrow-ul
+  const arrow = document.getElementById('see-more-arrow-' + device + '-' + templateId);
+  if (arrow) {
+    arrow.style.transform = 'rotate(0deg)';
+  }
+
+  // Ascunde butonul "Show Less"
+  const seeLessContainer = mainContainer.querySelector('.dc_see_less_' + device);
+  if (seeLessContainer) {
+    seeLessContainer.style.display = 'none';
   }
 };
 

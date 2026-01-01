@@ -172,6 +172,8 @@ export async function createTemplate(data, shopDomain, admin = null) {
       seeMoreEnabled: seeMoreEnabled !== undefined ? seeMoreEnabled : false,
       seeMoreHideFromPC: seeMoreHideFromPC !== undefined ? seeMoreHideFromPC : false,
       seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : false,
+      seeLessHideFromPC: seeLessHideFromPC !== undefined ? seeLessHideFromPC : false,
+      seeLessHideFromMobile: seeLessHideFromMobile !== undefined ? seeLessHideFromMobile : false,
       splitViewPerSection: splitViewPerSection !== undefined ? splitViewPerSection : false,
       splitViewPerMetafield: splitViewPerMetafield !== undefined ? splitViewPerMetafield : false,
       tableName: tableName !== undefined && tableName !== null && tableName.trim() !== "" ? tableName.trim() : "Specifications",
@@ -545,7 +547,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
     throw new Error("Template not found");
   }
 
-  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections } = data;
+  const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, seeLessHideFromPC, seeLessHideFromMobile, splitViewPerSection, splitViewPerMetafield, tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections } = data;
 
   // Debug: verifică datele primite
   if (process.env.NODE_ENV === "development") {
@@ -584,6 +586,8 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
       seeMoreEnabled: seeMoreEnabled !== undefined ? seeMoreEnabled : template.seeMoreEnabled || false,
       seeMoreHideFromPC: seeMoreHideFromPC !== undefined ? seeMoreHideFromPC : template.seeMoreHideFromPC || false,
       seeMoreHideFromMobile: seeMoreHideFromMobile !== undefined ? seeMoreHideFromMobile : template.seeMoreHideFromMobile || false,
+      seeLessHideFromPC: seeLessHideFromPC !== undefined ? seeLessHideFromPC : template.seeLessHideFromPC || false,
+      seeLessHideFromMobile: seeLessHideFromMobile !== undefined ? seeLessHideFromMobile : template.seeLessHideFromMobile || false,
       splitViewPerSection: splitViewPerSection !== undefined ? splitViewPerSection : (template.splitViewPerSection !== undefined ? template.splitViewPerSection : false),
       splitViewPerMetafield: splitViewPerMetafield !== undefined ? splitViewPerMetafield : (template.splitViewPerMetafield !== undefined ? template.splitViewPerMetafield : false),
       tableName: tableName !== undefined && tableName !== null && tableName.trim() !== "" ? tableName.trim() : (template.tableName || "Specifications"),

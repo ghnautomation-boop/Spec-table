@@ -170,6 +170,8 @@ export const action = async ({ request, params }) => {
   const seeMoreEnabled = formData.get("seeMoreEnabled") === "true";
   const seeMoreHideFromPC = formData.get("seeMoreHideFromPC") === "true";
   const seeMoreHideFromMobile = formData.get("seeMoreHideFromMobile") === "true";
+  const seeLessHideFromPC = formData.get("seeLessHideFromPC") === "true";
+  const seeLessHideFromMobile = formData.get("seeLessHideFromMobile") === "true";
   
   // Extrage splitViewPerSection și splitViewPerMetafield cu fallback la false dacă nu există
   const splitViewPerSectionRaw = formData.get("splitViewPerSection");
@@ -245,6 +247,22 @@ export const action = async ({ request, params }) => {
     seeMoreButtonFontFamily: formData.get("seeMoreButtonFontFamily") || "Arial",
     seeMoreButtonBorderRadius: formData.get("seeMoreButtonBorderRadius") || "0px",
     seeMoreButtonPadding: formData.get("seeMoreButtonPadding") || "8px",
+    // See Less Button Settings (uses same styling as See More)
+    seeLessButtonStyle: (() => {
+      const value = formData.get("seeLessButtonStyle");
+      const fallback = formData.get("seeMoreButtonStyle");
+      const result = (value && value.trim() !== "") ? value.trim() : ((fallback && fallback.trim() !== "") ? fallback.trim() : "arrow");
+      console.log('[Action] seeLessButtonStyle - value:', value, 'fallback:', fallback, 'result:', result);
+      return result;
+    })(),
+    seeLessButtonText: (() => {
+      const value = formData.get("seeLessButtonText");
+      const result = (value && value.trim() !== "") ? value.trim() : "See Less";
+      console.log('[Action] seeLessButtonText - value:', value, 'result:', result);
+      return result;
+    })(),
+    seeLessHideFromPC: formData.get("seeLessHideFromPC") === "true",
+    seeLessHideFromMobile: formData.get("seeLessHideFromMobile") === "true",
   };
 
   // Parse sections
@@ -371,6 +389,8 @@ export const action = async ({ request, params }) => {
           seeMoreEnabled,
           seeMoreHideFromPC,
           seeMoreHideFromMobile,
+          seeLessHideFromPC,
+          seeLessHideFromMobile,
           splitViewPerSection,
           splitViewPerMetafield,
           tableName,
@@ -395,6 +415,8 @@ export const action = async ({ request, params }) => {
           seeMoreEnabled,
           seeMoreHideFromPC,
           seeMoreHideFromMobile,
+          seeLessHideFromPC,
+          seeLessHideFromMobile,
           splitViewPerSection,
           splitViewPerMetafield,
           tableName,
@@ -482,6 +504,12 @@ export default function TemplateEditorPage() {
   );
   const [seeMoreHideFromMobile, setSeeMoreHideFromMobile] = useState(
     template?.seeMoreHideFromMobile || false
+  );
+  const [seeLessHideFromPC, setSeeLessHideFromPC] = useState(
+    template?.seeLessHideFromPC || false
+  );
+  const [seeLessHideFromMobile, setSeeLessHideFromMobile] = useState(
+    template?.seeLessHideFromMobile || false
   );
   const [splitViewPerSection, setSplitViewPerSection] = useState(
     template?.splitViewPerSection || false
@@ -659,6 +687,21 @@ export default function TemplateEditorPage() {
       console.log("Updated seeMoreHideFromMobile hidden input:", seeMoreHideFromMobileInput.value);
     }
   }, [seeMoreHideFromPC, seeMoreHideFromMobile]);
+  
+  // Actualizează valorile hidden inputs-urilor pentru seeLessHideFromPC și seeLessHideFromMobile
+  useEffect(() => {
+    const seeLessHideFromPCInput = document.querySelector('input[name="seeLessHideFromPC"]');
+    const seeLessHideFromMobileInput = document.querySelector('input[name="seeLessHideFromMobile"]');
+    
+    if (seeLessHideFromPCInput) {
+      seeLessHideFromPCInput.value = seeLessHideFromPC ? "true" : "false";
+      console.log("Updated seeLessHideFromPC hidden input:", seeLessHideFromPCInput.value);
+    }
+    if (seeLessHideFromMobileInput) {
+      seeLessHideFromMobileInput.value = seeLessHideFromMobile ? "true" : "false";
+      console.log("Updated seeLessHideFromMobile hidden input:", seeLessHideFromMobileInput.value);
+    }
+  }, [seeLessHideFromPC, seeLessHideFromMobile]);
 
   // Actualizează valorile hidden inputs-urilor pentru splitViewPerSection și splitViewPerMetafield
   useEffect(() => {
@@ -813,6 +856,12 @@ export default function TemplateEditorPage() {
     if (template?.seeMoreHideFromMobile !== undefined) {
       setSeeMoreHideFromMobile(template.seeMoreHideFromMobile);
     }
+    if (template?.seeLessHideFromPC !== undefined) {
+      setSeeLessHideFromPC(template.seeLessHideFromPC);
+    }
+    if (template?.seeLessHideFromMobile !== undefined) {
+      setSeeLessHideFromMobile(template.seeLessHideFromMobile);
+    }
     if (template?.splitViewPerSection !== undefined) {
       setSplitViewPerSection(template.splitViewPerSection);
     }
@@ -836,6 +885,24 @@ export default function TemplateEditorPage() {
     }
   }, [template]);
 
+  // Actualizează valorile hidden inputs-urilor pentru seeLessButtonStyle și seeLessButtonText
+  // Trebuie să fie după definirea lui styling
+  useEffect(() => {
+    const seeLessButtonStyleInput = document.querySelector('input[name="seeLessButtonStyle"]');
+    const seeLessButtonTextInput = document.querySelector('input[name="seeLessButtonText"]');
+    
+    if (seeLessButtonStyleInput) {
+      const value = styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow";
+      seeLessButtonStyleInput.value = value;
+      seeLessButtonStyleInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (seeLessButtonTextInput) {
+      const value = styling.seeLessButtonText || "See Less";
+      seeLessButtonTextInput.value = value;
+      seeLessButtonTextInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, [styling.seeLessButtonStyle, styling.seeLessButtonText, styling.seeMoreButtonStyle]);
+
   // Monitorizează salvarea cu succes
   useEffect(() => {
     if (actionData?.success) {
@@ -856,6 +923,8 @@ export default function TemplateEditorPage() {
         seeMoreEnabled,
         seeMoreHideFromPC,
         seeMoreHideFromMobile,
+        seeLessHideFromPC,
+        seeLessHideFromMobile,
         splitViewPerSection,
         splitViewPerMetafield,
         styling: JSON.parse(JSON.stringify(styling))
@@ -904,6 +973,8 @@ export default function TemplateEditorPage() {
     if (seeMoreEnabled !== initialFormState.current.seeMoreEnabled ||
         seeMoreHideFromPC !== initialFormState.current.seeMoreHideFromPC ||
         seeMoreHideFromMobile !== initialFormState.current.seeMoreHideFromMobile ||
+        seeLessHideFromPC !== initialFormState.current.seeLessHideFromPC ||
+        seeLessHideFromMobile !== initialFormState.current.seeLessHideFromMobile ||
         splitViewPerSection !== initialFormState.current.splitViewPerSection ||
         splitViewPerMetafield !== initialFormState.current.splitViewPerMetafield) {
       return true;
@@ -1034,6 +1105,8 @@ export default function TemplateEditorPage() {
       'input[name="seeMoreEnabled"]',
       'input[name="seeMoreHideFromPC"]',
       'input[name="seeMoreHideFromMobile"]',
+      'input[name="seeLessHideFromPC"]',
+      'input[name="seeLessHideFromMobile"]',
       'input[name="tableName"]',
       'input[name="isCollapsible"]',
       'input[name="collapsibleOnPC"]',
@@ -1066,6 +1139,8 @@ export default function TemplateEditorPage() {
       'input[name="oddColumnBackgroundColor"]',
       'input[name="evenColumnBackgroundColor"]',
       'input[name="textTransform"]',
+      'input[name="seeLessButtonStyle"]',
+      'input[name="seeLessButtonText"]',
     ];
 
     otherInputs.forEach(selector => {
@@ -2255,6 +2330,42 @@ export default function TemplateEditorPage() {
                 </button>
               </div>
             )}
+            {finalHasMore && showAll && (
+              <div style={{ textAlign: "center", marginTop: "12px", position: "relative", zIndex: 2 }}>
+                <button
+                  onClick={() => setShowAll(false)}
+                  style={{
+                      background: styling.seeMoreButtonBackground || "transparent",
+                      border: styling.seeMoreButtonBorderEnabled 
+                        ? `${styling.seeMoreButtonBorderWidth || "1px"} ${styling.seeMoreButtonBorderStyle || "solid"} ${styling.seeMoreButtonBorderColor || "#000000"}`
+                        : "none",
+                    cursor: "pointer",
+                      padding: styling.seeMoreButtonPadding || "8px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                      gap: "8px",
+                      color: styling.seeMoreButtonColor || "#000000",
+                      fontSize: styling.seeMoreButtonFontSize || "14px",
+                      fontFamily: styling.seeMoreButtonFontFamily || "Arial",
+                      fontStyle: styling.seeMoreButtonFontStyle === "italic" || styling.seeMoreButtonFontStyle === "bold italic" ? "italic" : "normal",
+                      fontWeight: styling.seeMoreButtonFontStyle === "bold" || styling.seeMoreButtonFontStyle === "bold italic" ? "bold" : "normal",
+                      borderRadius: styling.seeMoreButtonBorderRadius || "0px",
+                      width: "100%",
+                      transition: "opacity 0.2s ease",
+                    }}
+                  >
+                    {((styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow") === "arrow" || (styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow") === "arrow+text") && (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "inline-block", transition: "transform 0.3s ease", flexShrink: 0, transform: "rotate(180deg)" }}>
+                    <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                    )}
+                    {((styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow") === "text" || (styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow") === "arrow+text") && (
+                      <span>{styling.seeLessButtonText || "See Less"}</span>
+                    )}
+                </button>
+              </div>
+            )}
           </>
           );
         })()}
@@ -2367,6 +2478,19 @@ export default function TemplateEditorPage() {
                 console.log("onSubmit - Updated seeMoreHideFromMobile:", seeMoreHideFromMobileInput.value);
               }
               
+              // Actualizează valorile pentru seeLessHideFromPC și seeLessHideFromMobile
+              const seeLessHideFromPCInput = e.currentTarget.querySelector('input[name="seeLessHideFromPC"]');
+              const seeLessHideFromMobileInput = e.currentTarget.querySelector('input[name="seeLessHideFromMobile"]');
+              
+              if (seeLessHideFromPCInput) {
+                seeLessHideFromPCInput.value = seeLessHideFromPC ? "true" : "false";
+                console.log("onSubmit - Updated seeLessHideFromPC:", seeLessHideFromPCInput.value);
+              }
+              if (seeLessHideFromMobileInput) {
+                seeLessHideFromMobileInput.value = seeLessHideFromMobile ? "true" : "false";
+                console.log("onSubmit - Updated seeLessHideFromMobile:", seeLessHideFromMobileInput.value);
+              }
+              
               // Actualizează valorile pentru isAccordionHideFromPC și isAccordionHideFromMobile
               const isAccordionHideFromPCInput = e.currentTarget.querySelector('input[name="isAccordionHideFromPC"]');
               const isAccordionHideFromMobileInput = e.currentTarget.querySelector('input[name="isAccordionHideFromMobile"]');
@@ -2394,6 +2518,8 @@ export default function TemplateEditorPage() {
               setSeeMoreEnabled(initialFormState.current.seeMoreEnabled);
               setSeeMoreHideFromPC(initialFormState.current.seeMoreHideFromPC);
               setSeeMoreHideFromMobile(initialFormState.current.seeMoreHideFromMobile);
+              setSeeLessHideFromPC(initialFormState.current.seeLessHideFromPC);
+              setSeeLessHideFromMobile(initialFormState.current.seeLessHideFromMobile);
               setSplitViewPerSection(initialFormState.current.splitViewPerSection);
               setSplitViewPerMetafield(initialFormState.current.splitViewPerMetafield);
               setTableName(initialFormState.current.tableName);
@@ -2443,6 +2569,18 @@ export default function TemplateEditorPage() {
           name="seeMoreHideFromMobile" 
           value={seeMoreHideFromMobile ? "true" : "false"} 
           key={`seeMoreHideFromMobile-${seeMoreHideFromMobile}`}
+        />
+        <input 
+          type="hidden" 
+          name="seeLessHideFromPC" 
+          value={seeLessHideFromPC ? "true" : "false"} 
+          key={`seeLessHideFromPC-${seeLessHideFromPC}`}
+        />
+        <input 
+          type="hidden" 
+          name="seeLessHideFromMobile" 
+          value={seeLessHideFromMobile ? "true" : "false"} 
+          key={`seeLessHideFromMobile-${seeLessHideFromMobile}`}
         />
         <input 
           type="hidden" 
@@ -2511,6 +2649,18 @@ export default function TemplateEditorPage() {
             {/* See More Button Settings */}
             <input type="hidden" name="seeMoreButtonStyle" value={styling.seeMoreButtonStyle || "arrow"} />
             <input type="hidden" name="seeMoreButtonText" value={styling.seeMoreButtonText || "See More"} />
+            <input 
+              type="hidden" 
+              name="seeLessButtonStyle" 
+              value={styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow"}
+              key={`seeLessButtonStyle-${styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow"}`}
+            />
+            <input 
+              type="hidden" 
+              name="seeLessButtonText" 
+              value={styling.seeLessButtonText || "See Less"}
+              key={`seeLessButtonText-${styling.seeLessButtonText || "See Less"}`}
+            />
             <input type="hidden" name="seeMoreButtonBorderEnabled" value={styling.seeMoreButtonBorderEnabled ? "true" : "false"} />
             <input type="hidden" name="seeMoreButtonBorderWidth" value={styling.seeMoreButtonBorderWidth || "1px"} />
             <input type="hidden" name="seeMoreButtonBorderStyle" value={styling.seeMoreButtonBorderStyle || "solid"} />
@@ -3688,6 +3838,136 @@ export default function TemplateEditorPage() {
                         }));
                       }}
                       placeholder="See More, Vezi mai mult, Extinde lista..."
+                    />
+                  )}
+                  
+                  {/* Show Less Button Settings */}
+                  <s-heading level="3" style={{ marginTop: "16px", marginBottom: "8px" }}>Show Less Button Settings</s-heading>
+                  
+                  <s-switch
+                    id="see-less-hide-from-pc-switch"
+                    name="seeLessHideFromPC"
+                    checked={seeLessHideFromPC}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const newValue = e.target.checked;
+                      // Dacă activezi hideFromPC, dezactivează hideFromMobile (mutual exclusiv)
+                      if (newValue) {
+                        setSeeLessHideFromMobile(false);
+                      }
+                      setSeeLessHideFromPC(newValue);
+                      // Actualizează imediat hidden input-ul și declanșează change pentru Save Bar
+                      setTimeout(() => {
+                        const input = document.querySelector('input[name="seeLessHideFromPC"]');
+                        if (input) {
+                          input.value = newValue ? "true" : "false";
+                          input.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        const mobileInput = document.querySelector('input[name="seeLessHideFromMobile"]');
+                        if (mobileInput) {
+                          mobileInput.value = newValue ? "false" : mobileInput.value;
+                          mobileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        triggerFormChanges();
+                      }, 0);
+                    }}
+                    value={seeLessHideFromPC ? "true" : "false"}
+                    label="Show see less button just on mobile"
+                  />
+                  <s-switch
+                    id="see-less-hide-from-mobile-switch"
+                    name="seeLessHideFromMobile"
+                    checked={seeLessHideFromMobile}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const newValue = e.target.checked;
+                      // Dacă activezi hideFromMobile, dezactivează hideFromPC (mutual exclusiv)
+                      if (newValue) {
+                        setSeeLessHideFromPC(false);
+                      }
+                      setSeeLessHideFromMobile(newValue);
+                      // Actualizează imediat hidden input-ul și declanșează change pentru Save Bar
+                      setTimeout(() => {
+                        const input = document.querySelector('input[name="seeLessHideFromMobile"]');
+                        if (input) {
+                          input.value = newValue ? "true" : "false";
+                          input.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        const pcInput = document.querySelector('input[name="seeLessHideFromPC"]');
+                        if (pcInput) {
+                          pcInput.value = newValue ? "false" : pcInput.value;
+                          pcInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        triggerFormChanges();
+                      }, 0);
+                    }}
+                    value={seeLessHideFromMobile ? "true" : "false"}
+                    label="Show see less button just on PC"
+                  />
+                  
+                  {/* Show Less Button Style - uses same style as See More */}
+                  <s-select
+                    name="seeLessButtonStyle"
+                    label="Show Less Button Style"
+                    value={styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow"}
+                    onInput={(e) => {
+                      const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                      if (value !== undefined) {
+                        setStyling((prev) => ({ ...prev, seeLessButtonStyle: value }));
+                        setTimeout(() => {
+                          const input = document.querySelector('input[name="seeLessButtonStyle"]');
+                          if (input) {
+                            input.value = value;
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                          }
+                          triggerFormChanges();
+                        }, 0);
+                      }
+                    }}
+                    onChange={(e) => {
+                      const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                      if (value !== undefined) {
+                        setStyling((prev) => ({ ...prev, seeLessButtonStyle: value }));
+                        setTimeout(() => {
+                          const input = document.querySelector('input[name="seeLessButtonStyle"]');
+                          if (input) {
+                            input.value = value;
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                          }
+                          triggerFormChanges();
+                        }, 0);
+                      }
+                    }}
+                  >
+                    <s-option value="arrow">Arrow</s-option>
+                    <s-option value="text">Text</s-option>
+                    <s-option value="arrow+text">Arrow + Text</s-option>
+                  </s-select>
+                  
+                  {/* Show Less Button Text - se afișează doar dacă style este "text" sau "arrow+text" */}
+                  {((styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow") === "text" || (styling.seeLessButtonStyle || styling.seeMoreButtonStyle || "arrow") === "arrow+text") && (
+                    <s-text-field
+                      label="Button Text"
+                      name="seeLessButtonText"
+                      value={styling.seeLessButtonText || "See Less"}
+                      onChange={(e) => {
+                        const value = e.currentTarget?.value || e.target?.value || "";
+                        setStyling((prev) => ({
+                          ...prev,
+                          seeLessButtonText: value,
+                        }));
+                        setTimeout(() => {
+                          const input = document.querySelector('input[name="seeLessButtonText"]');
+                          if (input) {
+                            input.value = value;
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                          }
+                          triggerFormChanges();
+                        }, 0);
+                      }}
+                      placeholder="See Less, Vezi mai putin, Restrange lista..."
                     />
                   )}
                 </s-stack>
