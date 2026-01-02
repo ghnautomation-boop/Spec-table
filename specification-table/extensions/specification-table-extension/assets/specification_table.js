@@ -375,79 +375,154 @@ function setupVariantChangeListener(container, template) {
   });
 }
 
-// Funcție pentru a randa template-ul
-function renderTemplate(container, template) {
-  const styling = template.styling || {};
-  // Folosește columnRatio din styling, fallback la firstColumnWidth din dataset, apoi default 40
-  const columnRatio = styling.columnRatio || container.dataset.firstColumnWidth || '40';
-  const escapedTemplateId = escapeHtml(template.id);
-  
-  // Debug: verifică dacă seeMoreButtonText există în styling
-  if (!styling.seeMoreButtonText) {
-    console.warn('[renderTemplate] seeMoreButtonText not found in styling. Available keys:', Object.keys(styling));
-    console.warn('[renderTemplate] Full styling object:', JSON.stringify(styling, null, 2));
+// Helper function pentru a obține styling-ul pentru un device specific
+function getDeviceStyling(styling, device) {
+  // Dacă styling-ul are structura nouă (mobile, tablet, desktop)
+  if (styling && (styling.mobile || styling.tablet || styling.desktop)) {
+    return styling[device] || styling.desktop || {};
   }
+  // Backward compatibility: dacă nu are structura nouă, folosește styling-ul direct
+  return styling || {};
+}
 
-  // Construiește CSS variables pentru stilurile dinamice
-  let cssVars = '--dc-bg-color: ' + (styling.backgroundColor || '#ffffff') + '; ';
-  const specTextColor = styling.specificationTextColor || styling.textColor || '#000000';
-  const valueTextColor = styling.valueTextColor || styling.textColor || '#000000';
+// Funcție pentru a construi CSS variables pentru un device specific
+function buildCSSVarsForDevice(deviceStyling, columnRatio) {
+  let cssVars = '--dc-bg-color: ' + (deviceStyling.backgroundColor || '#ffffff') + '; ';
+  const specTextColor = deviceStyling.specificationTextColor || deviceStyling.textColor || '#000000';
+  const valueTextColor = deviceStyling.valueTextColor || deviceStyling.textColor || '#000000';
   cssVars += '--dc-specification-text-color: ' + specTextColor + '; ';
   cssVars += '--dc-value-text-color: ' + valueTextColor + '; ';
-  cssVars += '--dc-heading-color: ' + (styling.headingColor || '#000000') + '; ';
-  cssVars += '--dc-heading-font-size: ' + (styling.headingFontSize || '18px') + '; ';
-  cssVars += '--dc-heading-font-weight: ' + (styling.headingFontWeight || 'bold') + '; ';
-  cssVars += '--dc-heading-font-family: ' + (styling.headingFontFamily || 'inherit') + '; ';
-  cssVars += '--dc-text-font-size: ' + (styling.textFontSize || '14px') + '; ';
-  cssVars += '--dc-text-font-family: ' + (styling.textFontFamily || 'inherit') + '; ';
-  cssVars += '--dc-text-transform: ' + (styling.textTransform || 'none') + '; ';
-  cssVars += '--dc-border-radius: ' + (styling.borderRadius || '0px') + '; ';
-  cssVars += '--dc-padding: ' + (styling.padding || '20px') + '; ';
+  cssVars += '--dc-heading-color: ' + (deviceStyling.headingColor || '#000000') + '; ';
+  cssVars += '--dc-heading-font-size: ' + (deviceStyling.headingFontSize || '18px') + '; ';
+  cssVars += '--dc-heading-font-weight: ' + (deviceStyling.headingFontWeight || 'bold') + '; ';
+  cssVars += '--dc-heading-font-family: ' + (deviceStyling.headingFontFamily || 'inherit') + '; ';
+  cssVars += '--dc-text-font-size: ' + (deviceStyling.textFontSize || '14px') + '; ';
+  cssVars += '--dc-text-font-family: ' + (deviceStyling.textFontFamily || 'inherit') + '; ';
+  cssVars += '--dc-text-transform: ' + (deviceStyling.textTransform || 'none') + '; ';
+  cssVars += '--dc-border-radius: ' + (deviceStyling.borderRadius || '0px') + '; ';
+  cssVars += '--dc-padding: ' + (deviceStyling.padding || '20px') + '; ';
   cssVars += '--dc-first-column-width: ' + columnRatio + '%; ';
-  cssVars += '--dc-column-ratio: ' + columnRatio + '%; '; // Duplicate pentru claritate
-  // New styling features
-  cssVars += '--dc-table-width: ' + (styling.tableWidth || '100') + '%; ';
-  cssVars += '--dc-table-margin-top: ' + (styling.tableMarginTop || '0') + 'px; ';
-  cssVars += '--dc-table-margin-bottom: ' + (styling.tableMarginBottom || '0') + 'px; ';
-  cssVars += '--dc-header-text-align: ' + (styling.headerTextAlign || 'left') + '; ';
-  cssVars += '--dc-spec-spacing: ' + (styling.specSpacing || '10') + 'px; ';
-  if (styling.headerBottomBorderEnabled) {
-    cssVars += '--dc-header-bottom-border: ' + (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000') + '; ';
+  cssVars += '--dc-column-ratio: ' + columnRatio + '%; ';
+  cssVars += '--dc-table-width: ' + (deviceStyling.tableWidth || '100') + '%; ';
+  cssVars += '--dc-table-margin-top: ' + (deviceStyling.tableMarginTop || '0') + 'px; ';
+  cssVars += '--dc-table-margin-bottom: ' + (deviceStyling.tableMarginBottom || '0') + 'px; ';
+  cssVars += '--dc-header-text-align: ' + (deviceStyling.headerTextAlign || 'left') + '; ';
+  cssVars += '--dc-spec-spacing: ' + (deviceStyling.specSpacing || '10') + 'px; ';
+  if (deviceStyling.headerBottomBorderEnabled) {
+    cssVars += '--dc-header-bottom-border: ' + (deviceStyling.headerBottomBorderWidth || '1px') + ' ' + (deviceStyling.headerBottomBorderStyle || 'solid') + ' ' + (deviceStyling.headerBottomBorderColor || '#000000') + '; ';
   } else {
     cssVars += '--dc-header-bottom-border: none; ';
   }
-  if (styling.sectionBorderEnabled) {
-    cssVars += '--dc-border: ' + (styling.sectionBorderWidth || '1px') + ' ' + (styling.sectionBorderStyle || 'solid') + ' ' + (styling.sectionBorderColor || '#000000') + '; ';
+  if (deviceStyling.sectionBorderEnabled) {
+    // Folosește borderWidth dacă există, altfel sectionBorderWidth, altfel default '1px'
+    const borderWidth = deviceStyling.borderWidth || deviceStyling.sectionBorderWidth || '1px';
+    cssVars += '--dc-border: ' + borderWidth + ' ' + (deviceStyling.sectionBorderStyle || 'solid') + ' ' + (deviceStyling.sectionBorderColor || '#000000') + '; ';
   } else {
     cssVars += '--dc-border: none; ';
   }
-  cssVars += '--dc-row-border: ' + (styling.rowBorderEnabled ? (styling.rowBorderWidth || '1px') + ' ' + (styling.rowBorderStyle || 'solid') + ' ' + (styling.rowBorderColor || '#000000') : 'none') + '; ';
-  cssVars += '--dc-odd-row-bg: ' + (styling.oddRowBackgroundColor || '#f0f0f0') + '; ';
-  cssVars += '--dc-even-row-bg: ' + (styling.evenRowBackgroundColor || '#ffffff') + '; ';
-  cssVars += '--dc-odd-column-bg: ' + (styling.oddColumnBackgroundColor || '#ff0000') + '; ';
-  cssVars += '--dc-even-column-bg: ' + (styling.evenColumnBackgroundColor || '#00ff00') + '; ';
-  cssVars += '--dc-td-bg: ' + (styling.tdBackgroundColor || 'transparent') + '; ';
-  cssVars += '--dc-row-bg-enabled: ' + (styling.rowBackgroundEnabled ? '1' : '0') + '; ';
-  cssVars += '--dc-column-bg-enabled: ' + (styling.columnBackgroundEnabled ? '1' : '0') + '; ';
-  cssVars += '--dc-see-more-button-color: ' + (styling.seeMoreButtonColor || '#000000') + '; ';
-  cssVars += '--dc-see-more-button-background: ' + (styling.seeMoreButtonBackground || 'transparent') + '; ';
-  cssVars += '--dc-see-more-button-font-size: ' + (styling.seeMoreButtonFontSize || '14px') + '; ';
-  cssVars += '--dc-see-more-button-font-family: ' + (styling.seeMoreButtonFontFamily || 'Arial') + '; ';
-  cssVars += '--dc-see-more-button-padding: ' + (styling.seeMoreButtonPadding || '8px') + '; ';
-  cssVars += '--dc-see-more-button-border-radius: ' + (styling.seeMoreButtonBorderRadius || '0px') + '; ';
-  if (styling.seeMoreButtonBorderEnabled) {
-    cssVars += '--dc-see-more-button-border: ' + (styling.seeMoreButtonBorderWidth || '1px') + ' ' + (styling.seeMoreButtonBorderStyle || 'solid') + ' ' + (styling.seeMoreButtonBorderColor || '#000000') + '; ';
+  cssVars += '--dc-row-border: ' + (deviceStyling.rowBorderEnabled ? (deviceStyling.rowBorderWidth || '1px') + ' ' + (deviceStyling.rowBorderStyle || 'solid') + ' ' + (deviceStyling.rowBorderColor || '#000000') : 'none') + '; ';
+  cssVars += '--dc-odd-row-bg: ' + (deviceStyling.oddRowBackgroundColor || '#f0f0f0') + '; ';
+  cssVars += '--dc-even-row-bg: ' + (deviceStyling.evenRowBackgroundColor || '#ffffff') + '; ';
+  cssVars += '--dc-odd-column-bg: ' + (deviceStyling.oddColumnBackgroundColor || '#ff0000') + '; ';
+  cssVars += '--dc-even-column-bg: ' + (deviceStyling.evenColumnBackgroundColor || '#00ff00') + '; ';
+  cssVars += '--dc-td-bg: ' + (deviceStyling.tdBackgroundColor || 'transparent') + '; ';
+  cssVars += '--dc-row-bg-enabled: ' + (deviceStyling.rowBackgroundEnabled ? '1' : '0') + '; ';
+  cssVars += '--dc-column-bg-enabled: ' + (deviceStyling.columnBackgroundEnabled ? '1' : '0') + '; ';
+  cssVars += '--dc-see-more-button-color: ' + (deviceStyling.seeMoreButtonColor || '#000000') + '; ';
+  cssVars += '--dc-see-more-button-background: ' + (deviceStyling.seeMoreButtonBackground || 'transparent') + '; ';
+  cssVars += '--dc-see-more-button-font-size: ' + (deviceStyling.seeMoreButtonFontSize || '14px') + '; ';
+  cssVars += '--dc-see-more-button-font-family: ' + (deviceStyling.seeMoreButtonFontFamily || 'Arial') + '; ';
+  cssVars += '--dc-see-more-button-padding: ' + (deviceStyling.seeMoreButtonPadding || '8px') + '; ';
+  cssVars += '--dc-see-more-button-border-radius: ' + (deviceStyling.seeMoreButtonBorderRadius || '0px') + '; ';
+  if (deviceStyling.seeMoreButtonBorderEnabled) {
+    cssVars += '--dc-see-more-button-border: ' + (deviceStyling.seeMoreButtonBorderWidth || '1px') + ' ' + (deviceStyling.seeMoreButtonBorderStyle || 'solid') + ' ' + (deviceStyling.seeMoreButtonBorderColor || '#000000') + '; ';
   } else {
     cssVars += '--dc-see-more-button-border: none; ';
   }
+  return cssVars;
+}
 
-  // Aplică stilurile pentru table width și margins
-  const tableWidthStyle = 'width: ' + (styling.tableWidth || '100') + '%; ';
-  const tableMarginTopStyle = 'margin-top: ' + (styling.tableMarginTop || '0') + 'px; ';
-  const tableMarginBottomStyle = 'margin-bottom: ' + (styling.tableMarginBottom || '0') + 'px; ';
-  const containerInlineStyle = tableWidthStyle + tableMarginTopStyle + tableMarginBottomStyle;
+// Funcție pentru a randa template-ul
+function renderTemplate(container, template) {
+  let styling = template.styling || {};
   
-  let html = '<div id="specification-table-' + escapedTemplateId + '" class="dc_container" style="' + cssVars + containerInlineStyle + '">';
+  // Parse styling dacă este string
+  if (typeof styling === 'string') {
+    try {
+      styling = JSON.parse(styling);
+    } catch (e) {
+      console.error('[renderTemplate] Error parsing styling:', e);
+      styling = {};
+    }
+  }
+  
+  // Verifică dacă are structura nouă (mobile, tablet, desktop)
+  const hasDeviceSpecificStyling = styling && (styling.mobile || styling.tablet || styling.desktop);
+  
+  // Obține styling-ul pentru fiecare device
+  const mobileStyling = hasDeviceSpecificStyling ? getDeviceStyling(styling, 'mobile') : styling;
+  const tabletStyling = hasDeviceSpecificStyling ? getDeviceStyling(styling, 'tablet') : styling;
+  const desktopStyling = hasDeviceSpecificStyling ? getDeviceStyling(styling, 'desktop') : styling;
+  
+  // Folosește columnRatio din styling, fallback la firstColumnWidth din dataset, apoi default 40
+  // Pentru backward compatibility, folosim desktop styling pentru columnRatio
+  const columnRatio = desktopStyling.columnRatio || styling.columnRatio || container.dataset.firstColumnWidth || '40';
+  const escapedTemplateId = escapeHtml(template.id);
+  
+  // Debug: verifică dacă seeMoreButtonText există în styling
+  if (!desktopStyling.seeMoreButtonText && !styling.seeMoreButtonText) {
+    console.warn('[renderTemplate] seeMoreButtonText not found in styling. Available keys:', Object.keys(styling));
+  }
+
+  // Generează media queries pentru device-specific styling
+  let mediaQueriesCSS = '';
+  let cssVars = '';
+  let containerInlineStyle = '';
+  
+  if (hasDeviceSpecificStyling) {
+    // Debug: log pentru a verifica structura
+    console.log('[renderTemplate] Device-specific styling detected:', {
+      hasMobile: !!styling.mobile,
+      hasTablet: !!styling.tablet,
+      hasDesktop: !!styling.desktop,
+      mobileBg: mobileStyling.backgroundColor,
+      tabletBg: tabletStyling.backgroundColor,
+      desktopBg: desktopStyling.backgroundColor
+    });
+    
+    // Când avem device-specific styling, NU setăm width/margin în inline style
+    // Le setăm DOAR în media queries pentru a permite suprascrierea corectă
+    // Nu setăm nimic în inline style pentru width/margin când avem device-specific styling
+    containerInlineStyle = ''; // Nu setăm width/margin în inline style
+    
+    // Mobile styles (< 768px) - setăm toate CSS variables-urile + width/margin
+    const mobileVars = buildCSSVarsForDevice(mobileStyling, mobileStyling.columnRatio || columnRatio);
+    mediaQueriesCSS += '@media (max-width: 767px) { #specification-table-' + escapedTemplateId + ' { ' + mobileVars + 'width: ' + (mobileStyling.tableWidth || '100') + '% !important; margin-top: ' + (mobileStyling.tableMarginTop || '0') + 'px !important; margin-bottom: ' + (mobileStyling.tableMarginBottom || '0') + 'px !important; } } ';
+    
+    // Tablet styles (768px - 1023px) - setăm toate CSS variables-urile + width/margin
+    const tabletVars = buildCSSVarsForDevice(tabletStyling, tabletStyling.columnRatio || columnRatio);
+    mediaQueriesCSS += '@media (min-width: 768px) and (max-width: 1023px) { #specification-table-' + escapedTemplateId + ' { ' + tabletVars + 'width: ' + (tabletStyling.tableWidth || '100') + '% !important; margin-top: ' + (tabletStyling.tableMarginTop || '0') + 'px !important; margin-bottom: ' + (tabletStyling.tableMarginBottom || '0') + 'px !important; } } ';
+    
+    // Desktop styles (>= 1024px) - setăm toate CSS variables-urile + width/margin
+    const desktopVars = buildCSSVarsForDevice(desktopStyling, desktopStyling.columnRatio || columnRatio);
+    mediaQueriesCSS += '@media (min-width: 1024px) { #specification-table-' + escapedTemplateId + ' { ' + desktopVars + 'width: ' + (desktopStyling.tableWidth || '100') + '% !important; margin-top: ' + (desktopStyling.tableMarginTop || '0') + 'px !important; margin-bottom: ' + (desktopStyling.tableMarginBottom || '0') + 'px !important; } } ';
+  } else {
+    // Backward compatibility: folosim styling-ul direct în inline style
+    console.log('[renderTemplate] No device-specific styling, using backward compatibility');
+    cssVars = buildCSSVarsForDevice(styling, columnRatio);
+    containerInlineStyle = 'width: ' + (styling.tableWidth || '100') + '%; margin-top: ' + (styling.tableMarginTop || '0') + 'px; margin-bottom: ' + (styling.tableMarginBottom || '0') + 'px; ';
+  }
+  
+  // Adaugă style tag cu media queries dacă există
+  // IMPORTANT: Style tag-ul trebuie să fie înainte de div pentru a funcționa corect
+  let html = '';
+  if (mediaQueriesCSS) {
+    html += '<style id="spec-table-styles-' + escapedTemplateId + '">' + mediaQueriesCSS + '</style>';
+  }
+  
+  // Când avem device-specific styling, nu setăm CSS variables în inline style
+  // Le setăm doar în media queries
+  html += '<div id="specification-table-' + escapedTemplateId + '" class="dc_container" style="' + (hasDeviceSpecificStyling ? containerInlineStyle : cssVars + containerInlineStyle) + '">';
 
   // Adaugă header-ul cu numele tabelului și butonul de collapsible (dacă este activat)
   const isCollapsible = template.isCollapsible === true || template.isCollapsible === 'true';
@@ -1074,11 +1149,10 @@ function renderSection(sectionData, styling, columnRatio, escapedTemplateId, sec
       html += renderSectionTable(sectionData, styling, columnRatio, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
       html += '</div>';
     } else {
-      // Aplică stilurile pentru header text align și bottom border
-      const headerTextAlignStyle = 'text-align: ' + (styling.headerTextAlign || 'left') + '; ';
-      const headerBottomBorderStyle = styling.headerBottomBorderEnabled 
-        ? 'border-bottom: ' + (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000') + '; '
-        : '';
+      // Folosește CSS variables pentru a permite media queries să suprascrie stilurile
+      // CSS variables sunt setate în media queries pentru fiecare device
+      const headerTextAlignStyle = 'text-align: var(--dc-header-text-align, left); ';
+      const headerBottomBorderStyle = 'border-bottom: var(--dc-header-bottom-border, none); ';
       const headingInlineStyle = headerTextAlignStyle + headerBottomBorderStyle;
       
       html += '<h3 class="dc_heading" style="' + headingInlineStyle + '">';
@@ -1099,11 +1173,9 @@ function renderSection(sectionData, styling, columnRatio, escapedTemplateId, sec
       html += renderSectionTable(sectionData, styling, columnRatio, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
       html += '</div>';
     } else {
-      // Aplică stilurile pentru header text align și bottom border
-      const headerTextAlignStyle = 'text-align: ' + (styling.headerTextAlign || 'left') + '; ';
-      const headerBottomBorderStyle = styling.headerBottomBorderEnabled 
-        ? 'border-bottom: ' + (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000') + '; '
-        : '';
+      // Folosește CSS variables pentru a permite media queries să suprascrie stilurile
+      const headerTextAlignStyle = 'text-align: var(--dc-header-text-align, left); ';
+      const headerBottomBorderStyle = 'border-bottom: var(--dc-header-bottom-border, none); ';
       const headingInlineStyle = headerTextAlignStyle + headerBottomBorderStyle;
       
       html += '<h3 class="dc_heading" style="' + headingInlineStyle + '">';
@@ -1226,18 +1298,46 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     const globalIndex = allMetafieldsWithSection.indexOf(metafield);
     const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
 
+    // Folosește CSS variables pentru background colors (sunt setate în media queries)
+    // CSS variables pentru background sunt deja setate pe container prin media queries
+    // Folosim CSS variables pentru a permite device-specific styling
     let specBackgroundStyle = '';
     let valueBackgroundStyle = '';
-    if (styling.columnBackgroundEnabled) {
-      specBackgroundStyle = 'background-color: ' + (styling.oddColumnBackgroundColor || '#ff0000') + '; ';
-      valueBackgroundStyle = 'background-color: ' + (styling.evenColumnBackgroundColor || '#00ff00') + '; ';
-    } else if (styling.rowBackgroundEnabled) {
-      const rowBackground = isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff');
-      specBackgroundStyle = 'background-color: ' + rowBackground + '; ';
-      valueBackgroundStyle = 'background-color: ' + rowBackground + '; ';
-    } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
-      specBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
-      valueBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+    
+    // Determină dacă avem device-specific styling
+    const hasDeviceSpecificStyling = styling && (styling.mobile || styling.tablet || styling.desktop);
+    
+    if (hasDeviceSpecificStyling) {
+      // Device-specific styling: folosim CSS variables pentru background colors
+      // CSS variables-urile sunt deja setate în media queries pe container
+      // Folosim CSS variables pentru a permite device-specific styling
+      // Pentru row/column backgrounds, folosim CSS variables-urile setate în media queries
+      if (styling.columnBackgroundEnabled || (styling.desktop && styling.desktop.columnBackgroundEnabled)) {
+        // Column backgrounds: folosim CSS variables
+        specBackgroundStyle = 'background-color: var(--dc-odd-column-bg, transparent); ';
+        valueBackgroundStyle = 'background-color: var(--dc-even-column-bg, transparent); ';
+      } else if (styling.rowBackgroundEnabled || (styling.desktop && styling.desktop.rowBackgroundEnabled)) {
+        // Row backgrounds: folosim CSS variables bazat pe odd/even
+        specBackgroundStyle = 'background-color: var(--dc-' + (isOdd ? 'odd' : 'even') + '-row-bg, transparent); ';
+        valueBackgroundStyle = 'background-color: var(--dc-' + (isOdd ? 'odd' : 'even') + '-row-bg, transparent); ';
+      } else {
+        // TD background: folosim CSS variable
+        specBackgroundStyle = 'background-color: var(--dc-td-bg, transparent); ';
+        valueBackgroundStyle = 'background-color: var(--dc-td-bg, transparent); ';
+      }
+    } else {
+      // Backward compatibility: folosim logica veche cu valori directe
+      if (styling.columnBackgroundEnabled) {
+        specBackgroundStyle = 'background-color: ' + (styling.oddColumnBackgroundColor || '#ff0000') + '; ';
+        valueBackgroundStyle = 'background-color: ' + (styling.evenColumnBackgroundColor || '#00ff00') + '; ';
+      } else if (styling.rowBackgroundEnabled) {
+        const rowBackground = isOdd ? (styling.oddRowBackgroundColor || '#f0f0f0') : (styling.evenRowBackgroundColor || '#ffffff');
+        specBackgroundStyle = 'background-color: ' + rowBackground + '; ';
+        valueBackgroundStyle = 'background-color: ' + rowBackground + '; ';
+      } else if (styling.tdBackgroundColor && styling.tdBackgroundColor !== 'transparent') {
+        specBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+        valueBackgroundStyle = 'background-color: ' + styling.tdBackgroundColor + '; ';
+      }
     }
 
     const hideFromPC = metafield.hideFromPC === true || metafield.hideFromPC === 'true';
@@ -1254,8 +1354,9 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
       rowClasses += ' dc_hidden';
     }
 
-    // Aplică specSpacing (row padding) - se aplică pe td, nu pe tr
-    const specSpacingStyle = 'padding-top: ' + (styling.specSpacing || '10') + 'px; padding-bottom: ' + (styling.specSpacing || '10') + 'px; ';
+    // Aplică specSpacing (row padding) - folosește CSS variable pentru device-specific styling
+    // CSS variable este deja setat pe container prin media queries
+    const specSpacingStyle = 'padding-top: var(--dc-spec-spacing, 10px); padding-bottom: var(--dc-spec-spacing, 10px); ';
 
     rowsHtml += '<tr class="' + rowClasses + '">';
     rowsHtml += '<td class="dc_table_td_label" style="' + specSpacingStyle + (specBackgroundStyle ? ' ' + specBackgroundStyle : '') + '">';

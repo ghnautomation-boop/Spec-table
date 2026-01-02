@@ -242,8 +242,28 @@ export const action = async ({ request, params }) => {
     return { success: false, error: "Template name cannot be empty" };
   }
 
-  // Parse styling
-  const styling = {
+  // Parse styling - verifică dacă există styling JSON (noua structură cu mobile/tablet/desktop)
+  const stylingJson = formData.get("styling");
+  let stylingData;
+  
+  if (stylingJson) {
+    try {
+      stylingData = JSON.parse(stylingJson);
+      // Asigură-te că are structura corectă (mobile, tablet, desktop)
+      if (!stylingData.mobile || !stylingData.tablet || !stylingData.desktop) {
+        // Dacă nu are structura corectă, migrează
+        stylingData = migrateStylingToDeviceSpecific(stylingData);
+      }
+    } catch (e) {
+      console.error("Error parsing styling JSON:", e);
+      // Fallback la logica veche
+      stylingData = null;
+    }
+  }
+  
+  // Dacă nu există styling JSON sau a eșuat parsing-ul, folosește logica veche (backward compatibility)
+  if (!stylingData) {
+    const oldStyling = {
     backgroundColor: formData.get("backgroundColor") || "#ffffff",
     specificationTextColor: formData.get("specificationTextColor") || formData.get("textColor") || "#000000", // Backward compatibility
     valueTextColor: formData.get("valueTextColor") || formData.get("textColor") || "#000000", // Backward compatibility
@@ -312,7 +332,13 @@ export const action = async ({ request, params }) => {
     headerBottomBorderStyle: formData.get("headerBottomBorderStyle") || "solid",
     specSpacing: formData.get("specSpacing") || "10",
     columnRatio: formData.get("columnRatio") || "40",
-  };
+    };
+    // Migrează la noua structură
+    stylingData = migrateStylingToDeviceSpecific(oldStyling);
+  }
+  
+  // Folosește stylingData ca styling pentru restul codului
+  const styling = stylingData;
 
   // Parse sections
   const sections = [];
@@ -485,6 +511,109 @@ export const action = async ({ request, params }) => {
   }
 };
 
+// Helper function to migrate old styling structure to new device-specific structure
+function migrateStylingToDeviceSpecific(oldStyling) {
+  // Dacă deja are structura nouă (mobile, tablet, desktop), returnează direct
+  if (oldStyling && (oldStyling.mobile || oldStyling.tablet || oldStyling.desktop)) {
+    return oldStyling;
+  }
+
+  // Funcție helper pentru a obține default styling
+  const getDefaultStyling = () => ({
+    backgroundColor: "#ffffff",
+    specificationTextColor: "#000000",
+    valueTextColor: "#000000",
+    headingColor: "#000000",
+    headingFontSize: "18px",
+    headingFontWeight: "bold",
+    headingFontFamily: "Arial",
+    textFontSize: "14px",
+    textFontFamily: "Arial",
+    borderWidth: "0px",
+    borderRadius: "0px",
+    padding: "10px",
+    sectionBorderEnabled: false,
+    sectionBorderColor: "#000000",
+    sectionBorderStyle: "solid",
+    rowBorderEnabled: false,
+    rowBorderColor: "#000000",
+    rowBorderStyle: "solid",
+    rowBorderWidth: "1px",
+    tdBackgroundColor: "transparent",
+    rowBackgroundEnabled: false,
+    oddRowBackgroundColor: "#f0f0f0",
+    evenRowBackgroundColor: "#ffffff",
+    columnBackgroundEnabled: false,
+    oddColumnBackgroundColor: "#ff0000",
+    evenColumnBackgroundColor: "#00ff00",
+    textTransform: "none",
+    seeMoreButtonStyle: "arrow",
+    seeMoreButtonText: "See More",
+    seeMoreButtonBorderEnabled: false,
+    seeMoreButtonBorderWidth: "1px",
+    seeMoreButtonBorderStyle: "solid",
+    seeMoreButtonBorderColor: "#000000",
+    seeMoreButtonColor: "#000000",
+    seeMoreButtonBackground: "transparent",
+    seeMoreButtonFontSize: "14px",
+    seeMoreButtonFontStyle: "normal",
+    seeMoreButtonFontFamily: "Arial",
+    seeMoreButtonBorderRadius: "0px",
+    seeMoreButtonPadding: "8px",
+    tableWidth: "100",
+    tableMarginTop: "0",
+    tableMarginBottom: "0",
+    headerTextAlign: "left",
+    headerBottomBorderEnabled: false,
+    headerBottomBorderColor: "#000000",
+    headerBottomBorderWidth: "1px",
+    headerBottomBorderStyle: "solid",
+    specSpacing: "10",
+    columnRatio: "40",
+  });
+
+  // Dacă nu există oldStyling, returnează default pentru toate device-urile
+  if (!oldStyling) {
+    const defaultStyling = getDefaultStyling();
+    return {
+      mobile: { ...defaultStyling },
+      tablet: { ...defaultStyling },
+      desktop: { ...defaultStyling },
+    };
+  }
+
+  // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
+  if (oldStyling.textColor && !oldStyling.specificationTextColor) {
+    oldStyling.specificationTextColor = oldStyling.textColor;
+  }
+  if (oldStyling.textColor && !oldStyling.valueTextColor) {
+    oldStyling.valueTextColor = oldStyling.textColor;
+  }
+
+  // Adaugă default-uri pentru câmpurile lipsă
+  const defaultStyling = getDefaultStyling();
+  const migratedStyling = { ...defaultStyling, ...oldStyling };
+
+  // Adaugă default-uri pentru noile câmpuri dacă nu există
+  if (!migratedStyling.tableWidth) migratedStyling.tableWidth = "100";
+  if (!migratedStyling.tableMarginTop) migratedStyling.tableMarginTop = "0";
+  if (!migratedStyling.tableMarginBottom) migratedStyling.tableMarginBottom = "0";
+  if (!migratedStyling.headerTextAlign) migratedStyling.headerTextAlign = "left";
+  if (migratedStyling.headerBottomBorderEnabled === undefined) migratedStyling.headerBottomBorderEnabled = false;
+  if (!migratedStyling.headerBottomBorderColor) migratedStyling.headerBottomBorderColor = "#000000";
+  if (!migratedStyling.headerBottomBorderWidth) migratedStyling.headerBottomBorderWidth = "1px";
+  if (!migratedStyling.headerBottomBorderStyle) migratedStyling.headerBottomBorderStyle = "solid";
+  if (!migratedStyling.specSpacing) migratedStyling.specSpacing = "10";
+  if (!migratedStyling.columnRatio) migratedStyling.columnRatio = "40";
+
+  // Returnează structura nouă cu același styling pentru toate device-urile
+  return {
+    mobile: { ...migratedStyling },
+    tablet: { ...migratedStyling },
+    desktop: { ...migratedStyling },
+  };
+}
+
 export default function TemplateEditorPage() {
   const { template, metafieldDefinitions, isNew } = useLoaderData();
   const fetcher = useFetcher();
@@ -641,56 +770,7 @@ export default function TemplateEditorPage() {
     isCollapsible: template?.isCollapsible || false,
     collapsibleOnPC: template?.collapsibleOnPC || false,
     collapsibleOnMobile: template?.collapsibleOnMobile || false,
-    styling: template?.styling ? (() => {
-      const parsed = JSON.parse(template.styling);
-      // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
-      if (parsed.textColor && !parsed.specificationTextColor) {
-        parsed.specificationTextColor = parsed.textColor;
-      }
-      if (parsed.textColor && !parsed.valueTextColor) {
-        parsed.valueTextColor = parsed.textColor;
-      }
-      // Backward compatibility: dacă există firstColumnWidth în dataset, folosim-l ca columnRatio
-      // (acest lucru se va face în specification_table.js, aici doar setăm default-uri)
-      // Adaugă default-uri pentru noile câmpuri dacă nu există
-      if (!parsed.tableWidth) parsed.tableWidth = "100";
-      if (!parsed.tableMarginTop) parsed.tableMarginTop = "0";
-      if (!parsed.tableMarginBottom) parsed.tableMarginBottom = "0";
-      if (!parsed.headerTextAlign) parsed.headerTextAlign = "left";
-      if (parsed.headerBottomBorderEnabled === undefined) parsed.headerBottomBorderEnabled = false;
-      if (!parsed.headerBottomBorderColor) parsed.headerBottomBorderColor = "#000000";
-      if (!parsed.headerBottomBorderWidth) parsed.headerBottomBorderWidth = "1px";
-      if (!parsed.headerBottomBorderStyle) parsed.headerBottomBorderStyle = "solid";
-      if (!parsed.specSpacing) parsed.specSpacing = "10";
-      if (!parsed.columnRatio) parsed.columnRatio = "40";
-      return parsed;
-    })() : {
-      backgroundColor: "#ffffff",
-      specificationTextColor: "#000000",
-      valueTextColor: "#000000",
-      headingColor: "#000000",
-      headingFontSize: "16px",
-      headingFontWeight: "bold",
-      headingFontFamily: "Arial",
-      textFontSize: "14px",
-      textFontFamily: "Arial",
-      borderWidth: "1px",
-      borderRadius: "0px",
-      padding: "10px",
-      sectionBorderEnabled: false,
-      sectionBorderWidth: "1px",
-      sectionBorderColor: "#000000",
-      sectionBorderStyle: "solid",
-      rowBorderEnabled: false,
-      rowBorderColor: "#000000",
-      rowBorderStyle: "solid",
-      rowBorderWidth: "1px",
-      tdBackgroundColor: "#ffffff",
-      rowBackgroundEnabled: false,
-      oddRowBackgroundColor: "#f5f5f5",
-      evenRowBackgroundColor: "#ffffff",
-      textTransform: "none",
-    }
+    styling: template?.styling ? migrateStylingToDeviceSpecific(JSON.parse(template.styling)) : migrateStylingToDeviceSpecific(null),
   });
 
 
@@ -781,149 +861,53 @@ export default function TemplateEditorPage() {
     }
   }, [splitViewPerSection, splitViewPerMetafield]);
 
+  // State pentru device-ul selectat (mobile, tablet, desktop)
+  const [selectedDevice, setSelectedDevice] = useState("desktop");
+
   const [styling, setStyling] = useState(
     template?.styling
-      ? (() => {
-          const parsed = JSON.parse(template.styling);
-          // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
-          if (parsed.textColor && !parsed.specificationTextColor) {
-            parsed.specificationTextColor = parsed.textColor;
-          }
-          if (parsed.textColor && !parsed.valueTextColor) {
-            parsed.valueTextColor = parsed.textColor;
-          }
-          // Adaugă default-uri pentru noile câmpuri dacă nu există
-          if (!parsed.tableWidth) parsed.tableWidth = "100";
-          if (!parsed.tableMarginTop) parsed.tableMarginTop = "0";
-          if (!parsed.tableMarginBottom) parsed.tableMarginBottom = "0";
-          if (!parsed.headerTextAlign) parsed.headerTextAlign = "left";
-          if (parsed.headerBottomBorderEnabled === undefined) parsed.headerBottomBorderEnabled = false;
-          if (!parsed.headerBottomBorderColor) parsed.headerBottomBorderColor = "#000000";
-          if (!parsed.headerBottomBorderWidth) parsed.headerBottomBorderWidth = "1px";
-          if (!parsed.headerBottomBorderStyle) parsed.headerBottomBorderStyle = "solid";
-          if (!parsed.specSpacing) parsed.specSpacing = "10";
-          if (!parsed.columnRatio) parsed.columnRatio = "40";
-          return parsed;
-        })()
-      : {
-          backgroundColor: "#ffffff",
-          specificationTextColor: "#000000",
-          valueTextColor: "#000000",
-          headingColor: "#000000",
-          headingFontSize: "18px",
-          headingFontWeight: "bold",
-          headingFontFamily: "Arial",
-          textFontSize: "14px",
-          textFontFamily: "Arial",
-          borderWidth: "0px",
-          borderRadius: "0px",
-          padding: "10px",
-          sectionBorderEnabled: false,
-          sectionBorderColor: "#000000",
-          sectionBorderStyle: "solid",
-          rowBorderEnabled: false,
-          rowBorderColor: "#000000",
-          rowBorderStyle: "solid",
-          rowBorderWidth: "1px",
-          tdBackgroundColor: "transparent",
-          rowBackgroundEnabled: false,
-          oddRowBackgroundColor: "#f0f0f0",
-          evenRowBackgroundColor: "#ffffff",
-          columnBackgroundEnabled: false,
-          oddColumnBackgroundColor: "#ff0000",
-          evenColumnBackgroundColor: "#00ff00",
-          textTransform: "none",
-          // See More Button Settings
-          seeMoreButtonStyle: "arrow",
-          seeMoreButtonText: "See More",
-          seeMoreButtonBorderEnabled: false,
-          seeMoreButtonBorderWidth: "1px",
-          seeMoreButtonBorderStyle: "solid",
-          seeMoreButtonBorderColor: "#000000",
-          seeMoreButtonColor: "#000000",
-          seeMoreButtonBackground: "transparent",
-          seeMoreButtonFontSize: "14px",
-          seeMoreButtonFontStyle: "normal",
-          seeMoreButtonFontFamily: "Arial",
-          seeMoreButtonBorderRadius: "0px",
-          seeMoreButtonPadding: "8px",
-          // New styling features
-          tableWidth: "100", // Table width in %
-          tableMarginTop: "0", // Table margin top in px
-          tableMarginBottom: "0", // Table margin bottom in px
-          headerTextAlign: "left", // Header text align: left, center, right
-          headerBottomBorderEnabled: false, // Header bottom border switch
-          headerBottomBorderColor: "#000000", // Header bottom border color
-          headerBottomBorderWidth: "1px", // Header bottom border width
-          headerBottomBorderStyle: "solid", // Header bottom border style
-          specSpacing: "10", // Row padding in px
-          columnRatio: "40", // Column ratio 10-90%, step 10 (replaces firstColumnWidth)
-        }
+      ? migrateStylingToDeviceSpecific(JSON.parse(template.styling))
+      : migrateStylingToDeviceSpecific(null)
   );
+
+  // Helper pentru a obține styling-ul pentru device-ul selectat
+  const getCurrentDeviceStyling = () => {
+    return styling[selectedDevice] || styling.desktop || {};
+  };
+
+  // Helper pentru a actualiza styling-ul pentru device-ul selectat
+  const updateCurrentDeviceStyling = (updates) => {
+    setStyling((prev) => ({
+      ...prev,
+      [selectedDevice]: {
+        ...prev[selectedDevice],
+        ...updates,
+      },
+    }));
+  };
 
   // Sincronizează state-ul când se încarcă template-ul
   useEffect(() => {
     if (template?.styling) {
-      const parsedStyling = JSON.parse(template.styling);
-      // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
-      if (parsedStyling.textColor && !parsedStyling.specificationTextColor) {
-        parsedStyling.specificationTextColor = parsedStyling.textColor;
-      }
-      if (parsedStyling.textColor && !parsedStyling.valueTextColor) {
-        parsedStyling.valueTextColor = parsedStyling.textColor;
-      }
-      // Backward compatibility: dacă nu există columnBackgroundEnabled, setează false
-      if (parsedStyling.columnBackgroundEnabled === undefined) {
-        parsedStyling.columnBackgroundEnabled = false;
-      }
-      if (!parsedStyling.oddColumnBackgroundColor) {
-        parsedStyling.oddColumnBackgroundColor = "#ff0000";
-      }
-      if (!parsedStyling.evenColumnBackgroundColor) {
-        parsedStyling.evenColumnBackgroundColor = "#00ff00";
-      }
-      // Backward compatibility: See More Button Settings
-      if (!parsedStyling.seeMoreButtonStyle) {
-        parsedStyling.seeMoreButtonStyle = "arrow";
-      }
-      if (!parsedStyling.seeMoreButtonText) {
-        parsedStyling.seeMoreButtonText = "See More";
-      }
-      if (parsedStyling.seeMoreButtonBorderEnabled === undefined) {
-        parsedStyling.seeMoreButtonBorderEnabled = false;
-      }
-      if (!parsedStyling.seeMoreButtonBorderWidth) {
-        parsedStyling.seeMoreButtonBorderWidth = "1px";
-      }
-      if (!parsedStyling.seeMoreButtonBorderStyle) {
-        parsedStyling.seeMoreButtonBorderStyle = "solid";
-      }
-      if (!parsedStyling.seeMoreButtonBorderColor) {
-        parsedStyling.seeMoreButtonBorderColor = "#000000";
-      }
-      if (!parsedStyling.seeMoreButtonColor) {
-        parsedStyling.seeMoreButtonColor = "#000000";
-      }
-      if (!parsedStyling.seeMoreButtonBackground) {
-        parsedStyling.seeMoreButtonBackground = "transparent";
-      }
-      if (!parsedStyling.seeMoreButtonFontSize) {
-        parsedStyling.seeMoreButtonFontSize = "14px";
-      }
-      if (!parsedStyling.seeMoreButtonFontStyle) {
-        parsedStyling.seeMoreButtonFontStyle = "normal";
-      }
-      if (!parsedStyling.seeMoreButtonFontFamily) {
-        parsedStyling.seeMoreButtonFontFamily = "Arial";
-      }
-      if (!parsedStyling.seeMoreButtonBorderRadius) {
-        parsedStyling.seeMoreButtonBorderRadius = "0px";
-      }
-      if (!parsedStyling.seeMoreButtonPadding) {
-        parsedStyling.seeMoreButtonPadding = "8px";
-      }
-      setStyling(parsedStyling);
+      const migratedStyling = migrateStylingToDeviceSpecific(JSON.parse(template.styling));
+      setStyling(migratedStyling);
     }
+  }, [template]);
+
+  // Funcție pentru copierea stilurilor de la un device la altul
+  const copyStylesFromDevice = (sourceDevice) => {
+    if (!styling[sourceDevice]) return;
+    
+    setStyling((prev) => ({
+      ...prev,
+      [selectedDevice]: {
+        ...styling[sourceDevice],
+      },
+    }));
+  };
+
+  // Sincronizează state-ul când se încarcă template-ul
+  useEffect(() => {
     if (template?.sections) {
       // Asigură-te că toate metafields-urile au type setat
       const sectionsWithType = template.sections.map(section => ({
@@ -1759,7 +1743,7 @@ export default function TemplateEditorPage() {
   };
 
   // Component pentru preview
-  const PreviewTable = ({ styling, sections, isAccordion, seeMoreEnabled, splitViewPerSection = false, splitViewPerMetafield = false, tableName = "Specifications", isCollapsible = false, collapsibleOnPC = false, collapsibleOnMobile = false }) => {
+  const PreviewTable = ({ styling, sections, isAccordion, seeMoreEnabled, splitViewPerSection = false, splitViewPerMetafield = false, tableName = "Specifications", isCollapsible = false, collapsibleOnPC = false, collapsibleOnMobile = false, selectedDevice = "desktop" }) => {
     const [showAll, setShowAll] = useState(!seeMoreEnabled);
     const [isCollapsed, setIsCollapsed] = useState(true);
     // State pentru accordion: fiecare secțiune poate fi deschisă sau închisă
@@ -2709,8 +2693,8 @@ export default function TemplateEditorPage() {
           value={collapsibleOnMobile ? "true" : "false"} 
           key={`collapsibleOnMobile-${collapsibleOnMobile}`}
         />
-            <input type="hidden" name="backgroundColor" value={styling.backgroundColor} />
-            <input type="hidden" name="specificationTextColor" value={styling.specificationTextColor} />
+            {/* Save entire styling object as JSON for all devices */}
+            <input type="hidden" name="styling" value={JSON.stringify(styling)} />
             <input type="hidden" name="valueTextColor" value={styling.valueTextColor} />
             <input type="hidden" name="headingColor" value={styling.headingColor} />
             <input type="hidden" name="headingFontSize" value={styling.headingFontSize} />
@@ -4268,6 +4252,92 @@ export default function TemplateEditorPage() {
       <div style={{ display: "flex", gap: "20px", height: "calc(100vh - 400px)", minHeight: "600px" }}>
         {/* Partea stângă - Stiluri (30%) */}
         <div style={{ width: "30%", overflowY: "auto", paddingRight: "10px" }}>
+        {/* Device Selection Buttons */}
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-heading level="2">Device Settings</s-heading>
+            <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+              <s-button
+                variant={selectedDevice === "mobile" ? "primary" : "secondary"}
+                onClick={() => setSelectedDevice("mobile")}
+                style={{ flex: 1 }}
+              >
+                📱 Mobile
+              </s-button>
+              <s-button
+                variant={selectedDevice === "tablet" ? "primary" : "secondary"}
+                onClick={() => setSelectedDevice("tablet")}
+                style={{ flex: 1 }}
+              >
+                📱 Tablet
+              </s-button>
+              <s-button
+                variant={selectedDevice === "desktop" ? "primary" : "secondary"}
+                onClick={() => setSelectedDevice("desktop")}
+                style={{ flex: 1 }}
+              >
+                💻 Desktop
+              </s-button>
+            </div>
+            
+            {/* Copy Styles Buttons */}
+            {selectedDevice === "mobile" && (
+              <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+                <s-button
+                  variant="secondary"
+                  onClick={() => copyStylesFromDevice("tablet")}
+                  style={{ flex: 1 }}
+                >
+                  Copy from Tablet
+                </s-button>
+                <s-button
+                  variant="secondary"
+                  onClick={() => copyStylesFromDevice("desktop")}
+                  style={{ flex: 1 }}
+                >
+                  Copy from Desktop
+                </s-button>
+              </div>
+            )}
+            {selectedDevice === "tablet" && (
+              <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+                <s-button
+                  variant="secondary"
+                  onClick={() => copyStylesFromDevice("mobile")}
+                  style={{ flex: 1 }}
+                >
+                  Copy from Mobile
+                </s-button>
+                <s-button
+                  variant="secondary"
+                  onClick={() => copyStylesFromDevice("desktop")}
+                  style={{ flex: 1 }}
+                >
+                  Copy from Desktop
+                </s-button>
+              </div>
+            )}
+            {selectedDevice === "desktop" && (
+              <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+                <s-button
+                  variant="secondary"
+                  onClick={() => copyStylesFromDevice("mobile")}
+                  style={{ flex: 1 }}
+                >
+                  Copy from Mobile
+                </s-button>
+                <s-button
+                  variant="secondary"
+                  onClick={() => copyStylesFromDevice("tablet")}
+                  style={{ flex: 1 }}
+                >
+                  Copy from Tablet
+                </s-button>
+              </div>
+            )}
+          </s-stack>
+        </s-section>
+        
         <s-section heading="Styles">
           <s-stack direction="block" gap="base">
             {/* 1. Table Styling (formerly Section Styling) */}
@@ -4275,15 +4345,12 @@ export default function TemplateEditorPage() {
               <s-color-field
                 label="Background Color"
                 name="backgroundColor"
-                    value={styling.backgroundColor}
+                    value={getCurrentDeviceStyling().backgroundColor}
                     alpha
                     onChange={(event) => {
                       const value = event.currentTarget?.value || event.target?.value;
                       if (!value) return;
-                      setStyling((prev) => ({
-                        ...prev,
-                        backgroundColor: value,
-                      }));
+                      updateCurrentDeviceStyling({ backgroundColor: value });
                     }}
                   />
                   
@@ -4291,12 +4358,9 @@ export default function TemplateEditorPage() {
                   <div style={{ width: "100%" }}>
                     <RangeSlider
                       label="Table Width (%)"
-                      value={parseInt(styling.tableWidth) || 100}
+                      value={parseInt(getCurrentDeviceStyling().tableWidth) || 100}
                       onChange={(value) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          tableWidth: value.toString(),
-                        }));
+                        updateCurrentDeviceStyling({ tableWidth: value.toString() });
                       }}
                       min={1}
                       max={100}
@@ -4305,52 +4369,36 @@ export default function TemplateEditorPage() {
                     />
                     <input
                       type="hidden"
-                      name="tableWidth"
-                      value={styling.tableWidth || "100"}
+                      name={`tableWidth_${selectedDevice}`}
+                      value={getCurrentDeviceStyling().tableWidth || "100"}
                     />
                   </div>
                   
                   <div style={{ width: "100%" }}>
                     <RangeSlider
                       label="Table Margin Top (px)"
-                      value={parseInt(styling.tableMarginTop) || 0}
+                      value={parseInt(getCurrentDeviceStyling().tableMarginTop) || 0}
                       onChange={(value) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          tableMarginTop: value.toString(),
-                        }));
+                        updateCurrentDeviceStyling({ tableMarginTop: value.toString() });
                       }}
                       min={0}
                       max={100}
                       step={1}
                       output
-                    />
-                    <input
-                      type="hidden"
-                      name="tableMarginTop"
-                      value={styling.tableMarginTop || "0"}
                     />
                   </div>
                   
                   <div style={{ width: "100%" }}>
                     <RangeSlider
                       label="Table Margin Bottom (px)"
-                      value={parseInt(styling.tableMarginBottom) || 0}
+                      value={parseInt(getCurrentDeviceStyling().tableMarginBottom) || 0}
                       onChange={(value) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          tableMarginBottom: value.toString(),
-                        }));
+                        updateCurrentDeviceStyling({ tableMarginBottom: value.toString() });
                       }}
                       min={0}
                       max={100}
                       step={1}
                       output
-                    />
-                    <input
-                      type="hidden"
-                      name="tableMarginBottom"
-                      value={styling.tableMarginBottom || "0"}
                     />
                   </div>
                   
@@ -4359,45 +4407,39 @@ export default function TemplateEditorPage() {
                     <s-switch
                       id="section-border-switch"
                       label="Section Border"
-                      checked={styling.sectionBorderEnabled}
+                      checked={getCurrentDeviceStyling().sectionBorderEnabled}
                 onChange={(e) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          sectionBorderEnabled: e.target.checked,
-                        }));
+                        updateCurrentDeviceStyling({ sectionBorderEnabled: e.target.checked });
                       }}
                     />
-                    {styling.sectionBorderEnabled && (
+                    {getCurrentDeviceStyling().sectionBorderEnabled && (
                       <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
                         <s-stack direction="inline" gap="base">
               <s-color-field
                             label="Section Border Color"
                             name="sectionBorderColor"
-                            value={styling.sectionBorderColor}
+                            value={getCurrentDeviceStyling().sectionBorderColor}
                 alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                sectionBorderColor: value,
-                              }));
+                              updateCurrentDeviceStyling({ sectionBorderColor: value });
                             }}
                           />
                           <s-select
                             name="sectionBorderStyle"
                             label="Stil Section Border"
-                            value={styling.sectionBorderStyle}
+                            value={getCurrentDeviceStyling().sectionBorderStyle}
                             onInput={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, sectionBorderStyle: value }));
+                                updateCurrentDeviceStyling({ sectionBorderStyle: value });
                               }
                             }}
                 onChange={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, sectionBorderStyle: value }));
+                                updateCurrentDeviceStyling({ sectionBorderStyle: value });
                               }
                             }}
                           >
@@ -4411,43 +4453,27 @@ export default function TemplateEditorPage() {
                           <div style={{ width: "100%" }}>
                             <RangeSlider
                               label="Border Width"
-                              value={pxToNumber(styling.borderWidth)}
+                              value={pxToNumber(getCurrentDeviceStyling().borderWidth)}
                               onChange={(value) => {
-                                setStyling((prev) => ({
-                                  ...prev,
-                                  borderWidth: numberToPx(value),
-                                }));
+                                updateCurrentDeviceStyling({ borderWidth: numberToPx(value) });
                               }}
                               min={0}
                               max={20}
                               step={1}
                               output
                             />
-                            <input
-                              type="hidden"
-                              name="borderWidth"
-                              value={styling.borderWidth}
-                            />
                           </div>
                           <div style={{ width: "100%" }}>
                             <RangeSlider
                               label="Border Round Corners"
-                              value={pxToNumber(styling.borderRadius)}
+                              value={pxToNumber(getCurrentDeviceStyling().borderRadius)}
                               onChange={(value) => {
-                                setStyling((prev) => ({
-                                  ...prev,
-                                  borderRadius: numberToPx(value),
-                                }));
+                                updateCurrentDeviceStyling({ borderRadius: numberToPx(value) });
                               }}
                               min={0}
                               max={50}
                               step={1}
                               output
-                            />
-                            <input
-                              type="hidden"
-                              name="borderRadius"
-                              value={styling.borderRadius}
                             />
                           </div>
                         </s-stack>
@@ -4458,22 +4484,14 @@ export default function TemplateEditorPage() {
                   <div style={{ width: "100%" }}>
                     <RangeSlider
                       label="Padding"
-                      value={pxToNumber(styling.padding)}
+                      value={pxToNumber(getCurrentDeviceStyling().padding)}
                       onChange={(value) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          padding: numberToPx(value),
-                        }));
+                        updateCurrentDeviceStyling({ padding: numberToPx(value) });
                       }}
                       min={0}
                       max={50}
                       step={1}
                       output
-                    />
-                    <input
-                      type="hidden"
-                      name="padding"
-                      value={styling.padding}
                     />
                   </div>
             </CollapsibleSection>
@@ -4483,74 +4501,55 @@ export default function TemplateEditorPage() {
               <s-color-field
                 label="Heading Color"
                 name="headingColor"
-                    value={styling.headingColor}
+                    value={getCurrentDeviceStyling().headingColor}
                     alpha
                     onChange={(event) => {
                       const value = event.currentTarget?.value || event.target?.value;
                       if (!value) return;
-                      setStyling((prev) => ({
-                        ...prev,
-                        headingColor: value,
-                      }));
+                      updateCurrentDeviceStyling({ headingColor: value });
                     }}
                   />
             <s-stack direction="inline" gap="base">
                     <div style={{ width: "100%" }}>
                       <RangeSlider
                 label="Heading Font Size"
-                        value={pxToNumber(styling.headingFontSize)}
+                        value={pxToNumber(getCurrentDeviceStyling().headingFontSize)}
                         onChange={(value) => {
-                          setStyling((prev) => ({
-                            ...prev,
-                            headingFontSize: numberToPx(value),
-                          }));
+                          updateCurrentDeviceStyling({ headingFontSize: numberToPx(value) });
                         }}
                         min={8}
                         max={72}
                         step={1}
                         output
                       />
-                      <input
-                        type="hidden"
-                        name="headingFontSize"
-                value={styling.headingFontSize}
-              />
                     </div>
                     <div style={{ width: "100%" }}>
                       <RangeSlider
                 label="Heading Font Weight"
-                        value={parseInt(styling.headingFontWeight) || 400}
+                        value={parseInt(getCurrentDeviceStyling().headingFontWeight) || 400}
                         onChange={(value) => {
-                          setStyling((prev) => ({
-                            ...prev,
-                            headingFontWeight: value.toString(),
-                          }));
+                          updateCurrentDeviceStyling({ headingFontWeight: value.toString() });
                         }}
                         min={100}
                         max={900}
                         step={100}
                         output
                       />
-                      <input
-                        type="hidden"
-                        name="headingFontWeight"
-                value={styling.headingFontWeight}
-              />
                     </div>
               <s-select
                 name="headingFontFamily"
                 label="Heading Font"
-                value={styling.headingFontFamily}
+                value={getCurrentDeviceStyling().headingFontFamily}
                       onInput={(e) => {
                         const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                         if (value !== undefined) {
-                          setStyling((prev) => ({ ...prev, headingFontFamily: value }));
+                          updateCurrentDeviceStyling({ headingFontFamily: value });
                         }
                       }}
                       onChange={(e) => {
                         const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                         if (value !== undefined) {
-                          setStyling((prev) => ({ ...prev, headingFontFamily: value }));
+                          updateCurrentDeviceStyling({ headingFontFamily: value });
                         }
                       }}
               >
@@ -4607,45 +4606,39 @@ export default function TemplateEditorPage() {
               <s-switch
                 id="header-bottom-border-switch"
                 label="Header Bottom Border"
-                checked={styling.headerBottomBorderEnabled || false}
+                checked={getCurrentDeviceStyling().headerBottomBorderEnabled || false}
                 onChange={(e) => {
-                  setStyling((prev) => ({
-                    ...prev,
-                    headerBottomBorderEnabled: e.target.checked,
-                  }));
+                  updateCurrentDeviceStyling({ headerBottomBorderEnabled: e.target.checked });
                 }}
               />
-              {styling.headerBottomBorderEnabled && (
+              {getCurrentDeviceStyling().headerBottomBorderEnabled && (
                 <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
                   <s-stack direction="inline" gap="base">
                     <s-color-field
                       label="Border Color"
                       name="headerBottomBorderColor"
-                      value={styling.headerBottomBorderColor || "#000000"}
+                      value={getCurrentDeviceStyling().headerBottomBorderColor || "#000000"}
                       alpha
                       onChange={(event) => {
                         const value = event.currentTarget?.value || event.target?.value;
                         if (!value) return;
-                        setStyling((prev) => ({
-                          ...prev,
-                          headerBottomBorderColor: value,
-                        }));
+                        updateCurrentDeviceStyling({ headerBottomBorderColor: value });
                       }}
                     />
                     <s-select
                       name="headerBottomBorderStyle"
                       label="Border Style"
-                      value={styling.headerBottomBorderStyle || "solid"}
+                      value={getCurrentDeviceStyling().headerBottomBorderStyle || "solid"}
                       onInput={(e) => {
                         const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                         if (value !== undefined) {
-                          setStyling((prev) => ({ ...prev, headerBottomBorderStyle: value }));
+                          updateCurrentDeviceStyling({ headerBottomBorderStyle: value });
                         }
                       }}
                       onChange={(e) => {
                         const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                         if (value !== undefined) {
-                          setStyling((prev) => ({ ...prev, headerBottomBorderStyle: value }));
+                          updateCurrentDeviceStyling({ headerBottomBorderStyle: value });
                         }
                       }}
                     >
@@ -4658,22 +4651,14 @@ export default function TemplateEditorPage() {
                   <div style={{ width: "100%" }}>
                     <RangeSlider
                       label="Border Width"
-                      value={pxToNumber(styling.headerBottomBorderWidth || "1px")}
+                      value={pxToNumber(getCurrentDeviceStyling().headerBottomBorderWidth || "1px")}
                       onChange={(value) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          headerBottomBorderWidth: numberToPx(value),
-                        }));
+                        updateCurrentDeviceStyling({ headerBottomBorderWidth: numberToPx(value) });
                       }}
                       min={0}
                       max={20}
                       step={1}
                       output
-                    />
-                    <input
-                      type="hidden"
-                      name="headerBottomBorderWidth"
-                      value={styling.headerBottomBorderWidth || "1px"}
                     />
                   </div>
                 </s-stack>
@@ -4686,67 +4671,53 @@ export default function TemplateEditorPage() {
                   <s-color-field
                     label="Specification Text Color"
                     name="specificationTextColor"
-                    value={styling.specificationTextColor || "#000000"}
+                    value={getCurrentDeviceStyling().specificationTextColor || "#000000"}
                     alpha
                     onChange={(event) => {
                       const value = event.currentTarget?.value || event.target?.value;
                       if (!value) return;
-                      setStyling((prev) => ({
-                        ...prev,
-                        specificationTextColor: value,
-                      }));
+                      updateCurrentDeviceStyling({ specificationTextColor: value });
                     }}
                   />
                   <s-color-field
                     label="Value Text Color"
                     name="valueTextColor"
-                    value={styling.valueTextColor || "#000000"}
+                    value={getCurrentDeviceStyling().valueTextColor || "#000000"}
                     alpha
                     onChange={(event) => {
                       const value = event.currentTarget?.value || event.target?.value;
                       if (!value) return;
-                      setStyling((prev) => ({
-                        ...prev,
-                        valueTextColor: value,
-                      }));
+                      updateCurrentDeviceStyling({ valueTextColor: value });
                     }}
                   />
             <s-stack direction="inline" gap="base">
                     <div style={{ width: "100%" }}>
                       <RangeSlider
                 label="Font Size Text"
-                        value={pxToNumber(styling.textFontSize)}
+                        value={pxToNumber(getCurrentDeviceStyling().textFontSize)}
                         onChange={(value) => {
-                          setStyling((prev) => ({
-                            ...prev,
-                            textFontSize: numberToPx(value),
-                          }));
+                          updateCurrentDeviceStyling({ textFontSize: numberToPx(value) });
                         }}
                         min={8}
                         max={48}
                         step={1}
                         output
                       />
-                      <input
-                        type="hidden"
-                        name="textFontSize"
-                value={styling.textFontSize}
-              />
                     </div>
               <s-select
                 name="textFontFamily"
                 label="Font Text"
-                value={styling.textFontFamily}
+                value={getCurrentDeviceStyling().textFontFamily}
                       onInput={(e) => {
                         const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                         if (value !== undefined) {
-                          setStyling((prev) => ({ ...prev, textFontFamily: value }));
+                          updateCurrentDeviceStyling({ textFontFamily: value });
                         }
                       }}
                       onChange={(e) => {
                         const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                         if (value !== undefined) {
-                          setStyling((prev) => ({ ...prev, textFontFamily: value }));
+                          updateCurrentDeviceStyling({ textFontFamily: value });
                         }
                       }}
               >
@@ -4769,19 +4740,16 @@ export default function TemplateEditorPage() {
             </s-stack>
 
                   {/* Background TD - se afișează doar când Row Background și Column Background sunt dezactivate */}
-                  {!styling.rowBackgroundEnabled && !styling.columnBackgroundEnabled && (
+                  {!getCurrentDeviceStyling().rowBackgroundEnabled && !getCurrentDeviceStyling().columnBackgroundEnabled && (
                     <s-color-field
                       label="Background TD"
                       name="tdBackgroundColor"
-                      value={styling.tdBackgroundColor}
+                      value={getCurrentDeviceStyling().tdBackgroundColor}
                       alpha
                       onChange={(event) => {
                         const value = event.currentTarget?.value || event.target?.value;
                         if (!value) return;
-                        setStyling((prev) => ({
-                          ...prev,
-                          tdBackgroundColor: value,
-                        }));
+                        updateCurrentDeviceStyling({ tdBackgroundColor: value });
                       }}
                     />
                   )}
@@ -4791,46 +4759,40 @@ export default function TemplateEditorPage() {
                     <s-switch
                       id="row-background-switch"
                       label="Row Background (Odd/Even)"
-                      checked={styling.rowBackgroundEnabled}
-                      disabled={styling.columnBackgroundEnabled}
+                      checked={getCurrentDeviceStyling().rowBackgroundEnabled}
+                      disabled={getCurrentDeviceStyling().columnBackgroundEnabled}
                       onChange={(e) => {
-                        setStyling((prev) => ({
-                          ...prev,
+                        const current = getCurrentDeviceStyling();
+                        updateCurrentDeviceStyling({
                           rowBackgroundEnabled: e.target.checked,
                           // Mutual exclusivity: dacă row e activat, column e dezactivat
-                          columnBackgroundEnabled: e.target.checked ? false : prev.columnBackgroundEnabled,
-                        }));
+                          columnBackgroundEnabled: e.target.checked ? false : current.columnBackgroundEnabled,
+                        });
                       }}
                     />
-                    {styling.rowBackgroundEnabled && (
+                    {getCurrentDeviceStyling().rowBackgroundEnabled && (
                       <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
                         <s-stack direction="inline" gap="base">
                           <s-color-field
                             label="Odd Row Background"
                             name="oddRowBackgroundColor"
-                            value={styling.oddRowBackgroundColor}
+                            value={getCurrentDeviceStyling().oddRowBackgroundColor}
                             alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                oddRowBackgroundColor: value,
-                              }));
+                              updateCurrentDeviceStyling({ oddRowBackgroundColor: value });
                             }}
                           />
                           <s-color-field
                             label="Even Row Background"
                             name="evenRowBackgroundColor"
-                            value={styling.evenRowBackgroundColor}
+                            value={getCurrentDeviceStyling().evenRowBackgroundColor}
                             alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                evenRowBackgroundColor: value,
-                              }));
+                              updateCurrentDeviceStyling({ evenRowBackgroundColor: value });
                             }}
                           />
                         </s-stack>
@@ -4843,46 +4805,40 @@ export default function TemplateEditorPage() {
                     <s-switch
                       id="column-background-switch"
                       label="Column Background (Odd/Even)"
-                      checked={styling.columnBackgroundEnabled}
-                      disabled={styling.rowBackgroundEnabled}
+                      checked={getCurrentDeviceStyling().columnBackgroundEnabled}
+                      disabled={getCurrentDeviceStyling().rowBackgroundEnabled}
                       onChange={(e) => {
-                        setStyling((prev) => ({
-                          ...prev,
+                        const current = getCurrentDeviceStyling();
+                        updateCurrentDeviceStyling({
                           columnBackgroundEnabled: e.target.checked,
                           // Mutual exclusivity: dacă column e activat, row e dezactivat
-                          rowBackgroundEnabled: e.target.checked ? false : prev.rowBackgroundEnabled,
-                        }));
+                          rowBackgroundEnabled: e.target.checked ? false : current.rowBackgroundEnabled,
+                        });
                       }}
                     />
-                    {styling.columnBackgroundEnabled && (
+                    {getCurrentDeviceStyling().columnBackgroundEnabled && (
                       <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
                         <s-stack direction="inline" gap="base">
                           <s-color-field
                             label="Odd Column Background (Spec)"
                             name="oddColumnBackgroundColor"
-                            value={styling.oddColumnBackgroundColor}
+                            value={getCurrentDeviceStyling().oddColumnBackgroundColor}
                             alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                oddColumnBackgroundColor: value,
-                              }));
+                              updateCurrentDeviceStyling({ oddColumnBackgroundColor: value });
                             }}
                           />
                           <s-color-field
                             label="Even Column Background (Value)"
                             name="evenColumnBackgroundColor"
-                            value={styling.evenColumnBackgroundColor}
+                            value={getCurrentDeviceStyling().evenColumnBackgroundColor}
                             alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                evenColumnBackgroundColor: value,
-                              }));
+                              updateCurrentDeviceStyling({ evenColumnBackgroundColor: value });
                             }}
                           />
                         </s-stack>
@@ -4894,12 +4850,9 @@ export default function TemplateEditorPage() {
                   <div style={{ width: "100%" }}>
                     <RangeSlider
                       label="Spacing (Row Padding in px)"
-                      value={parseInt(styling.specSpacing) || 10}
+                      value={parseInt(getCurrentDeviceStyling().specSpacing) || 10}
                       onChange={(value) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          specSpacing: value.toString(),
-                        }));
+                        updateCurrentDeviceStyling({ specSpacing: value.toString() });
                       }}
                       min={0}
                       max={50}
@@ -4917,22 +4870,14 @@ export default function TemplateEditorPage() {
                   <div style={{ width: "100%" }}>
                     <RangeSlider
                       label="Column Ratio (%)"
-                      value={parseInt(styling.columnRatio) || 40}
+                      value={parseInt(getCurrentDeviceStyling().columnRatio) || 40}
                       onChange={(value) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          columnRatio: value.toString(),
-                        }));
+                        updateCurrentDeviceStyling({ columnRatio: value.toString() });
                       }}
                       min={10}
                       max={90}
                       step={10}
                       output
-                    />
-                    <input
-                      type="hidden"
-                      name="columnRatio"
-                      value={styling.columnRatio || "40"}
                     />
                   </div>
 
@@ -4940,17 +4885,17 @@ export default function TemplateEditorPage() {
                   <s-select
                     name="textTransform"
                     label="Text Transform"
-                    value={styling.textTransform}
+                    value={getCurrentDeviceStyling().textTransform}
                     onInput={(e) => {
                       const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                       if (value !== undefined) {
-                        setStyling((prev) => ({ ...prev, textTransform: value }));
+                        updateCurrentDeviceStyling({ textTransform: value });
                       }
                     }}
                     onChange={(e) => {
                       const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                       if (value !== undefined) {
-                        setStyling((prev) => ({ ...prev, textTransform: value }));
+                        updateCurrentDeviceStyling({ textTransform: value });
                       }
                     }}
                   >
@@ -4965,45 +4910,39 @@ export default function TemplateEditorPage() {
                     <s-switch
                       id="row-border-switch"
                       label="Row Border"
-                      checked={styling.rowBorderEnabled}
+                      checked={getCurrentDeviceStyling().rowBorderEnabled}
                       onChange={(e) => {
-                        setStyling((prev) => ({
-                          ...prev,
-                          rowBorderEnabled: e.target.checked,
-                        }));
+                        updateCurrentDeviceStyling({ rowBorderEnabled: e.target.checked });
                       }}
                     />
-                    {styling.rowBorderEnabled && (
+                    {getCurrentDeviceStyling().rowBorderEnabled && (
                       <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
                         <s-stack direction="inline" gap="base">
               <s-color-field
                             label="Culoare Row Border"
                             name="rowBorderColor"
-                            value={styling.rowBorderColor}
+                            value={getCurrentDeviceStyling().rowBorderColor}
                 alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                rowBorderColor: value,
-                              }));
+                              updateCurrentDeviceStyling({ rowBorderColor: value });
                 }}
               />
               <s-select
                             name="rowBorderStyle"
                             label="Stil Row Border"
-                            value={styling.rowBorderStyle}
+                            value={getCurrentDeviceStyling().rowBorderStyle}
                             onInput={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, rowBorderStyle: value }));
+                                updateCurrentDeviceStyling({ rowBorderStyle: value });
                               }
                             }}
                             onChange={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, rowBorderStyle: value }));
+                                updateCurrentDeviceStyling({ rowBorderStyle: value });
                               }
                             }}
                           >
@@ -5016,22 +4955,14 @@ export default function TemplateEditorPage() {
                         <div style={{ width: "100%" }}>
                           <RangeSlider
                             label="Border Width"
-                            value={pxToNumber(styling.rowBorderWidth)}
+                            value={pxToNumber(getCurrentDeviceStyling().rowBorderWidth)}
                             onChange={(value) => {
-                              setStyling((prev) => ({
-                                ...prev,
-                                rowBorderWidth: numberToPx(value),
-                              }));
+                              updateCurrentDeviceStyling({ rowBorderWidth: numberToPx(value) });
                             }}
                             min={0}
                             max={20}
                             step={1}
                             output
-                          />
-                          <input
-                            type="hidden"
-                            name="rowBorderWidth"
-                            value={styling.rowBorderWidth}
                           />
                         </div>
             </s-stack>
@@ -5046,30 +4977,24 @@ export default function TemplateEditorPage() {
                           <s-color-field
                             label="Button Text Color"
                             name="seeMoreButtonColor"
-                            value={styling.seeMoreButtonColor || "#000000"}
+                            value={getCurrentDeviceStyling().seeMoreButtonColor || "#000000"}
                             alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                seeMoreButtonColor: value,
-                              }));
+                              updateCurrentDeviceStyling({ seeMoreButtonColor: value });
                             }}
                           />
                           
                           <s-color-field
                             label="Button Background"
                             name="seeMoreButtonBackground"
-                            value={styling.seeMoreButtonBackground || "transparent"}
+                            value={getCurrentDeviceStyling().seeMoreButtonBackground || "transparent"}
                             alpha
                             onChange={(event) => {
                               const value = event.currentTarget?.value || event.target?.value;
                               if (!value) return;
-                              setStyling((prev) => ({
-                                ...prev,
-                                seeMoreButtonBackground: value,
-                              }));
+                              updateCurrentDeviceStyling({ seeMoreButtonBackground: value });
                             }}
                           />
                           
@@ -5077,43 +5002,27 @@ export default function TemplateEditorPage() {
                             <div style={{ width: "100%" }}>
                               <RangeSlider
                                 label="Font Size"
-                                value={pxToNumber(styling.seeMoreButtonFontSize || "14px")}
+                                value={pxToNumber(getCurrentDeviceStyling().seeMoreButtonFontSize || "14px")}
                                 onChange={(value) => {
-                                  setStyling((prev) => ({
-                                    ...prev,
-                                    seeMoreButtonFontSize: numberToPx(value),
-                                  }));
+                                  updateCurrentDeviceStyling({ seeMoreButtonFontSize: numberToPx(value) });
                                 }}
                                 min={8}
                                 max={48}
                                 step={1}
                                 output
                               />
-                              <input
-                                type="hidden"
-                                name="seeMoreButtonFontSize"
-                                value={styling.seeMoreButtonFontSize || "14px"}
-                              />
                             </div>
                             <div style={{ width: "100%" }}>
                               <RangeSlider
                                 label="Padding"
-                                value={pxToNumber(styling.seeMoreButtonPadding || "8px")}
+                                value={pxToNumber(getCurrentDeviceStyling().seeMoreButtonPadding || "8px")}
                                 onChange={(value) => {
-                                  setStyling((prev) => ({
-                                    ...prev,
-                                    seeMoreButtonPadding: numberToPx(value),
-                                  }));
+                                  updateCurrentDeviceStyling({ seeMoreButtonPadding: numberToPx(value) });
                                 }}
                                 min={0}
                                 max={40}
                                 step={1}
                                 output
-                              />
-                              <input
-                                type="hidden"
-                                name="seeMoreButtonPadding"
-                                value={styling.seeMoreButtonPadding || "8px"}
                               />
                             </div>
                           </s-stack>
@@ -5121,17 +5030,17 @@ export default function TemplateEditorPage() {
                           <s-select
                             name="seeMoreButtonFontStyle"
                             label="Font Style"
-                            value={styling.seeMoreButtonFontStyle || "normal"}
+                            value={getCurrentDeviceStyling().seeMoreButtonFontStyle || "normal"}
                             onInput={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, seeMoreButtonFontStyle: value }));
+                                updateCurrentDeviceStyling({ seeMoreButtonFontStyle: value });
                               }
                             }}
                             onChange={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, seeMoreButtonFontStyle: value }));
+                                updateCurrentDeviceStyling({ seeMoreButtonFontStyle: value });
                               }
                             }}
                           >
@@ -5144,17 +5053,17 @@ export default function TemplateEditorPage() {
                           <s-select
                             name="seeMoreButtonFontFamily"
                             label="Font Family"
-                            value={styling.seeMoreButtonFontFamily || "Arial"}
+                            value={getCurrentDeviceStyling().seeMoreButtonFontFamily || "Arial"}
                             onInput={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, seeMoreButtonFontFamily: value }));
+                                updateCurrentDeviceStyling({ seeMoreButtonFontFamily: value });
                               }
                             }}
                             onChange={(e) => {
                               const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                               if (value !== undefined) {
-                                setStyling((prev) => ({ ...prev, seeMoreButtonFontFamily: value }));
+                                updateCurrentDeviceStyling({ seeMoreButtonFontFamily: value });
                               }
                             }}
                           >
@@ -5178,22 +5087,14 @@ export default function TemplateEditorPage() {
                           <div style={{ width: "100%" }}>
                             <RangeSlider
                               label="Border Radius"
-                              value={pxToNumber(styling.seeMoreButtonBorderRadius || "0px")}
+                              value={pxToNumber(getCurrentDeviceStyling().seeMoreButtonBorderRadius || "0px")}
                               onChange={(value) => {
-                                setStyling((prev) => ({
-                                  ...prev,
-                                  seeMoreButtonBorderRadius: numberToPx(value),
-                                }));
+                                updateCurrentDeviceStyling({ seeMoreButtonBorderRadius: numberToPx(value) });
                               }}
                               min={0}
                               max={50}
                               step={1}
                               output
-                            />
-                            <input
-                              type="hidden"
-                              name="seeMoreButtonBorderRadius"
-                              value={styling.seeMoreButtonBorderRadius || "0px"}
                             />
                           </div>
                           
@@ -5202,52 +5103,41 @@ export default function TemplateEditorPage() {
                             <s-switch
                               id="see-more-button-border-switch"
                               label="Button Border"
-                              checked={styling.seeMoreButtonBorderEnabled || false}
+                              checked={getCurrentDeviceStyling().seeMoreButtonBorderEnabled || false}
                               onChange={(e) => {
-                                setStyling((prev) => ({
-                                  ...prev,
-                                  seeMoreButtonBorderEnabled: e.target.checked,
-                                }));
+                                updateCurrentDeviceStyling({ seeMoreButtonBorderEnabled: e.target.checked });
                               }}
                             />
-                            {styling.seeMoreButtonBorderEnabled && (
+                            {getCurrentDeviceStyling().seeMoreButtonBorderEnabled && (
                               <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
                                 <s-stack direction="inline" gap="base">
                                   <div style={{ width: "100%" }}>
                                     <RangeSlider
                                       label="Border Width"
-                                      value={pxToNumber(styling.seeMoreButtonBorderWidth || "1px")}
+                                      value={pxToNumber(getCurrentDeviceStyling().seeMoreButtonBorderWidth || "1px")}
                                       onChange={(value) => {
-                                        setStyling((prev) => ({
-                                          ...prev,
-                                          seeMoreButtonBorderWidth: numberToPx(value),
-                                        }));
+                                        updateCurrentDeviceStyling({ seeMoreButtonBorderWidth: numberToPx(value) });
                                       }}
                                       min={0}
                                       max={10}
                                       step={1}
                                       output
                                     />
-                                    <input
-                                      type="hidden"
-                                      name="seeMoreButtonBorderWidth"
-                                      value={styling.seeMoreButtonBorderWidth || "1px"}
-                                    />
                                   </div>
                                   <s-select
                                     name="seeMoreButtonBorderStyle"
                                     label="Border Style"
-                                    value={styling.seeMoreButtonBorderStyle || "solid"}
+                                    value={getCurrentDeviceStyling().seeMoreButtonBorderStyle || "solid"}
                                     onInput={(e) => {
                                       const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                                       if (value !== undefined) {
-                                        setStyling((prev) => ({ ...prev, seeMoreButtonBorderStyle: value }));
+                                        updateCurrentDeviceStyling({ seeMoreButtonBorderStyle: value });
                                       }
                                     }}
                                     onChange={(e) => {
                                       const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
                                       if (value !== undefined) {
-                                        setStyling((prev) => ({ ...prev, seeMoreButtonBorderStyle: value }));
+                                        updateCurrentDeviceStyling({ seeMoreButtonBorderStyle: value });
                                       }
                                     }}
                                   >
@@ -5260,15 +5150,12 @@ export default function TemplateEditorPage() {
                                 <s-color-field
                                   label="Border Color"
                                   name="seeMoreButtonBorderColor"
-                                  value={styling.seeMoreButtonBorderColor || "#000000"}
+                                  value={getCurrentDeviceStyling().seeMoreButtonBorderColor || "#000000"}
                                   alpha
                                   onChange={(event) => {
                                     const value = event.currentTarget?.value || event.target?.value;
                                     if (!value) return;
-                                    setStyling((prev) => ({
-                                      ...prev,
-                                      seeMoreButtonBorderColor: value,
-                                    }));
+                                    updateCurrentDeviceStyling({ seeMoreButtonBorderColor: value });
                                   }}
                                 />
                                 <s-paragraph>
@@ -5288,20 +5175,23 @@ export default function TemplateEditorPage() {
         {/* Partea dreaptă - Preview (70%) */}
         <div style={{ width: "70%", border: "1px solid #e1e3e5", borderRadius: "8px", padding: "20px", backgroundColor: "#f6f6f7", overflowY: "auto" }}>
           <div style={{ marginBottom: "16px" }}>
-            <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>Preview ( Desktop Version )</h2>
+            <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>
+              Preview ({selectedDevice === "mobile" ? "Mobile" : selectedDevice === "tablet" ? "Tablet" : "Desktop"} Version)
+            </h2>
           </div>
           <div style={{ backgroundColor: "#ffffff", padding: "20px", borderRadius: "4px", minHeight: "400px" }}>
             <PreviewTable 
-              styling={styling} 
+              styling={getCurrentDeviceStyling()} 
               sections={sections} 
               isAccordion={isAccordion} 
               seeMoreEnabled={seeMoreEnabled} 
-              splitViewPerSection={splitViewPerSection} 
-              splitViewPerMetafield={splitViewPerMetafield}
+              splitViewPerSection={selectedDevice === "mobile" ? false : splitViewPerSection} 
+              splitViewPerMetafield={selectedDevice === "mobile" ? false : splitViewPerMetafield}
               tableName={tableName}
               isCollapsible={isCollapsible}
               collapsibleOnPC={collapsibleOnPC}
               collapsibleOnMobile={collapsibleOnMobile}
+              selectedDevice={selectedDevice}
             />
           </div>
         </div>
