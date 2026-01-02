@@ -103,11 +103,13 @@
 .dc_table_td_label {
   padding: 8px;
   font-weight: bold;
-  width: var(--dc-first-column-width, 40%);
+  width: var(--dc-first-column-width, var(--dc-column-ratio, 40%));
   color: var(--dc-specification-text-color, #000000);
   font-family: var(--dc-text-font-family, inherit);
   font-size: var(--dc-text-font-size, 14px);
   text-transform: var(--dc-text-transform, none);
+  padding-top: var(--dc-spec-spacing, 8px);
+  padding-bottom: var(--dc-spec-spacing, 8px);
 }
 
 /* Table Cell - Value - Value Text Color */
@@ -117,6 +119,8 @@
   font-family: var(--dc-text-font-family, inherit);
   font-size: var(--dc-text-font-size, 14px);
   text-transform: var(--dc-text-transform, none);
+  padding-top: var(--dc-spec-spacing, 8px);
+  padding-bottom: var(--dc-spec-spacing, 8px);
 }
 
 /* Tooltip Icon */

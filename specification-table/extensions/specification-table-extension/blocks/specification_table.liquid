@@ -275,7 +275,8 @@
 {% assign alignment = block.settings.alignment | default: 'left' %}
 {% assign margin_top = block.settings.margin_top | default: 0 %}
 {% assign margin_left = block.settings.margin_left | default: 0 %}
-{% assign first_column_width = block.settings.first_column_width | default: 40 %}
+{% comment %} first_column_width a fost mutat în Column Ratio din admin UI {% endcomment %}
+{% assign first_column_width = 40 %}
 {% assign image_height = block.settings.image_height | default: 100 %}
 
 <div id="specification-table-container-{{ block.id }}" 
@@ -678,16 +679,6 @@
         }
       ],
       "default": "left"
-    },
-    {
-      "type": "range",
-      "id": "first_column_width",
-      "label": "First column width",
-      "min": 10,
-      "max": 90,
-      "step": 10,
-      "unit": "%",
-      "default": 40
     },
     {
       "type": "range",

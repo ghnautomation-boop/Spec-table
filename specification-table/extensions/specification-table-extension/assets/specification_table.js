@@ -378,7 +378,8 @@ function setupVariantChangeListener(container, template) {
 // Funcție pentru a randa template-ul
 function renderTemplate(container, template) {
   const styling = template.styling || {};
-  const firstColumnWidth = container.dataset.firstColumnWidth || '40';
+  // Folosește columnRatio din styling, fallback la firstColumnWidth din dataset, apoi default 40
+  const columnRatio = styling.columnRatio || container.dataset.firstColumnWidth || '40';
   const escapedTemplateId = escapeHtml(template.id);
   
   // Debug: verifică dacă seeMoreButtonText există în styling
@@ -402,7 +403,19 @@ function renderTemplate(container, template) {
   cssVars += '--dc-text-transform: ' + (styling.textTransform || 'none') + '; ';
   cssVars += '--dc-border-radius: ' + (styling.borderRadius || '0px') + '; ';
   cssVars += '--dc-padding: ' + (styling.padding || '20px') + '; ';
-  cssVars += '--dc-first-column-width: ' + firstColumnWidth + '%; ';
+  cssVars += '--dc-first-column-width: ' + columnRatio + '%; ';
+  cssVars += '--dc-column-ratio: ' + columnRatio + '%; '; // Duplicate pentru claritate
+  // New styling features
+  cssVars += '--dc-table-width: ' + (styling.tableWidth || '100') + '%; ';
+  cssVars += '--dc-table-margin-top: ' + (styling.tableMarginTop || '0') + 'px; ';
+  cssVars += '--dc-table-margin-bottom: ' + (styling.tableMarginBottom || '0') + 'px; ';
+  cssVars += '--dc-header-text-align: ' + (styling.headerTextAlign || 'left') + '; ';
+  cssVars += '--dc-spec-spacing: ' + (styling.specSpacing || '10') + 'px; ';
+  if (styling.headerBottomBorderEnabled) {
+    cssVars += '--dc-header-bottom-border: ' + (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000') + '; ';
+  } else {
+    cssVars += '--dc-header-bottom-border: none; ';
+  }
   if (styling.sectionBorderEnabled) {
     cssVars += '--dc-border: ' + (styling.sectionBorderWidth || '1px') + ' ' + (styling.sectionBorderStyle || 'solid') + ' ' + (styling.sectionBorderColor || '#000000') + '; ';
   } else {
@@ -428,7 +441,13 @@ function renderTemplate(container, template) {
     cssVars += '--dc-see-more-button-border: none; ';
   }
 
-  let html = '<div id="specification-table-' + escapedTemplateId + '" class="dc_container" style="' + cssVars + '">';
+  // Aplică stilurile pentru table width și margins
+  const tableWidthStyle = 'width: ' + (styling.tableWidth || '100') + '%; ';
+  const tableMarginTopStyle = 'margin-top: ' + (styling.tableMarginTop || '0') + 'px; ';
+  const tableMarginBottomStyle = 'margin-bottom: ' + (styling.tableMarginBottom || '0') + 'px; ';
+  const containerInlineStyle = tableWidthStyle + tableMarginTopStyle + tableMarginBottomStyle;
+  
+  let html = '<div id="specification-table-' + escapedTemplateId + '" class="dc_container" style="' + cssVars + containerInlineStyle + '">';
 
   // Adaugă header-ul cu numele tabelului și butonul de collapsible (dacă este activat)
   const isCollapsible = template.isCollapsible === true || template.isCollapsible === 'true';
@@ -904,12 +923,12 @@ function renderTemplate(container, template) {
       html += '<div class="dc_split_view_sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
       html += '<div class="dc_split_view_column dc_split_view_left">';
       leftColumnSections.forEach(({ sectionIndex, sectionData }) => {
-        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+        html += renderSection(sectionData, styling, columnRatio, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
       });
       html += '</div>';
       html += '<div class="dc_split_view_column dc_split_view_right">';
       rightColumnSections.forEach(({ sectionIndex, sectionData }) => {
-        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+        html += renderSection(sectionData, styling, columnRatio, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
       });
       html += '</div>';
       html += '</div>';
@@ -924,7 +943,7 @@ function renderTemplate(container, template) {
           return;
         }
 
-      html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+      html += renderSection(sectionData, styling, columnRatio, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
     });
   }
   
@@ -1026,7 +1045,7 @@ function renderTemplate(container, template) {
 }
 
 // Funcție pentru a randa o secțiune
-function renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg) {
+function renderSection(sectionData, styling, columnRatio, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg) {
   const isAccordionHideFromPC = template.isAccordionHideFromPC === true || template.isAccordionHideFromPC === 'true';
   const isAccordionHideFromMobile = template.isAccordionHideFromMobile === true || template.isAccordionHideFromMobile === 'true';
   const showAccordionPC = template.isAccordion && !isAccordionHideFromPC;
@@ -1052,13 +1071,20 @@ function renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId
       html += '<span class="dc_accordion_arrow" id="spec-arrow-pc-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
       html += '</div>';
       html += '<div id="spec-section-pc-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+      html += renderSectionTable(sectionData, styling, columnRatio, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
       html += '</div>';
     } else {
-      html += '<h3 class="dc_heading">';
+      // Aplică stilurile pentru header text align și bottom border
+      const headerTextAlignStyle = 'text-align: ' + (styling.headerTextAlign || 'left') + '; ';
+      const headerBottomBorderStyle = styling.headerBottomBorderEnabled 
+        ? 'border-bottom: ' + (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000') + '; '
+        : '';
+      const headingInlineStyle = headerTextAlignStyle + headerBottomBorderStyle;
+      
+      html += '<h3 class="dc_heading" style="' + headingInlineStyle + '">';
       html += escapeHtml(sectionData.heading);
       html += '</h3>';
-      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
+      html += renderSectionTable(sectionData, styling, columnRatio, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsPC, 'pc', splitViewPerMetafield);
     }
   }
   html += '</div>';
@@ -1070,13 +1096,20 @@ function renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId
       html += '<span class="dc_accordion_arrow" id="spec-arrow-mobile-' + escapedTemplateId + '-' + sectionIdx + '">' + arrowDownSvg + '</span>';
       html += '</div>';
       html += '<div id="spec-section-mobile-' + escapedTemplateId + '-' + sectionIdx + '" class="dc_section_content" style="display: none;">';
-      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+      html += renderSectionTable(sectionData, styling, columnRatio, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
       html += '</div>';
     } else {
-      html += '<h3 class="dc_heading">';
+      // Aplică stilurile pentru header text align și bottom border
+      const headerTextAlignStyle = 'text-align: ' + (styling.headerTextAlign || 'left') + '; ';
+      const headerBottomBorderStyle = styling.headerBottomBorderEnabled 
+        ? 'border-bottom: ' + (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000') + '; '
+        : '';
+      const headingInlineStyle = headerTextAlignStyle + headerBottomBorderStyle;
+      
+      html += '<h3 class="dc_heading" style="' + headingInlineStyle + '">';
       html += escapeHtml(sectionData.heading);
       html += '</h3>';
-      html += renderSectionTable(sectionData, styling, firstColumnWidth, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
+      html += renderSectionTable(sectionData, styling, columnRatio, false, escapedTemplateId, sectionIdx, allMetafieldsWithSection, sectionData.displayMetafieldsMobile, 'mobile', splitViewPerMetafield);
     }
   }
   html += '</div>';
@@ -1085,7 +1118,7 @@ function renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId
 }
 
 // Funcție pentru a randa tabelul unei secțiuni
-function renderSectionTable(section, styling, firstColumnWidth, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields, device, splitViewPerMetafield) {
+function renderSectionTable(section, styling, columnRatio, seeMoreEnabled, templateId, sectionIndex, allMetafieldsWithSection, displayMetafields, device, splitViewPerMetafield) {
   const deviceSuffix = device ? '-' + device : '';
   const tableId = 'spec-table' + deviceSuffix + '-' + templateId + '-' + sectionIndex;
 
@@ -1221,8 +1254,11 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
       rowClasses += ' dc_hidden';
     }
 
+    // Aplică specSpacing (row padding) - se aplică pe td, nu pe tr
+    const specSpacingStyle = 'padding-top: ' + (styling.specSpacing || '10') + 'px; padding-bottom: ' + (styling.specSpacing || '10') + 'px; ';
+
     rowsHtml += '<tr class="' + rowClasses + '">';
-    rowsHtml += '<td class="dc_table_td_label"' + (specBackgroundStyle ? ' style="' + specBackgroundStyle + '"' : '') + '>';
+    rowsHtml += '<td class="dc_table_td_label" style="' + specSpacingStyle + (specBackgroundStyle ? ' ' + specBackgroundStyle : '') + '">';
     // Dacă este product spec, folosește numele corespunzător
     let displayName;
     if (metafield.type === 'product_spec') {
@@ -1250,13 +1286,15 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     const prefixValue = (metafield.prefix !== null && metafield.prefix !== undefined) ? String(metafield.prefix) : '';
     const suffixValue = (metafield.suffix !== null && metafield.suffix !== undefined) ? String(metafield.suffix) : '';
     // Dacă este product spec, folosește data-product-spec-type
+    // Aplică specSpacing și pe celula de valoare
+    const valueSpacingStyle = 'padding-top: ' + (styling.specSpacing || '10') + 'px; padding-bottom: ' + (styling.specSpacing || '10') + 'px; ';
     if (metafield.type === 'product_spec') {
-      rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-product-spec-type="' + escapeHtml(metafield.productSpecType) + '">';
+      rowsHtml += '<td class="dc_table_td_value" style="' + valueSpacingStyle + (valueBackgroundStyle ? ' ' + valueBackgroundStyle : '') + '" data-product-spec-type="' + escapeHtml(metafield.productSpecType) + '">';
       rowsHtml += '<span data-product-spec-value data-product-spec-type="' + escapeHtml(metafield.productSpecType) + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
       rowsHtml += '</td>';
       rowsHtml += '</tr>';
     } else {
-      rowsHtml += '<td class="dc_table_td_value"' + (valueBackgroundStyle ? ' style="' + valueBackgroundStyle + '"' : '') + ' data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.metafieldType || metafield.type || 'single_line_text_field') + '">';
+      rowsHtml += '<td class="dc_table_td_value" style="' + valueSpacingStyle + (valueBackgroundStyle ? ' ' + valueBackgroundStyle : '') + '" data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.metafieldType || metafield.type || 'single_line_text_field') + '">';
       rowsHtml += '<span data-metafield-value data-namespace="' + escapeHtml(metafield.namespace) + '" data-key="' + escapeHtml(metafield.key) + '" data-owner-type="' + escapeHtml(metafield.ownerType || 'PRODUCT') + '" data-type="' + escapeHtml(metafield.metafieldType || metafield.type || 'single_line_text_field') + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
       rowsHtml += '</td>';
       rowsHtml += '</tr>';

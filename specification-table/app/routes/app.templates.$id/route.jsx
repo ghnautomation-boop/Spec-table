@@ -74,6 +74,44 @@ function numberToPx(number) {
   return `${number}px`;
 }
 
+// Component CollapsibleSection pentru secțiunile de styling
+function CollapsibleSection({ title, children, defaultCollapsed = true }) {
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+  
+  return (
+    <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+      <s-stack direction="block" gap="base">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+          <s-heading level="3" style={{ margin: 0 }}>{title}</s-heading>
+          <span
+            style={{
+              fontSize: "20px",
+              transition: "transform 0.2s ease",
+              transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)",
+            }}
+          >
+            ▼
+          </span>
+        </div>
+        {!isCollapsed && (
+          <s-stack direction="block" gap="base">
+            {children}
+          </s-stack>
+        )}
+      </s-stack>
+    </s-box>
+  );
+}
+
 // Component RangeSlider custom
 function RangeSlider({ label, value, onChange, min = 0, max = 100, step = 1 }) {
   return (
@@ -263,6 +301,17 @@ export const action = async ({ request, params }) => {
     })(),
     seeLessHideFromPC: formData.get("seeLessHideFromPC") === "true",
     seeLessHideFromMobile: formData.get("seeLessHideFromMobile") === "true",
+    // New styling features
+    tableWidth: formData.get("tableWidth") || "100",
+    tableMarginTop: formData.get("tableMarginTop") || "0",
+    tableMarginBottom: formData.get("tableMarginBottom") || "0",
+    headerTextAlign: formData.get("headerTextAlign") || "left",
+    headerBottomBorderEnabled: formData.get("headerBottomBorderEnabled") === "true",
+    headerBottomBorderColor: formData.get("headerBottomBorderColor") || "#000000",
+    headerBottomBorderWidth: formData.get("headerBottomBorderWidth") || "1px",
+    headerBottomBorderStyle: formData.get("headerBottomBorderStyle") || "solid",
+    specSpacing: formData.get("specSpacing") || "10",
+    columnRatio: formData.get("columnRatio") || "40",
   };
 
   // Parse sections
@@ -601,6 +650,19 @@ export default function TemplateEditorPage() {
       if (parsed.textColor && !parsed.valueTextColor) {
         parsed.valueTextColor = parsed.textColor;
       }
+      // Backward compatibility: dacă există firstColumnWidth în dataset, folosim-l ca columnRatio
+      // (acest lucru se va face în specification_table.js, aici doar setăm default-uri)
+      // Adaugă default-uri pentru noile câmpuri dacă nu există
+      if (!parsed.tableWidth) parsed.tableWidth = "100";
+      if (!parsed.tableMarginTop) parsed.tableMarginTop = "0";
+      if (!parsed.tableMarginBottom) parsed.tableMarginBottom = "0";
+      if (!parsed.headerTextAlign) parsed.headerTextAlign = "left";
+      if (parsed.headerBottomBorderEnabled === undefined) parsed.headerBottomBorderEnabled = false;
+      if (!parsed.headerBottomBorderColor) parsed.headerBottomBorderColor = "#000000";
+      if (!parsed.headerBottomBorderWidth) parsed.headerBottomBorderWidth = "1px";
+      if (!parsed.headerBottomBorderStyle) parsed.headerBottomBorderStyle = "solid";
+      if (!parsed.specSpacing) parsed.specSpacing = "10";
+      if (!parsed.columnRatio) parsed.columnRatio = "40";
       return parsed;
     })() : {
       backgroundColor: "#ffffff",
@@ -721,7 +783,28 @@ export default function TemplateEditorPage() {
 
   const [styling, setStyling] = useState(
     template?.styling
-      ? JSON.parse(template.styling)
+      ? (() => {
+          const parsed = JSON.parse(template.styling);
+          // Backward compatibility: dacă există textColor vechi, îl folosim pentru ambele
+          if (parsed.textColor && !parsed.specificationTextColor) {
+            parsed.specificationTextColor = parsed.textColor;
+          }
+          if (parsed.textColor && !parsed.valueTextColor) {
+            parsed.valueTextColor = parsed.textColor;
+          }
+          // Adaugă default-uri pentru noile câmpuri dacă nu există
+          if (!parsed.tableWidth) parsed.tableWidth = "100";
+          if (!parsed.tableMarginTop) parsed.tableMarginTop = "0";
+          if (!parsed.tableMarginBottom) parsed.tableMarginBottom = "0";
+          if (!parsed.headerTextAlign) parsed.headerTextAlign = "left";
+          if (parsed.headerBottomBorderEnabled === undefined) parsed.headerBottomBorderEnabled = false;
+          if (!parsed.headerBottomBorderColor) parsed.headerBottomBorderColor = "#000000";
+          if (!parsed.headerBottomBorderWidth) parsed.headerBottomBorderWidth = "1px";
+          if (!parsed.headerBottomBorderStyle) parsed.headerBottomBorderStyle = "solid";
+          if (!parsed.specSpacing) parsed.specSpacing = "10";
+          if (!parsed.columnRatio) parsed.columnRatio = "40";
+          return parsed;
+        })()
       : {
           backgroundColor: "#ffffff",
           specificationTextColor: "#000000",
@@ -764,6 +847,17 @@ export default function TemplateEditorPage() {
           seeMoreButtonFontFamily: "Arial",
           seeMoreButtonBorderRadius: "0px",
           seeMoreButtonPadding: "8px",
+          // New styling features
+          tableWidth: "100", // Table width in %
+          tableMarginTop: "0", // Table margin top in px
+          tableMarginBottom: "0", // Table margin bottom in px
+          headerTextAlign: "left", // Header text align: left, center, right
+          headerBottomBorderEnabled: false, // Header bottom border switch
+          headerBottomBorderColor: "#000000", // Header bottom border color
+          headerBottomBorderWidth: "1px", // Header bottom border width
+          headerBottomBorderStyle: "solid", // Header bottom border style
+          specSpacing: "10", // Row padding in px
+          columnRatio: "40", // Column ratio 10-90%, step 10 (replaces firstColumnWidth)
         }
   );
 
@@ -1741,6 +1835,10 @@ export default function TemplateEditorPage() {
       padding: styling.padding,
       fontFamily: styling.textFontFamily,
       fontSize: styling.textFontSize,
+      // New styling features
+      width: (styling.tableWidth || '100') + '%',
+      marginTop: (styling.tableMarginTop || '0') + 'px',
+      marginBottom: (styling.tableMarginBottom || '0') + 'px',
     };
 
     const headingStyle = {
@@ -1748,6 +1846,11 @@ export default function TemplateEditorPage() {
       fontSize: styling.headingFontSize,
       fontWeight: styling.headingFontWeight,
       fontFamily: styling.headingFontFamily,
+      // New styling features
+      textAlign: styling.headerTextAlign || 'left',
+      ...(styling.headerBottomBorderEnabled ? {
+        borderBottom: (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000'),
+      } : {}),
     };
 
     const renderMetafieldRow = (metafield, globalIndex) => {
@@ -1799,17 +1902,27 @@ export default function TemplateEditorPage() {
       }
       
       return (
-        <tr key={`${metafield.sectionIndex}-${metafield.mfIndex}`} style={{ borderBottom: styling.rowBorderEnabled ? `${styling.rowBorderWidth} ${styling.rowBorderStyle} ${styling.rowBorderColor}` : "none" }}>
+        <tr 
+          key={`${metafield.sectionIndex}-${metafield.mfIndex}`} 
+          style={{ 
+            borderBottom: styling.rowBorderEnabled ? `${styling.rowBorderWidth} ${styling.rowBorderStyle} ${styling.rowBorderColor}` : "none",
+            // New: specSpacing (row padding)
+            paddingTop: (styling.specSpacing || '10') + 'px',
+            paddingBottom: (styling.specSpacing || '10') + 'px',
+          }}
+        >
           <td
             style={{
               padding: "8px",
               fontWeight: "bold",
-              width: "40%",
+              width: (styling.columnRatio || '40') + '%', // Use columnRatio instead of fixed 40%
               color: styling.specificationTextColor || "#000000",
               fontFamily: styling.textFontFamily,
               fontSize: styling.textFontSize,
               backgroundColor: specBackground,
               textTransform: styling.textTransform,
+              paddingTop: (styling.specSpacing || '10') + 'px',
+              paddingBottom: (styling.specSpacing || '10') + 'px',
             }}
           >
             {metafieldName}
@@ -1846,6 +1959,8 @@ export default function TemplateEditorPage() {
               fontSize: styling.textFontSize,
               backgroundColor: valueBackground,
               textTransform: styling.textTransform,
+              paddingTop: (styling.specSpacing || '10') + 'px',
+              paddingBottom: (styling.specSpacing || '10') + 'px',
             }}
           >
             {isProductSpec ? (
@@ -2117,12 +2232,15 @@ export default function TemplateEditorPage() {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        borderBottom: `1px solid ${styling.specificationTextColor || styling.valueTextColor || "#000000"}`,
+                        borderBottom: styling.headerBottomBorderEnabled 
+                          ? `${styling.headerBottomBorderWidth || '1px'} ${styling.headerBottomBorderStyle || 'solid'} ${styling.headerBottomBorderColor || '#000000'}`
+                          : `1px solid ${styling.specificationTextColor || styling.valueTextColor || "#000000"}`,
                         backgroundColor: styling.backgroundColor || "#ffffff",
                         fontSize: styling.headingFontSize || "18px",
                         fontWeight: styling.headingFontWeight || "bold",
                         fontFamily: styling.headingFontFamily || "inherit",
                         color: styling.headingColor || "#000000",
+                        textAlign: styling.headerTextAlign || "left",
                         userSelect: "none",
                         transition: "background-color 0.2s ease",
                       }}
@@ -2645,6 +2763,17 @@ export default function TemplateEditorPage() {
             <input type="hidden" name="seeMoreButtonFontFamily" value={styling.seeMoreButtonFontFamily || "Arial"} />
             <input type="hidden" name="seeMoreButtonBorderRadius" value={styling.seeMoreButtonBorderRadius || "0px"} />
             <input type="hidden" name="seeMoreButtonPadding" value={styling.seeMoreButtonPadding || "8px"} />
+            {/* New styling features */}
+            <input type="hidden" name="tableWidth" value={styling.tableWidth || "100"} />
+            <input type="hidden" name="tableMarginTop" value={styling.tableMarginTop || "0"} />
+            <input type="hidden" name="tableMarginBottom" value={styling.tableMarginBottom || "0"} />
+            <input type="hidden" name="headerTextAlign" value={styling.headerTextAlign || "left"} />
+            <input type="hidden" name="headerBottomBorderEnabled" value={styling.headerBottomBorderEnabled ? "true" : "false"} />
+            <input type="hidden" name="headerBottomBorderColor" value={styling.headerBottomBorderColor || "#000000"} />
+            <input type="hidden" name="headerBottomBorderWidth" value={styling.headerBottomBorderWidth || "1px"} />
+            <input type="hidden" name="headerBottomBorderStyle" value={styling.headerBottomBorderStyle || "solid"} />
+            <input type="hidden" name="specSpacing" value={styling.specSpacing || "10"} />
+            <input type="hidden" name="columnRatio" value={styling.columnRatio || "40"} />
             {sections.map((section, sectionIndex) => (
                 <div key={sectionIndex}>
                     <input
@@ -4141,11 +4270,8 @@ export default function TemplateEditorPage() {
         <div style={{ width: "30%", overflowY: "auto", paddingRight: "10px" }}>
         <s-section heading="Styles">
           <s-stack direction="block" gap="base">
-            {/* 1. Section Styling */}
-            <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
-              <s-stack direction="block" gap="base">
-                <s-heading level="3">Section Styling</s-heading>
-                <s-stack direction="block" gap="base">
+            {/* 1. Table Styling (formerly Section Styling) */}
+            <CollapsibleSection title="Table Styling" defaultCollapsed={true}>
               <s-color-field
                 label="Background Color"
                 name="backgroundColor"
@@ -4160,6 +4286,73 @@ export default function TemplateEditorPage() {
                       }));
                     }}
                   />
+                  
+                  {/* New: Table width, margins */}
+                  <div style={{ width: "100%" }}>
+                    <RangeSlider
+                      label="Table Width (%)"
+                      value={parseInt(styling.tableWidth) || 100}
+                      onChange={(value) => {
+                        setStyling((prev) => ({
+                          ...prev,
+                          tableWidth: value.toString(),
+                        }));
+                      }}
+                      min={1}
+                      max={100}
+                      step={1}
+                      output
+                    />
+                    <input
+                      type="hidden"
+                      name="tableWidth"
+                      value={styling.tableWidth || "100"}
+                    />
+                  </div>
+                  
+                  <div style={{ width: "100%" }}>
+                    <RangeSlider
+                      label="Table Margin Top (px)"
+                      value={parseInt(styling.tableMarginTop) || 0}
+                      onChange={(value) => {
+                        setStyling((prev) => ({
+                          ...prev,
+                          tableMarginTop: value.toString(),
+                        }));
+                      }}
+                      min={0}
+                      max={100}
+                      step={1}
+                      output
+                    />
+                    <input
+                      type="hidden"
+                      name="tableMarginTop"
+                      value={styling.tableMarginTop || "0"}
+                    />
+                  </div>
+                  
+                  <div style={{ width: "100%" }}>
+                    <RangeSlider
+                      label="Table Margin Bottom (px)"
+                      value={parseInt(styling.tableMarginBottom) || 0}
+                      onChange={(value) => {
+                        setStyling((prev) => ({
+                          ...prev,
+                          tableMarginBottom: value.toString(),
+                        }));
+                      }}
+                      min={0}
+                      max={100}
+                      step={1}
+                      output
+                    />
+                    <input
+                      type="hidden"
+                      name="tableMarginBottom"
+                      value={styling.tableMarginBottom || "0"}
+                    />
+                  </div>
                   
                   {/* Section Border */}
                   <s-stack direction="block" gap="tight">
@@ -4283,15 +4476,10 @@ export default function TemplateEditorPage() {
                       value={styling.padding}
                     />
                   </div>
-                </s-stack>
-              </s-stack>
-            </s-box>
+            </CollapsibleSection>
 
             {/* 2. Header Styling */}
-            <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
-              <s-stack direction="block" gap="base">
-                <s-heading level="3">Header Styling</s-heading>
-                <s-stack direction="block" gap="base">
+            <CollapsibleSection title="Header Styling" defaultCollapsed={true}>
               <s-color-field
                 label="Heading Color"
                 name="headingColor"
@@ -4383,15 +4571,118 @@ export default function TemplateEditorPage() {
                 <s-option value="Roboto">Roboto</s-option>
               </s-select>
             </s-stack>
-                </s-stack>
+            
+            {/* New: Text Align */}
+            <s-stack direction="block" gap="tight">
+              <s-text style={{ fontSize: "14px", fontWeight: "500", color: "#202223" }}>Text Align</s-text>
+              <s-stack direction="inline" gap="base">
+                <s-button
+                  variant={styling.headerTextAlign === "left" ? "primary" : "secondary"}
+                  onClick={() => setStyling((prev) => ({ ...prev, headerTextAlign: "left" }))}
+                >
+                  Left
+                </s-button>
+                <s-button
+                  variant={styling.headerTextAlign === "center" ? "primary" : "secondary"}
+                  onClick={() => setStyling((prev) => ({ ...prev, headerTextAlign: "center" }))}
+                >
+                  Center
+                </s-button>
+                <s-button
+                  variant={styling.headerTextAlign === "right" ? "primary" : "secondary"}
+                  onClick={() => setStyling((prev) => ({ ...prev, headerTextAlign: "right" }))}
+                >
+                  Right
+                </s-button>
               </s-stack>
-            </s-box>
+              <input
+                type="hidden"
+                name="headerTextAlign"
+                value={styling.headerTextAlign || "left"}
+              />
+            </s-stack>
+            
+            {/* New: Header Bottom Border */}
+            <s-stack direction="block" gap="tight">
+              <s-switch
+                id="header-bottom-border-switch"
+                label="Header Bottom Border"
+                checked={styling.headerBottomBorderEnabled || false}
+                onChange={(e) => {
+                  setStyling((prev) => ({
+                    ...prev,
+                    headerBottomBorderEnabled: e.target.checked,
+                  }));
+                }}
+              />
+              {styling.headerBottomBorderEnabled && (
+                <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
+                  <s-stack direction="inline" gap="base">
+                    <s-color-field
+                      label="Border Color"
+                      name="headerBottomBorderColor"
+                      value={styling.headerBottomBorderColor || "#000000"}
+                      alpha
+                      onChange={(event) => {
+                        const value = event.currentTarget?.value || event.target?.value;
+                        if (!value) return;
+                        setStyling((prev) => ({
+                          ...prev,
+                          headerBottomBorderColor: value,
+                        }));
+                      }}
+                    />
+                    <s-select
+                      name="headerBottomBorderStyle"
+                      label="Border Style"
+                      value={styling.headerBottomBorderStyle || "solid"}
+                      onInput={(e) => {
+                        const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                        if (value !== undefined) {
+                          setStyling((prev) => ({ ...prev, headerBottomBorderStyle: value }));
+                        }
+                      }}
+                      onChange={(e) => {
+                        const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                        if (value !== undefined) {
+                          setStyling((prev) => ({ ...prev, headerBottomBorderStyle: value }));
+                        }
+                      }}
+                    >
+                      <s-option value="solid">Solid</s-option>
+                      <s-option value="dashed">Dashed</s-option>
+                      <s-option value="dotted">Dotted</s-option>
+                      <s-option value="none">None</s-option>
+                    </s-select>
+                  </s-stack>
+                  <div style={{ width: "100%" }}>
+                    <RangeSlider
+                      label="Border Width"
+                      value={pxToNumber(styling.headerBottomBorderWidth || "1px")}
+                      onChange={(value) => {
+                        setStyling((prev) => ({
+                          ...prev,
+                          headerBottomBorderWidth: numberToPx(value),
+                        }));
+                      }}
+                      min={0}
+                      max={20}
+                      step={1}
+                      output
+                    />
+                    <input
+                      type="hidden"
+                      name="headerBottomBorderWidth"
+                      value={styling.headerBottomBorderWidth || "1px"}
+                    />
+                  </div>
+                </s-stack>
+              )}
+            </s-stack>
+            </CollapsibleSection>
 
             {/* 3. Spec Styling */}
-            <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
-              <s-stack direction="block" gap="base">
-                <s-heading level="3">Spec Styling</s-heading>
-                <s-stack direction="block" gap="base">
+            <CollapsibleSection title="Spec Styling" defaultCollapsed={true}>
                   <s-color-field
                     label="Specification Text Color"
                     name="specificationTextColor"
@@ -4599,6 +4890,52 @@ export default function TemplateEditorPage() {
                     )}
                   </s-stack>
 
+                  {/* New: Spacing (Row Padding) */}
+                  <div style={{ width: "100%" }}>
+                    <RangeSlider
+                      label="Spacing (Row Padding in px)"
+                      value={parseInt(styling.specSpacing) || 10}
+                      onChange={(value) => {
+                        setStyling((prev) => ({
+                          ...prev,
+                          specSpacing: value.toString(),
+                        }));
+                      }}
+                      min={0}
+                      max={50}
+                      step={1}
+                      output
+                    />
+                    <input
+                      type="hidden"
+                      name="specSpacing"
+                      value={styling.specSpacing || "10"}
+                    />
+                  </div>
+                  
+                  {/* New: Column Ratio (replaces firstColumnWidth) */}
+                  <div style={{ width: "100%" }}>
+                    <RangeSlider
+                      label="Column Ratio (%)"
+                      value={parseInt(styling.columnRatio) || 40}
+                      onChange={(value) => {
+                        setStyling((prev) => ({
+                          ...prev,
+                          columnRatio: value.toString(),
+                        }));
+                      }}
+                      min={10}
+                      max={90}
+                      step={10}
+                      output
+                    />
+                    <input
+                      type="hidden"
+                      name="columnRatio"
+                      value={styling.columnRatio || "40"}
+                    />
+                  </div>
+
                   {/* Text Transform */}
                   <s-select
                     name="textTransform"
@@ -4700,15 +5037,11 @@ export default function TemplateEditorPage() {
             </s-stack>
                     )}
                   </s-stack>
-                </s-stack>
-              </s-stack>
-            </s-box>
+            </CollapsibleSection>
             
             {/* 4. See More Button Styling */}
             {seeMoreEnabled && (
-              <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
-                <s-stack direction="block" gap="base">
-                  <s-heading level="3">See More Button Styling</s-heading>
+              <CollapsibleSection title="See More Button Styling" defaultCollapsed={true}>
                   <s-stack direction="block" gap="base"> 
                           <s-color-field
                             label="Button Text Color"
@@ -4945,10 +5278,9 @@ export default function TemplateEditorPage() {
                               </s-stack>
                             )}
                           </s-stack>
-                        </s-stack>
-                      </s-stack>
-                    </s-box>
-                  )}
+                  </s-stack>
+              </CollapsibleSection>
+            )}
           </s-stack>
         </s-section>
         </div>
