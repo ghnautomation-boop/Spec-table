@@ -3,26 +3,67 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import CrispChat from "../components/CrispChat.jsx";
+import prisma from "../db.server.js";
+import { getCurrentSubscription } from "../models/billing.server.js";
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const shopDomain = session.shop;
+
+  // Verifică dacă există un plan activ
+  let hasActivePlan = false;
+  
+  try {
+    // Verifică subscription-ul activ din Shopify Billing API
+    const currentSubscription = await getCurrentSubscription(admin);
+    
+    if (currentSubscription && currentSubscription.status === "ACTIVE") {
+      hasActivePlan = true;
+    } else {
+      // Verifică și în DB pentru backward compatibility
+      const shop = await prisma.shop.findUnique({
+        where: { shopDomain },
+        select: { id: true },
+      });
+      
+      if (shop) {
+        const planRows = await prisma.$queryRaw`
+          SELECT "planKey" FROM "ShopPlan" WHERE "shopId" = ${shop.id} LIMIT 1
+        `;
+        hasActivePlan = Array.isArray(planRows) && planRows.length > 0;
+      }
+    }
+  } catch (error) {
+    console.warn("[app.loader] Error checking for active plan:", error.message);
+    // Dacă există o eroare, considerăm că nu există plan activ
+    hasActivePlan = false;
+  }
 
   // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return { 
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    hasActivePlan 
+  };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData();
+  const { apiKey, hasActivePlan } = useLoaderData();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
       <CrispChat />
       <s-app-nav>
-        <s-link href="/app">Home</s-link>
-        <s-link href="/app/templates">Templates</s-link>
-        <s-link href="/app/sync">Data Sync</s-link>
-        <s-link href="/app/plans">Plans</s-link>
-        <s-link href="/app/additional">Additional page</s-link>
+        {hasActivePlan ? (
+          <>
+            <s-link href="/app">Home</s-link>
+            <s-link href="/app/templates">Templates</s-link>
+            <s-link href="/app/sync">Data Sync</s-link>
+            <s-link href="/app/plans">Plans</s-link>
+            <s-link href="/app/additional">Additional page</s-link>
+          </>
+        ) : (
+          <s-link href="/app/plans">Plans</s-link>
+        )}
       </s-app-nav>
       <Outlet />
     </AppProvider>

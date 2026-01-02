@@ -424,6 +424,202 @@ export async function deleteMetaobjectByHandle(admin, handle) {
 }
 
 /**
+ * Creează metafield definition-ul dc_specification_template pentru colecții dacă nu există
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @returns {Promise<boolean>} True dacă definition-ul există sau a fost creat cu succes
+ */
+async function ensureCollectionMetafieldDefinition(admin) {
+  const query = `
+    query getMetafieldDefinition($namespace: String!, $key: String!, $ownerType: MetafieldOwnerType!) {
+      metafieldDefinitions(first: 1, namespace: $namespace, key: $key, ownerType: $ownerType) {
+        nodes {
+          id
+          namespace
+          key
+          name
+          type {
+            name
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    // Verifică dacă definition-ul există deja
+    const checkResponse = await admin.graphql(query, {
+      variables: {
+        namespace: "custom",
+        key: "dc_specification_template",
+        ownerType: "COLLECTION",
+      },
+    });
+    const checkData = await checkResponse.json();
+
+    if (checkData.errors) {
+      console.error("[ensureCollectionMetafieldDefinition] Error checking definition:", checkData.errors);
+      return false;
+    }
+
+    const existingDefinition = checkData.data?.metafieldDefinitions?.nodes?.[0];
+    if (existingDefinition) {
+      console.log('[ensureCollectionMetafieldDefinition] Definition already exists for COLLECTION');
+      return true;
+    }
+
+    // Creează definition-ul explicit
+    console.log('[ensureCollectionMetafieldDefinition] Definition does not exist - creating it...');
+    const createMutation = `
+      mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          metafieldDefinition {
+            id
+            namespace
+            key
+            name
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const createVariables = {
+      definition: {
+        name: "Specification Template",
+        namespace: "custom",
+        key: "dc_specification_template",
+        ownerType: "COLLECTION",
+        type: {
+          name: "metaobject_reference",
+          metaobjectType: "specification_template",
+        },
+        description: "Reference to specification template metaobject",
+      },
+    };
+
+    const createResponse = await admin.graphql(createMutation, { variables: createVariables });
+    const createData = await createResponse.json();
+
+    if (createData.errors) {
+      console.error("[ensureCollectionMetafieldDefinition] GraphQL errors creating definition:", createData.errors);
+      return false;
+    }
+
+    if (createData.data.metafieldDefinitionCreate.userErrors?.length > 0) {
+      console.error("[ensureCollectionMetafieldDefinition] User errors creating definition:", createData.data.metafieldDefinitionCreate.userErrors);
+      return false;
+    }
+
+    console.log('[ensureCollectionMetafieldDefinition] Definition created successfully for COLLECTION');
+    return true;
+  } catch (error) {
+    console.error("[ensureCollectionMetafieldDefinition] Error:", error);
+    return false;
+  }
+}
+
+/**
+ * Creează metafield definition-ul dc_specification_template pentru produse dacă nu există
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @returns {Promise<boolean>} True dacă definition-ul există sau a fost creat cu succes
+ */
+async function ensureProductMetafieldDefinition(admin) {
+  const query = `
+    query getMetafieldDefinition($namespace: String!, $key: String!, $ownerType: MetafieldOwnerType!) {
+      metafieldDefinitions(first: 1, namespace: $namespace, key: $key, ownerType: $ownerType) {
+        nodes {
+          id
+          namespace
+          key
+          name
+          type {
+            name
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    // Verifică dacă definition-ul există deja
+    const checkResponse = await admin.graphql(query, {
+      variables: {
+        namespace: "custom",
+        key: "dc_specification_template",
+        ownerType: "PRODUCT",
+      },
+    });
+    const checkData = await checkResponse.json();
+
+    if (checkData.errors) {
+      console.error("[ensureProductMetafieldDefinition] Error checking definition:", checkData.errors);
+      return false;
+    }
+
+    const existingDefinition = checkData.data?.metafieldDefinitions?.nodes?.[0];
+    if (existingDefinition) {
+      console.log('[ensureProductMetafieldDefinition] Definition already exists for PRODUCT');
+      return true;
+    }
+
+    // Creează definition-ul explicit
+    console.log('[ensureProductMetafieldDefinition] Definition does not exist - creating it...');
+    const createMutation = `
+      mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          metafieldDefinition {
+            id
+            namespace
+            key
+            name
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const createVariables = {
+      definition: {
+        name: "Specification Template",
+        namespace: "custom",
+        key: "dc_specification_template",
+        ownerType: "PRODUCT",
+        type: {
+          name: "metaobject_reference",
+          metaobjectType: "specification_template",
+        },
+        description: "Reference to specification template metaobject",
+      },
+    };
+
+    const createResponse = await admin.graphql(createMutation, { variables: createVariables });
+    const createData = await createResponse.json();
+
+    if (createData.errors) {
+      console.error("[ensureProductMetafieldDefinition] GraphQL errors creating definition:", createData.errors);
+      return false;
+    }
+
+    if (createData.data.metafieldDefinitionCreate.userErrors?.length > 0) {
+      console.error("[ensureProductMetafieldDefinition] User errors creating definition:", createData.data.metafieldDefinitionCreate.userErrors);
+      return false;
+    }
+
+    console.log('[ensureProductMetafieldDefinition] Definition created successfully for PRODUCT');
+    return true;
+  } catch (error) {
+    console.error("[ensureProductMetafieldDefinition] Error:", error);
+    return false;
+  }
+}
+
+/**
  * Setează metafield-ul dc_specification_template pe o colecție
  * @param {Object} admin - Shopify Admin GraphQL client
  * @param {string} collectionId - ID-ul colecției (GID format: gid://shopify/Collection/123456789)
@@ -466,6 +662,13 @@ export async function setCollectionMetafield(admin, collectionId, metaobjectId) 
   };
 
   try {
+    // Asigură-te că metafield definition-ul există înainte de a seta metafield-ul
+    const definitionExists = await ensureCollectionMetafieldDefinition(admin);
+    if (!definitionExists) {
+      console.error('[setCollectionMetafield] Failed to ensure metafield definition exists for COLLECTION');
+      return false;
+    }
+    
     console.log('[setCollectionMetafield] Setting metafield for collection:', collectionGid);
     console.log('[setCollectionMetafield] Metaobject ID:', metaobjectId);
     
@@ -533,6 +736,13 @@ export async function setProductMetafield(admin, productId, metaobjectId) {
   };
 
   try {
+    // Asigură-te că metafield definition-ul există înainte de a seta metafield-ul
+    const definitionExists = await ensureProductMetafieldDefinition(admin);
+    if (!definitionExists) {
+      console.error('[setProductMetafield] Failed to ensure metafield definition exists for PRODUCT');
+      return false;
+    }
+    
     console.log('[setProductMetafield] Setting metafield for product:', productGid);
     console.log('[setProductMetafield] Metaobject ID:', metaobjectId);
     

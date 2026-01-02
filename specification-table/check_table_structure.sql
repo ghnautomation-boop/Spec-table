@@ -10,3 +10,5 @@ AND table_name = 'SpecificationTemplate'
 AND column_name LIKE '%seeLess%'
 ORDER BY ordinal_position;
 
+
+

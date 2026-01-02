@@ -4,3 +4,5 @@ WHERE table_name = 'SpecificationTemplate'
 AND column_name IN ('seeLessHideFromPC', 'seeLessHideFromMobile')
 ORDER BY column_name;
 
+
+

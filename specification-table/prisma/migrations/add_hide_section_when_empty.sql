@@ -6,3 +6,5 @@ ADD COLUMN IF NOT EXISTS "hideSectionWhenEmpty" BOOLEAN NOT NULL DEFAULT true;
 
 
 
+
+

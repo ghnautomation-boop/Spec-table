@@ -127,8 +127,13 @@ export const action = async ({ request }) => {
   }
 
   // Creează subscription folosind Shopify Billing API
-  // După aprobare, redirect către pagina de home a aplicației
-  const returnUrl = `${process.env.SHOPIFY_APP_URL || request.url.split('/app')[0]}/app`;
+  // După aprobare, redirect către pagina de home a aplicației în formatul:
+  // https://admin.shopify.com/store/{shop-domain}/apps/{app-handle}/app
+  // Extrage shop domain fără .myshopify.com
+  const shopDomainForUrl = shopDomain.replace('.myshopify.com', '');
+  // App handle - poate fi setat în env sau folosit default
+  const appHandle = process.env.SHOPIFY_APP_HANDLE || 'specification-table';
+  const returnUrl = `https://admin.shopify.com/store/${shopDomainForUrl}/apps/${appHandle}/app`;
   
   console.log("[app.plans.action] Creating subscription with returnUrl:", returnUrl);
   console.log("[app.plans.action] Plan details:", { title: plan.title, price: plan.price, currencyCode: plan.currencyCode });

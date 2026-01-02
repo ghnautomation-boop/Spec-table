@@ -1192,10 +1192,10 @@ export default function TemplatesPage() {
           <s-section suppressHydrationWarning>
             <div className={styles.emptyStateContainer}>
               <div className={styles.emptyStateIcon}>📋</div>
-              <div className={styles.emptyStateHeading}>
-                <s-heading level="2">
+              <div className={styles.emptyStateParagraph}>
+                <s-paragraph >
                   You don't have any templates yet
-                </s-heading>
+                </s-paragraph>
               </div>
               <div className={styles.emptyStateParagraph}>
                 <s-paragraph tone="subdued">

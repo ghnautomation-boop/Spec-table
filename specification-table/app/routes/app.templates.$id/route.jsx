@@ -863,6 +863,9 @@ export default function TemplateEditorPage() {
 
   // State pentru device-ul selectat (mobile, tablet, desktop)
   const [selectedDevice, setSelectedDevice] = useState("desktop");
+  
+  // State pentru dialog-ul de confirmare copy styles
+  const [copyStylesDialog, setCopyStylesDialog] = useState({ open: false, sourceDevice: null });
 
   const [styling, setStyling] = useState(
     template?.styling
@@ -894,7 +897,12 @@ export default function TemplateEditorPage() {
     }
   }, [template]);
 
-  // Funcție pentru copierea stilurilor de la un device la altul
+  // Funcție pentru deschiderea dialog-ului de confirmare copy styles
+  const openCopyStylesDialog = (sourceDevice) => {
+    setCopyStylesDialog({ open: true, sourceDevice });
+  };
+
+  // Funcție pentru copierea efectivă a stilurilor de la un device la altul
   const copyStylesFromDevice = (sourceDevice) => {
     if (!styling[sourceDevice]) return;
     
@@ -904,6 +912,9 @@ export default function TemplateEditorPage() {
         ...styling[sourceDevice],
       },
     }));
+    
+    // Închide dialog-ul
+    setCopyStylesDialog({ open: false, sourceDevice: null });
   };
 
   // Sincronizează state-ul când se încarcă template-ul
@@ -1015,9 +1026,10 @@ export default function TemplateEditorPage() {
       // Save Bar se va ascunde automat după submit cu succes
       
       // Dacă există redirect, navighează după 1.5 secunde pentru a permite utilizatorului să vadă notificarea
+      // Folosim window.location.href pentru a forța reîncărcarea completă a paginii și a reîncărca datele
       if (actionData?.redirect) {
         const timer = setTimeout(() => {
-          navigate(actionData.redirect);
+          window.location.href = actionData.redirect;
         }, 1500);
         return () => clearTimeout(timer);
       }
@@ -1031,6 +1043,12 @@ export default function TemplateEditorPage() {
 
   // Funcție pentru a detecta dacă există schimbări nesalvate
   const hasUnsavedChanges = useCallback(() => {
+    // Dacă salvare a reușit recent, nu mai detectăm modificări nesalvate
+    // pentru a preveni pop-up-ul de beforeunload după salvare
+    if (actionData?.success === true) {
+      return false;
+    }
+
     // Compară templateName
     if (templateName !== initialFormState.current.templateName) {
       return true;
@@ -1117,7 +1135,7 @@ export default function TemplateEditorPage() {
     return false;
   }, [templateName, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, 
       seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, 
-      tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections, styling]);
+      tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections, styling, actionData]);
 
 
   // Funcție pentru a declanșa evenimente change pe hidden inputs
@@ -4248,95 +4266,201 @@ export default function TemplateEditorPage() {
           </s-stack>
         </s-section>
       </div>
-
-      <div style={{ display: "flex", gap: "20px", height: "calc(100vh - 400px)", minHeight: "600px" }}>
-        {/* Partea stângă - Stiluri (30%) */}
-        <div style={{ width: "30%", overflowY: "auto", paddingRight: "10px" }}>
-        {/* Device Selection Buttons */}
-        <s-section>
-          <s-stack direction="block" gap="base">
-            <s-heading level="2">Device Settings</s-heading>
+      <s-divider />
+      <s-section>
+          <s-stack direction="block" gap="base" alignItems="center">
+            <s-heading level="2">Select the device type where you want to apply styling :</s-heading>
             <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
               <s-button
                 variant={selectedDevice === "mobile" ? "primary" : "secondary"}
                 onClick={() => setSelectedDevice("mobile")}
                 style={{ flex: 1 }}
+                icon="mobile"
               >
-                📱 Mobile
+                Mobile
               </s-button>
               <s-button
                 variant={selectedDevice === "tablet" ? "primary" : "secondary"}
                 onClick={() => setSelectedDevice("tablet")}
                 style={{ flex: 1 }}
+                icon="tablet"
               >
-                📱 Tablet
+                Tablet
               </s-button>
               <s-button
                 variant={selectedDevice === "desktop" ? "primary" : "secondary"}
                 onClick={() => setSelectedDevice("desktop")}
                 style={{ flex: 1 }}
+                icon="desktop"
               >
-                💻 Desktop
+                Desktop
               </s-button>
             </div>
             
             {/* Copy Styles Buttons */}
             {selectedDevice === "mobile" && (
               <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-                <s-button
-                  variant="secondary"
-                  onClick={() => copyStylesFromDevice("tablet")}
-                  style={{ flex: 1 }}
-                >
-                  Copy from Tablet
-                </s-button>
-                <s-button
-                  variant="secondary"
-                  onClick={() => copyStylesFromDevice("desktop")}
-                  style={{ flex: 1 }}
-                >
-                  Copy from Desktop
-                </s-button>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <s-button
+                    variant="secondary"
+                    onClick={() => openCopyStylesDialog("tablet")}
+                    style={{ width: "100%" }}
+                    title="Copy all styling settings from Tablet to Mobile. This action will overwrite all current settings for Mobile."
+                  >
+                    Copy styles from Tablet
+                  </s-button>
+                </div>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <s-button
+                    variant="secondary"
+                    onClick={() => openCopyStylesDialog("desktop")}
+                    style={{ width: "100%" }}
+                    title="Copy all styling settings from Desktop to Mobile. This action will overwrite all current settings for Mobile."
+                  >
+                    Copy styles from Desktop
+                  </s-button>
+                </div>
               </div>
             )}
             {selectedDevice === "tablet" && (
               <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-                <s-button
-                  variant="secondary"
-                  onClick={() => copyStylesFromDevice("mobile")}
-                  style={{ flex: 1 }}
-                >
-                  Copy from Mobile
-                </s-button>
-                <s-button
-                  variant="secondary"
-                  onClick={() => copyStylesFromDevice("desktop")}
-                  style={{ flex: 1 }}
-                >
-                  Copy from Desktop
-                </s-button>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <s-button
+                    variant="secondary"
+                    onClick={() => openCopyStylesDialog("mobile")}
+                    style={{ width: "100%" }}
+                    title="Copy all styling settings from Mobile to Tablet. This action will overwrite all current settings for Tablet."
+                  >
+                    Copy styles from Mobile
+                  </s-button>
+                </div>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <s-button
+                    variant="secondary"
+                    onClick={() => openCopyStylesDialog("desktop")}
+                    style={{ width: "100%" }}
+                    title="Copy all styling settings from Desktop to Tablet. This action will overwrite all current settings for Tablet."
+                  >
+                    Copy styles from Desktop
+                  </s-button>
+                </div>
               </div>
             )}
             {selectedDevice === "desktop" && (
               <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-                <s-button
-                  variant="secondary"
-                  onClick={() => copyStylesFromDevice("mobile")}
-                  style={{ flex: 1 }}
+                <div style={{ flex: 1, position: "relative" }}>
+                  <s-button
+                    variant="secondary"
+                    onClick={() => openCopyStylesDialog("mobile")}
+                    style={{ width: "100%" }}
+                    title="Copy all styling settings from Mobile to Desktop. This action will overwrite all current settings for Desktop."
+                  >
+                    Copy styles from Mobile
+                  </s-button>
+                </div>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <s-button
+                    variant="secondary"
+                    onClick={() => openCopyStylesDialog("tablet")}
+                    style={{ width: "100%" }}
+                    title="Copy all styling settings from Tablet to Desktop. This action will overwrite all current settings for Desktop."
+                  >
+                    Copy styles from Tablet
+                  </s-button>
+                </div>
+              </div>
+            )}
+            
+            {/* Dialog de confirmare pentru Copy Styles */}
+            {copyStylesDialog.open && (
+              <div
+                style={{
+                  position: "fixed",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 10000,
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    setCopyStylesDialog({ open: false, sourceDevice: null });
+                  }
+                }}
+              >
+                <s-box
+                  padding="large"
+                  borderWidth="base"
+                  borderRadius="base"
+                  background="base"
+                  style={{
+                    maxWidth: "500px",
+                    width: "90%",
+                    maxHeight: "90vh",
+                    overflowY: "auto",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  Copy from Mobile
-                </s-button>
-                <s-button
-                  variant="secondary"
-                  onClick={() => copyStylesFromDevice("tablet")}
-                  style={{ flex: 1 }}
-                >
-                  Copy from Tablet
-                </s-button>
+                  <s-stack direction="block" gap="base">
+                    <s-heading level="3">
+                      Confirm copy styles
+                    </s-heading>
+                    <s-text>
+                      Are you sure you want to copy all styling settings from{" "}
+                      <strong>{copyStylesDialog.sourceDevice === "mobile" ? "Mobile" : copyStylesDialog.sourceDevice === "tablet" ? "Tablet" : "Desktop"}</strong>{" "}
+                      to{" "}
+                      <strong>{selectedDevice === "mobile" ? "Mobile" : selectedDevice === "tablet" ? "Tablet" : "Desktop"}</strong>?
+                    </s-text>
+                    <s-box
+                      padding="base"
+                      borderWidth="base"
+                      borderRadius="base"
+                      background="subdued"
+                    >
+                      <s-stack direction="block" gap="tight">
+                        <s-text type="strong">Consequences:</s-text>
+                        <s-text>
+                          • All current settings for {selectedDevice === "mobile" ? "Mobile" : selectedDevice === "tablet" ? "Tablet" : "Desktop"} will be completely replaced
+                        </s-text>
+                        <s-text>
+                          • This action includes: colors, fonts, spacing, borders, padding, margin and all other styling settings
+                        </s-text>
+                        <s-text>
+                          • The changes will be applied immediately in preview, but you need to save the template to keep them permanently
+                        </s-text>
+                        <s-text>
+                          • You can cancel the action if you don't save the template
+                        </s-text>
+                      </s-stack>
+                    </s-box>
+                    <s-stack direction="inline" gap="base" style={{ marginTop: "16px" }}>
+                      <s-button
+                        variant="primary"
+                        onClick={() => copyStylesFromDevice(copyStylesDialog.sourceDevice)}
+                      >
+                        Yes, copy styles
+                      </s-button>
+                      <s-button
+                        variant="secondary"
+                        onClick={() => setCopyStylesDialog({ open: false, sourceDevice: null })}
+                      >
+                        Cancel
+                      </s-button>
+                    </s-stack>
+                  </s-stack>
+                </s-box>
               </div>
             )}
           </s-stack>
         </s-section>
+      <div style={{ display: "flex", gap: "20px", height: "calc(100vh - 400px)", minHeight: "600px" }}>
+        {/* Partea stângă - Stiluri (30%) */}
+        <div style={{ width: "30%", overflowY: "auto", paddingRight: "10px" }}>
+        {/* Device Selection Buttons */}
         
         <s-section heading="Styles">
           <s-stack direction="block" gap="base">

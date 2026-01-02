@@ -6,11 +6,36 @@ import prisma from "../db.server.js";
 // Cache pentru shop ID (evită query repetat pentru același shopDomain)
 const shopIdCache = new Map();
 
+/**
+ * Invalidă cache-ul pentru un shop (folosit la uninstall)
+ */
+export function invalidateShopIdCache(shopDomain) {
+  shopIdCache.delete(shopDomain);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[invalidateShopIdCache] Cache invalidated for shop: ${shopDomain}`);
+  }
+}
+
 export async function getTemplates(shopDomain) {
   const perfStart = performance.now();
   
   // Verifică cache pentru shop ID
   let shopId = shopIdCache.get(shopDomain);
+  if (shopId) {
+    // Verifică dacă shop-ul încă există în DB (pentru a evita problemele după uninstall/reinstall)
+    const shopExists = await prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { id: true },
+    });
+    
+    if (!shopExists) {
+      // Shop-ul nu mai există (probabil a fost șters la uninstall), invalidăm cache-ul
+      console.log(`[getTemplates] Cached shopId ${shopId} no longer exists, invalidating cache for ${shopDomain}`);
+      shopIdCache.delete(shopDomain);
+      shopId = null;
+    }
+  }
+  
   if (!shopId) {
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -97,6 +122,10 @@ export async function getTemplates(shopDomain) {
   const queryTime = performance.now() - queryStart;
   if (process.env.NODE_ENV === "development") {
     console.log(`[PERF] getTemplates - Shop query: ${shopQueryTime.toFixed(2)}ms, Main query: ${queryTime.toFixed(2)}ms, Total: ${(performance.now() - perfStart).toFixed(2)}ms`);
+    console.log(`[getTemplates] Found ${result.length} templates for shop: ${shopDomain} (shopId: ${shopId})`);
+    if (result.length > 0) {
+      console.log(`[getTemplates] Template IDs:`, result.map(t => ({ id: t.id, name: t.name, createdAt: t.createdAt })));
+    }
   }
   
   return result;
