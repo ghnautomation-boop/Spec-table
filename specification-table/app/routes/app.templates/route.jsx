@@ -1,4 +1,4 @@
-import { useLoaderData, useFetcher, Outlet, useLocation, Form, useRevalidator } from "react-router";
+import { useLoaderData, useFetcher, Outlet, useLocation, Form, useRevalidator, useNavigate } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { SaveBar, Modal, TitleBar } from "@shopify/app-bridge-react";
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -291,6 +291,10 @@ export const action = async ({ request }) => {
 
 function TemplateAssignment({ template, products: initialProducts, collections: initialCollections, shopify, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId, pendingActiveChanges }) {
   const fetcher = useFetcher();
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
+  const location = useLocation();
+  const processedAssignmentRef = useRef(null);
   const assignment = template.assignments?.[0];
   // Determină tipul de assignment și dacă este except
   const getAssignmentTypeFromAssignment = () => {
@@ -822,7 +826,18 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
       // Verifică dacă este un răspuns de la action-ul de assign
       // (nu are results, deci nu este search)
       if (fetcher.data.success !== undefined && !fetcher.data.results) {
+        // Creează un identificator unic pentru acest răspuns pentru a preveni re-executarea
+        const responseId = JSON.stringify(fetcher.data);
+        
+        // Verifică dacă am procesat deja acest răspuns
+        if (processedAssignmentRef.current === responseId) {
+          return; // Nu procesa din nou același răspuns
+        }
+        
         if (fetcher.data.success) {
+          // Marchează că am procesat acest răspuns
+          processedAssignmentRef.current = responseId;
+          
           // Verifică dacă au fost adăugate automat resurse
           const autoAddedCount = fetcher.data.autoAddedCount || 0;
           const autoAddedType = fetcher.data.autoAddedType;
@@ -838,17 +853,25 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
             shopify.toast.show("Assignment saved successfully");
           }
           
-          // Resetează starea inițială și reîncarcă pagina
+          // Resetează starea inițială și reîncarcă datele
           handleReset();
+          // Reîncarcă datele fără să navigăm (suntem deja pe pagina corectă)
           setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+            revalidator.revalidate();
+          }, 500);
         } else {
+          // Marchează că am procesat acest răspuns (chiar dacă e eroare)
+          processedAssignmentRef.current = responseId;
           shopify.toast.show(fetcher.data.error || "An error occurred", { isError: true });
         }
       }
     }
-  }, [fetcher.state, fetcher.data, shopify, handleReset]);
+    
+    // Resetează flag-ul când fetcher.state devine "idle" și nu mai există date
+    if (fetcher.state === "idle" && !fetcher.data) {
+      processedAssignmentRef.current = null;
+    }
+  }, [fetcher.state, fetcher.data, shopify, handleReset, revalidator]);
 
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base" background="base" suppressHydrationWarning>
@@ -1001,6 +1024,8 @@ export default function TemplatesPage() {
   const fetcher = useFetcher();
   const shopify = useAppBridge();
   const location = useLocation();
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [isMounted, setIsMounted] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState(null);
@@ -1035,9 +1060,13 @@ export default function TemplatesPage() {
         shopify.toast.show("Template status updated successfully!");
       }
       
-      window.location.reload();
+      // Folosim navigate() pentru navigare SPA (fără reload complet) pentru a păstra contextul App Bridge
+      setTimeout(() => {
+        navigate(location.pathname, { replace: true });
+        revalidator.revalidate();
+      }, 500);
     }
-  }, [fetcher.data, fetcher.formData, shopify]);
+  }, [fetcher.data, fetcher.formData, shopify, navigate, location.pathname, revalidator]);
 
   const handleDelete = (templateId) => {
     const template = templates.find(t => t.id === templateId);

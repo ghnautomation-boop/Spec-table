@@ -1056,3 +1056,260 @@ export async function deleteProductMetafield(admin, productId) {
   }
 }
 
+/**
+ * Șterge toate metaobject-urile de tip specification_template pentru un shop
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @returns {Promise<boolean>} True dacă a fost șters cu succes
+ */
+export async function deleteAllMetaobjects(admin) {
+  console.log('[deleteAllMetaobjects] Deleting all metaobjects of type specification_template...');
+  
+  const mutation = `
+    mutation metaobjectBulkDelete($where: MetaobjectBulkDeleteWhereCondition!) {
+      metaobjectBulkDelete(where: $where) {
+        job {
+          id
+          done
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  `;
+
+  const variables = {
+    where: {
+      type: "specification_template",
+    },
+  };
+
+  try {
+    const response = await admin.graphql(mutation, { variables });
+    const data = await response.json();
+
+    if (data.errors) {
+      console.error("[deleteAllMetaobjects] GraphQL errors:", data.errors);
+      return false;
+    }
+
+    if (data.data.metaobjectBulkDelete.userErrors?.length > 0) {
+      console.error("[deleteAllMetaobjects] User errors:", data.data.metaobjectBulkDelete.userErrors);
+      return false;
+    }
+
+    const job = data.data.metaobjectBulkDelete.job;
+    console.log('[deleteAllMetaobjects] Bulk delete job created:', job.id, 'Done:', job.done);
+    
+    // Job-ul este asincron, dar returnăm true pentru că operația a fost inițiată cu succes
+    return true;
+  } catch (error) {
+    console.error("[deleteAllMetaobjects] Error deleting metaobjects:", error);
+    return false;
+  }
+}
+
+/**
+ * Șterge toate metafield-urile dc_specification_template de pe produse și colecții
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @returns {Promise<{productsDeleted: number, collectionsDeleted: number}>} Numărul de metafield-uri șterse
+ */
+export async function deleteAllMetafields(admin) {
+  console.log('[deleteAllMetafields] Starting to delete all dc_specification_template metafields...');
+  
+  let productsDeleted = 0;
+  let collectionsDeleted = 0;
+  let hasNextPage = true;
+  let cursor = null;
+  const batchSize = 25; // Maximum pentru metafieldsDelete
+
+  // Șterge metafield-urile de pe produse
+  console.log('[deleteAllMetafields] Deleting metafields from products...');
+  try {
+    while (hasNextPage) {
+      const productsQuery = `
+        query getProductsWithMetafield($first: Int!, $after: String) {
+          products(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                metafield(namespace: "custom", key: "dc_specification_template") {
+                  id
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const productsResponse = await admin.graphql(productsQuery, {
+        variables: {
+          first: 250,
+          after: cursor,
+        },
+      });
+      const productsData = await productsResponse.json();
+
+      if (productsData.errors) {
+        console.error("[deleteAllMetafields] Error querying products:", productsData.errors);
+        break;
+      }
+
+      const products = productsData.data?.products?.edges || [];
+      const metafieldsToDelete = products
+        .filter(edge => edge.node.metafield?.id)
+        .map(edge => ({
+          ownerId: edge.node.id,
+          namespace: "custom",
+          key: "dc_specification_template",
+        }));
+
+      if (metafieldsToDelete.length > 0) {
+        // Șterge în batch-uri de 25 (limita pentru metafieldsDelete)
+        for (let i = 0; i < metafieldsToDelete.length; i += batchSize) {
+          const batch = metafieldsToDelete.slice(i, i + batchSize);
+          
+          const deleteMutation = `
+            mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+              metafieldsDelete(metafields: $metafields) {
+                deletedMetafields {
+                  ownerId
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `;
+
+          const deleteResponse = await admin.graphql(deleteMutation, {
+            variables: {
+              metafields: batch,
+            },
+          });
+          const deleteData = await deleteResponse.json();
+
+          if (deleteData.errors) {
+            console.error("[deleteAllMetafields] Error deleting product metafields:", deleteData.errors);
+          } else if (deleteData.data.metafieldsDelete.userErrors?.length > 0) {
+            console.warn("[deleteAllMetafields] User errors deleting product metafields:", deleteData.data.metafieldsDelete.userErrors);
+          } else {
+            const deletedCount = deleteData.data.metafieldsDelete.deletedMetafields?.length || 0;
+            productsDeleted += deletedCount;
+            console.log(`[deleteAllMetafields] Deleted ${deletedCount} product metafields (batch ${Math.floor(i / batchSize) + 1})`);
+          }
+        }
+      }
+
+      hasNextPage = productsData.data?.products?.pageInfo?.hasNextPage || false;
+      cursor = productsData.data?.products?.pageInfo?.endCursor || null;
+    }
+  } catch (error) {
+    console.error("[deleteAllMetafields] Error processing products:", error);
+  }
+
+  // Resetează pentru colecții
+  hasNextPage = true;
+  cursor = null;
+
+  // Șterge metafield-urile de pe colecții
+  console.log('[deleteAllMetafields] Deleting metafields from collections...');
+  try {
+    while (hasNextPage) {
+      const collectionsQuery = `
+        query getCollectionsWithMetafield($first: Int!, $after: String) {
+          collections(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                metafield(namespace: "custom", key: "dc_specification_template") {
+                  id
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const collectionsResponse = await admin.graphql(collectionsQuery, {
+        variables: {
+          first: 250,
+          after: cursor,
+        },
+      });
+      const collectionsData = await collectionsResponse.json();
+
+      if (collectionsData.errors) {
+        console.error("[deleteAllMetafields] Error querying collections:", collectionsData.errors);
+        break;
+      }
+
+      const collections = collectionsData.data?.collections?.edges || [];
+      const metafieldsToDelete = collections
+        .filter(edge => edge.node.metafield?.id)
+        .map(edge => ({
+          ownerId: edge.node.id,
+          namespace: "custom",
+          key: "dc_specification_template",
+        }));
+
+      if (metafieldsToDelete.length > 0) {
+        // Șterge în batch-uri de 25 (limita pentru metafieldsDelete)
+        for (let i = 0; i < metafieldsToDelete.length; i += batchSize) {
+          const batch = metafieldsToDelete.slice(i, i + batchSize);
+          
+          const deleteMutation = `
+            mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+              metafieldsDelete(metafields: $metafields) {
+                deletedMetafields {
+                  ownerId
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `;
+
+          const deleteResponse = await admin.graphql(deleteMutation, {
+            variables: {
+              metafields: batch,
+            },
+          });
+          const deleteData = await deleteResponse.json();
+
+          if (deleteData.errors) {
+            console.error("[deleteAllMetafields] Error deleting collection metafields:", deleteData.errors);
+          } else if (deleteData.data.metafieldsDelete.userErrors?.length > 0) {
+            console.warn("[deleteAllMetafields] User errors deleting collection metafields:", deleteData.data.metafieldsDelete.userErrors);
+          } else {
+            const deletedCount = deleteData.data.metafieldsDelete.deletedMetafields?.length || 0;
+            collectionsDeleted += deletedCount;
+            console.log(`[deleteAllMetafields] Deleted ${deletedCount} collection metafields (batch ${Math.floor(i / batchSize) + 1})`);
+          }
+        }
+      }
+
+      hasNextPage = collectionsData.data?.collections?.pageInfo?.hasNextPage || false;
+      cursor = collectionsData.data?.collections?.pageInfo?.endCursor || null;
+    }
+  } catch (error) {
+    console.error("[deleteAllMetafields] Error processing collections:", error);
+  }
+
+  console.log(`[deleteAllMetafields] Completed. Deleted ${productsDeleted} product metafields and ${collectionsDeleted} collection metafields.`);
+  return { productsDeleted, collectionsDeleted };
+}
+
