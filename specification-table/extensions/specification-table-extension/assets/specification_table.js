@@ -601,8 +601,8 @@ function renderTemplate(container, template) {
   const visibleMetafields = allMetafieldsWithSection.filter(metafield => metafieldHasValue(metafield));
   const totalVisibleRows = visibleMetafields.length;
 
-  let displayRowsPC = allMetafieldsWithSection;
-  let displayRowsMobile = allMetafieldsWithSection;
+  let displayRowsPC = visibleMetafields;
+  let displayRowsMobile = visibleMetafields;
   let hasMorePC = false;
   let hasMoreMobile = false;
 
@@ -643,12 +643,36 @@ function renderTemplate(container, template) {
     allGroupedBySection[item.sectionIndex].allMetafields.push(item);
   });
 
+  // Debug: verifică displayRows
+  console.log('[renderTemplate] displayRowsPC count:', displayRowsPC.length);
+  console.log('[renderTemplate] displayRowsMobile count:', displayRowsMobile.length);
+  console.log('[renderTemplate] visibleMetafields count:', visibleMetafields.length);
+  console.log('[renderTemplate] allMetafieldsWithSection count:', allMetafieldsWithSection.length);
+  
   displayRowsPC.forEach(item => {
-    allGroupedBySection[item.sectionIndex].displayMetafieldsPC.push(item);
+    if (allGroupedBySection[item.sectionIndex]) {
+      allGroupedBySection[item.sectionIndex].displayMetafieldsPC.push(item);
+    } else {
+      console.warn('[renderTemplate] Section index not found in allGroupedBySection:', item.sectionIndex, 'Available keys:', Object.keys(allGroupedBySection));
+    }
   });
   displayRowsMobile.forEach(item => {
-    allGroupedBySection[item.sectionIndex].displayMetafieldsMobile.push(item);
+    if (allGroupedBySection[item.sectionIndex]) {
+      allGroupedBySection[item.sectionIndex].displayMetafieldsMobile.push(item);
+    } else {
+      console.warn('[renderTemplate] Section index not found in allGroupedBySection:', item.sectionIndex, 'Available keys:', Object.keys(allGroupedBySection));
+    }
   });
+  
+  // Debug: verifică allGroupedBySection după populare
+  console.log('[renderTemplate] allGroupedBySection after populating displayMetafields:', 
+    Object.keys(allGroupedBySection).map(key => ({
+      sectionIndex: key,
+      heading: allGroupedBySection[key].heading,
+      displayMetafieldsPC: allGroupedBySection[key].displayMetafieldsPC.length,
+      displayMetafieldsMobile: allGroupedBySection[key].displayMetafieldsMobile.length
+    }))
+  );
 
   if (hasMorePC) {
     const hiddenRowsPC = visibleMetafields.slice(seeMoreLimit);
@@ -663,8 +687,13 @@ function renderTemplate(container, template) {
     });
   }
 
+  // Definește variabilele pentru split view per section în afara blocului condițional
+  let sectionsToRender = [];
+  let leftColumnSections = [];
+  let rightColumnSections = [];
+
   if (splitViewPerSection) {
-    const sectionsToRender = [];
+    sectionsToRender = [];
     Object.keys(allGroupedBySection).forEach(sectionIndex => {
       const sectionIdx = parseInt(sectionIndex);
       const sectionData = allGroupedBySection[sectionIndex];
@@ -707,7 +736,17 @@ function renderTemplate(container, template) {
         const rightTotal = getTotalCount(right);
         const diff = Math.abs(leftTotal - rightTotal);
         
-        if (diff < bestDiff || (diff === bestDiff && left.length > 0 && left[0].sectionIndex < bestLeft[0]?.sectionIndex)) {
+        // Preferă distribuția cu diferența mai mică
+        // Dacă diferența este egală, preferă coloana stângă să fie mai mare sau egală
+        const shouldUpdate = diff < bestDiff || 
+          (diff === bestDiff && (
+            // Dacă diferența este egală, preferă coloana stângă să fie >= dreapta
+            (leftTotal >= rightTotal && (bestLeft.length === 0 || getTotalCount(bestLeft) < rightTotal)) ||
+            // Sau dacă ambele sunt echilibrate, preferă cea cu prima secțiune cu index mai mic în stânga
+            (leftTotal === rightTotal && left.length > 0 && (bestLeft.length === 0 || left[0].sectionIndex < bestLeft[0]?.sectionIndex))
+          ));
+        
+        if (shouldUpdate) {
           bestDiff = diff;
           bestLeft = [...left];
           bestRight = [...right];
@@ -724,11 +763,18 @@ function renderTemplate(container, template) {
         return;
       }
 
-      // Încearcă să plaseze secțiunea în stânga
-      findBestDistribution(index + 1, [...left, currentSection], right);
-      
-      // Încearcă să plaseze secțiunea în dreapta
-      findBestDistribution(index + 1, left, [...right, currentSection]);
+      // Preferă să plaseze în stânga dacă stânga este mai mică sau egală cu dreapta
+      // Astfel, coloana stângă va fi întotdeauna >= coloana dreaptă când este posibil
+      if (leftTotal <= rightTotal) {
+        // Încearcă mai întâi să plaseze în stânga
+        findBestDistribution(index + 1, [...left, currentSection], right);
+        // Apoi încearcă dreapta doar dacă este necesar
+        findBestDistribution(index + 1, left, [...right, currentSection]);
+      } else {
+        // Dacă stânga este deja mai mare, preferă dreapta
+        findBestDistribution(index + 1, left, [...right, currentSection]);
+        findBestDistribution(index + 1, [...left, currentSection], right);
+      }
     }
 
     // Pentru un număr mic de secțiuni, folosește algoritmul de backtracking
@@ -737,12 +783,17 @@ function renderTemplate(container, template) {
       findBestDistribution(0, [], []);
     } else {
       // Fallback la algoritm greedy pentru multe secțiuni
+      // Sortează secțiunile descrescător după numărul de metafields pentru o distribuție mai bună
+      const sortedSections = [...sectionsWithCount].sort((a, b) => b.metafieldCount - a.metafieldCount);
+      
       bestLeft = [];
       bestRight = [];
       let leftColumnTotal = 0;
       let rightColumnTotal = 0;
 
-      sectionsWithCount.forEach(section => {
+      sortedSections.forEach(section => {
+        // Preferă coloana stângă dacă este mai mică sau egală cu dreapta
+        // Astfel, coloana stângă va fi întotdeauna >= coloana dreaptă
         if (leftColumnTotal <= rightColumnTotal) {
           bestLeft.push(section);
           leftColumnTotal += section.metafieldCount;
@@ -754,8 +805,8 @@ function renderTemplate(container, template) {
     }
 
     // Sortează secțiunile din fiecare coloană după sectionIndex pentru a păstra ordinea inițială
-    const leftColumnSections = bestLeft.sort((a, b) => a.sectionIndex - b.sectionIndex);
-    const rightColumnSections = bestRight.sort((a, b) => a.sectionIndex - b.sectionIndex);
+    leftColumnSections = bestLeft.sort((a, b) => a.sectionIndex - b.sectionIndex);
+    rightColumnSections = bestRight.sort((a, b) => a.sectionIndex - b.sectionIndex);
 
     // Pentru splitViewPerSection, recalculăm displayMetafieldsPC și displayMetafieldsMobile per coloană
     // Limita este de 10 metafields per coloană (nu 20 total)
@@ -827,43 +878,44 @@ function renderTemplate(container, template) {
       hasMorePC = leftColumnHasMore || rightColumnHasMore;
       hasMoreMobile = leftColumnHasMore || rightColumnHasMore;
     }
+  }
 
-    // Extrage culoarea de background pentru gradient (calculat o singură dată pentru ambele cazuri)
-    const bgColor = styling.backgroundColor || '#ffffff';
-    let r = 255, g = 255, b = 255;
-    if (bgColor.startsWith('#')) {
-      let hex = bgColor.slice(1);
-      if (hex.length === 3) {
-        hex = hex.split('').map(c => c + c).join('');
-      }
-      if (hex.length === 6) {
-        r = parseInt(hex.slice(0, 2), 16);
-        g = parseInt(hex.slice(2, 4), 16);
-        b = parseInt(hex.slice(4, 6), 16);
-      }
+  // Extrage culoarea de background pentru gradient (calculat o singură dată pentru ambele cazuri)
+  const bgColor = styling.backgroundColor || '#ffffff';
+  let r = 255, g = 255, b = 255;
+  if (bgColor.startsWith('#')) {
+    let hex = bgColor.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split('').map(c => c + c).join('');
     }
-    const fogGradient = 'linear-gradient(to bottom, rgba(' + r + ', ' + g + ', ' + b + ', 0) 0%, rgba(' + r + ', ' + g + ', ' + b + ', 0.8) 50%, rgba(' + r + ', ' + g + ', ' + b + ', 1) 100%)';
+    if (hex.length === 6) {
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+    }
+  }
+  const fogGradient = 'linear-gradient(to bottom, rgba(' + r + ', ' + g + ', ' + b + ', 0) 0%, rgba(' + r + ', ' + g + ', ' + b + ', 0.8) 50%, rgba(' + r + ', ' + g + ', ' + b + ', 1) 100%)';
 
-    // Wrap secțiunile într-un div cu position relative pentru overlay
-    html += '<div style="position: relative;">';
-    
-    if (splitViewPerSection) {
-      if (sectionsToRender.length > 0) {
-        html += '<div class="dc_split_view_sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
-        html += '<div class="dc_split_view_column dc_split_view_left">';
-        leftColumnSections.forEach(({ sectionIndex, sectionData }) => {
-          html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
-        });
-        html += '</div>';
-        html += '<div class="dc_split_view_column dc_split_view_right">';
-        rightColumnSections.forEach(({ sectionIndex, sectionData }) => {
-          html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
-        });
-        html += '</div>';
-        html += '</div>';
-      }
-    } else {
-      Object.keys(allGroupedBySection).forEach(sectionIndex => {
+  // Wrap secțiunile într-un div cu position relative pentru overlay
+  html += '<div style="position: relative;">';
+  
+  if (splitViewPerSection) {
+    if (sectionsToRender.length > 0) {
+      html += '<div class="dc_split_view_sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
+      html += '<div class="dc_split_view_column dc_split_view_left">';
+      leftColumnSections.forEach(({ sectionIndex, sectionData }) => {
+        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+      });
+      html += '</div>';
+      html += '<div class="dc_split_view_column dc_split_view_right">';
+      rightColumnSections.forEach(({ sectionIndex, sectionData }) => {
+        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIndex, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+      });
+      html += '</div>';
+      html += '</div>';
+    }
+  } else {
+    Object.keys(allGroupedBySection).forEach(sectionIndex => {
         const sectionIdx = parseInt(sectionIndex);
         const sectionData = allGroupedBySection[sectionIndex];
 
@@ -872,22 +924,21 @@ function renderTemplate(container, template) {
           return;
         }
 
-        html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
-      });
-    }
-    
-    // Adaugă fog overlay în interiorul wrapper-ului cu secțiunile (comun pentru ambele cazuri)
-    if (hasMorePC || hasMoreMobile) {
-      if (hasMorePC) {
-        html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_pc" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
-      }
-      if (hasMoreMobile) {
-        html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_mobile" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
-      }
-    }
-    
-    html += '</div>'; // Închide wrapper-ul cu position relative
+      html += renderSection(sectionData, styling, firstColumnWidth, escapedTemplateId, sectionIdx, allMetafieldsWithSection, template, splitViewPerMetafield, arrowDownSvg);
+    });
   }
+  
+  // Adaugă fog overlay în interiorul wrapper-ului cu secțiunile (comun pentru ambele cazuri)
+  if (hasMorePC || hasMoreMobile) {
+    if (hasMorePC) {
+      html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_pc" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
+    }
+    if (hasMoreMobile) {
+      html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_mobile" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
+    }
+  }
+  
+  html += '</div>'; // Închide wrapper-ul cu position relative
 
   // Obține seeMoreButtonStyle și seeMoreButtonText din styling
   // Verifică atât în styling direct, cât și în nested objects
@@ -1265,6 +1316,33 @@ window.showAllTableRows = function(templateId, event, device) {
       deviceContainer = document.querySelector('.' + accordionVersionClass + ' #' + tableId + '-container');
     }
 
+    // Dacă container-ul există dar este ascuns, îl afișăm din nou
+    // De asemenea, afișăm heading-ul dacă a fost ascuns anterior
+    if (deviceContainer) {
+      if (deviceContainer.style.display === 'none') {
+        deviceContainer.style.display = '';
+      }
+      // Afișăm și heading-ul dacă există și este ascuns
+      const versionClass = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+      const allSections = mainContainer.querySelectorAll('.dc_section');
+      allSections.forEach(sectionDiv => {
+        const versionDiv = sectionDiv.querySelector('.' + versionClass);
+        if (versionDiv) {
+          const sectionContainerCheck = versionDiv.querySelector('#' + tableId + '-container');
+          if (sectionContainerCheck === deviceContainer) {
+            const heading = versionDiv.querySelector('h3.dc_heading');
+            const sectionHeader = versionDiv.querySelector('.dc_section_header');
+            if (heading && heading.style.display === 'none') {
+              heading.style.display = '';
+            }
+            if (sectionHeader && sectionHeader.style.display === 'none') {
+              sectionHeader.style.display = '';
+            }
+          }
+        }
+      });
+    }
+
     // Dacă container-ul nu există, înseamnă că secțiunea nu a fost renderizată deloc (toate metafields-urile erau hidden)
     // Trebuie să creăm secțiunea și container-ul
     if (!deviceContainer) {
@@ -1546,98 +1624,141 @@ window.showAllTableRows = function(templateId, event, device) {
       return;
     }
     
-    // Adaugă butonul "Show Less" după ce se apasă "See More"
-    const seeMoreContainer = container.querySelector('.dc_see_more_' + device);
-    if (seeMoreContainer) {
-      // Verifică dacă butonul "Show Less" nu există deja
-      let seeLessContainer = container.querySelector('.dc_see_less_' + device);
-      if (!seeLessContainer) {
-        seeLessContainer = document.createElement('div');
-        seeLessContainer.className = 'dc_see_less dc_see_less_' + device;
-        seeLessContainer.style.cssText = 'position: relative; z-index: 2; text-align: center; margin-top: 12px;';
-        
-        const seeLessButton = document.createElement('button');
-        seeLessButton.className = 'dc_see_less_button';
-        seeLessButton.onclick = function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          showLessTableRows(templateId, e, device);
-        };
-        
-        const seeLessButtonStyle = styling.seeLessButtonStyle || styling.seeMoreButtonStyle || 'arrow';
-        const seeLessButtonText = styling.seeLessButtonText || 'See Less';
-        const showArrow = seeLessButtonStyle === 'arrow' || seeLessButtonStyle === 'arrow+text';
-        const showText = seeLessButtonStyle === 'text' || seeLessButtonStyle === 'arrow+text';
-        
-        // Debug logging pentru See Less button
-        console.log('[See Less Button Debug]', {
-          templateId,
-          device,
-          templateData: templateData,
-          settings: settings,
-          styling: styling,
-          seeLessHideFromPC,
-          seeLessHideFromMobile,
-          shouldShowForPC,
-          shouldShowForMobile,
-          seeLessButtonStyle,
-          seeLessButtonText,
-          showArrow,
-          showText,
-          hasSeeLessButtonText: !!(styling.seeLessButtonText),
-          stylingSeeLessButtonText: styling.seeLessButtonText,
-          stylingSeeLessButtonStyle: styling.seeLessButtonStyle,
-          stylingSeeMoreButtonStyle: styling.seeMoreButtonStyle,
-          stylingKeys: Object.keys(styling || {}),
-          settingsKeys: Object.keys(settings || {}),
-          allTemplateDataKeys: window.templateData ? Object.keys(window.templateData) : 'window.templateData is undefined'
-        });
-        
-        // Aplică stilurile (folosește aceleași ca pentru See More)
-        seeLessButton.style.cssText = 
-          'background: ' + (styling.seeMoreButtonBackground || 'transparent') + '; ' +
-          'border: ' + (styling.seeMoreButtonBorderEnabled 
-            ? (styling.seeMoreButtonBorderWidth || '1px') + ' ' + (styling.seeMoreButtonBorderStyle || 'solid') + ' ' + (styling.seeMoreButtonBorderColor || '#000000')
-            : 'none') + '; ' +
-          'cursor: pointer; ' +
-          'padding: ' + (styling.seeMoreButtonPadding || '8px') + '; ' +
-          'display: inline-flex; ' +
-          'align-items: center; ' +
-          'justify-content: center; ' +
-          'gap: 8px; ' +
-          'color: ' + (styling.seeMoreButtonColor || '#000000') + '; ' +
-          'font-size: ' + (styling.seeMoreButtonFontSize || '14px') + '; ' +
-          'font-family: ' + (styling.seeMoreButtonFontFamily || 'Arial') + '; ' +
-          'font-style: ' + ((styling.seeMoreButtonFontStyle === 'italic' || styling.seeMoreButtonFontStyle === 'bold italic') ? 'italic' : 'normal') + '; ' +
-          'font-weight: ' + ((styling.seeMoreButtonFontStyle === 'bold' || styling.seeMoreButtonFontStyle === 'bold italic') ? 'bold' : 'normal') + '; ' +
-          'border-radius: ' + (styling.seeMoreButtonBorderRadius || '0px') + '; ' +
-          'width: 100%; ' +
-          'transition: opacity 0.2s ease;';
-        
-        if (showArrow) {
-          const arrowSpan = document.createElement('span');
-          arrowSpan.id = 'see-less-arrow-' + device + '-' + templateId;
-          arrowSpan.className = 'dc_see_less_arrow';
-          arrowSpan.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease; transform: rotate(180deg);"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-          seeLessButton.appendChild(arrowSpan);
+    // Verifică dacă este split view per section
+    const splitViewSections = container.querySelector('.dc_split_view_sections');
+    const isSplitViewPerSection = splitViewSections !== null;
+    
+    let insertTarget = null;
+    
+    if (isSplitViewPerSection) {
+      // Pentru split view per section, plasează butonul după container-ul .dc_split_view_sections
+      // Astfel, butonul va apărea în mijloc, sub ambele coloane
+      insertTarget = splitViewSections;
+    } else {
+      // Pentru layout normal, găsește ultima secțiune care a fost extinsă
+      const allSections = container.querySelectorAll('.dc_section');
+      let lastExtendedSection = null;
+      let lastExtendedSectionIndex = -1;
+      
+      allSections.forEach((section, index) => {
+        const versionClass = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+        const versionDiv = section.querySelector('.' + versionClass);
+        if (versionDiv) {
+          const deviceContainer = versionDiv.querySelector('[id$="-container"]');
+          if (deviceContainer) {
+            const tbody = deviceContainer.querySelector('tbody');
+            const tbodyLeft = deviceContainer.querySelector('tbody[id$="-tbody-left"]');
+            const tbodyRight = deviceContainer.querySelector('tbody[id$="-tbody-right"]');
+            
+            let hasExtendedRows = false;
+            if (tbody) {
+              hasExtendedRows = tbody.querySelectorAll('tr[data-see-more-added="true"]').length > 0;
+            } else if (tbodyLeft && tbodyRight) {
+              hasExtendedRows = tbodyLeft.querySelectorAll('tr[data-see-more-added="true"]').length > 0 ||
+                               tbodyRight.querySelectorAll('tr[data-see-more-added="true"]').length > 0;
+            }
+            
+            if (hasExtendedRows && index > lastExtendedSectionIndex) {
+              lastExtendedSection = section;
+              lastExtendedSectionIndex = index;
+            }
+          }
         }
-        
-        if (showText && seeLessButtonText) {
-          const textSpan = document.createElement('span');
-          textSpan.className = 'dc_see_less_text';
-          textSpan.style.cssText = 'display: inline-block;';
-          textSpan.textContent = String(seeLessButtonText);
-          seeLessButton.appendChild(textSpan);
-          console.log('[See Less Button] Added text span with text:', seeLessButtonText);
-        } else {
-          console.warn('[See Less Button] Not adding text span. showText:', showText, 'seeLessButtonText:', seeLessButtonText);
-        }
-        
-        seeLessContainer.appendChild(seeLessButton);
-        seeMoreContainer.parentNode.insertBefore(seeLessContainer, seeMoreContainer.nextSibling);
-      } else {
-        seeLessContainer.style.display = 'block';
+      });
+      
+      // Dacă nu găsim o secțiune extinsă, folosim ultima secțiune din container
+      if (!lastExtendedSection && allSections.length > 0) {
+        lastExtendedSection = allSections[allSections.length - 1];
       }
+      
+      insertTarget = lastExtendedSection;
+    }
+    
+    // Verifică dacă butonul "Show Less" nu există deja
+    let seeLessContainer = container.querySelector('.dc_see_less_' + device);
+    if (!seeLessContainer) {
+      seeLessContainer = document.createElement('div');
+      seeLessContainer.className = 'dc_see_less dc_see_less_' + device;
+      seeLessContainer.style.cssText = 'position: relative; z-index: 2; text-align: center; margin-top: 12px;';
+      
+      const seeLessButton = document.createElement('button');
+      seeLessButton.className = 'dc_see_less_button';
+      seeLessButton.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showLessTableRows(templateId, e, device);
+      };
+      
+      const seeLessButtonStyle = styling.seeLessButtonStyle || styling.seeMoreButtonStyle || 'arrow';
+      const seeLessButtonText = styling.seeLessButtonText || 'See Less';
+      const showArrow = seeLessButtonStyle === 'arrow' || seeLessButtonStyle === 'arrow+text';
+      const showText = seeLessButtonStyle === 'text' || seeLessButtonStyle === 'arrow+text';
+      
+      // Aplică stilurile (folosește aceleași ca pentru See More)
+      seeLessButton.style.cssText = 
+        'background: ' + (styling.seeMoreButtonBackground || 'transparent') + '; ' +
+        'border: ' + (styling.seeMoreButtonBorderEnabled 
+          ? (styling.seeMoreButtonBorderWidth || '1px') + ' ' + (styling.seeMoreButtonBorderStyle || 'solid') + ' ' + (styling.seeMoreButtonBorderColor || '#000000')
+          : 'none') + '; ' +
+        'cursor: pointer; ' +
+        'padding: ' + (styling.seeMoreButtonPadding || '8px') + '; ' +
+        'display: inline-flex; ' +
+        'align-items: center; ' +
+        'justify-content: center; ' +
+        'gap: 8px; ' +
+        'color: ' + (styling.seeMoreButtonColor || '#000000') + '; ' +
+        'font-size: ' + (styling.seeMoreButtonFontSize || '14px') + '; ' +
+        'font-family: ' + (styling.seeMoreButtonFontFamily || 'Arial') + '; ' +
+        'font-style: ' + ((styling.seeMoreButtonFontStyle === 'italic' || styling.seeMoreButtonFontStyle === 'bold italic') ? 'italic' : 'normal') + '; ' +
+        'font-weight: ' + ((styling.seeMoreButtonFontStyle === 'bold' || styling.seeMoreButtonFontStyle === 'bold italic') ? 'bold' : 'normal') + '; ' +
+        'border-radius: ' + (styling.seeMoreButtonBorderRadius || '0px') + '; ' +
+        'width: 100%; ' +
+        'transition: opacity 0.2s ease;';
+      
+      if (showArrow) {
+        const arrowSpan = document.createElement('span');
+        arrowSpan.id = 'see-less-arrow-' + device + '-' + templateId;
+        arrowSpan.className = 'dc_see_less_arrow';
+        arrowSpan.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; transition: transform 0.3s ease; transform: rotate(180deg);"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        seeLessButton.appendChild(arrowSpan);
+      }
+      
+      if (showText && seeLessButtonText) {
+        const textSpan = document.createElement('span');
+        textSpan.className = 'dc_see_less_text';
+        textSpan.style.cssText = 'display: inline-block;';
+        textSpan.textContent = String(seeLessButtonText);
+        seeLessButton.appendChild(textSpan);
+      }
+      
+      seeLessContainer.appendChild(seeLessButton);
+      
+      // Inserează butonul "Show Less" în locația corectă
+      if (isSplitViewPerSection && insertTarget) {
+        // Pentru split view per section, inserează după container-ul .dc_split_view_sections
+        insertTarget.parentNode.insertBefore(seeLessContainer, insertTarget.nextSibling);
+      } else if (insertTarget) {
+        // Pentru layout normal, inserează la sfârșitul ultimei secțiuni extinse
+        insertTarget.appendChild(seeLessContainer);
+      } else {
+        // Fallback: inserează după container-ul principal
+        container.appendChild(seeLessContainer);
+      }
+    } else {
+      // Mută butonul existent în locația corectă
+      if (isSplitViewPerSection && insertTarget) {
+        // Pentru split view per section, mută după container-ul .dc_split_view_sections
+        if (seeLessContainer.parentNode !== insertTarget.parentNode || 
+            seeLessContainer.nextSibling !== insertTarget.nextSibling) {
+          insertTarget.parentNode.insertBefore(seeLessContainer, insertTarget.nextSibling);
+        }
+      } else if (insertTarget) {
+        // Pentru layout normal, mută la sfârșitul ultimei secțiuni extinse
+        if (seeLessContainer.parentNode !== insertTarget) {
+          insertTarget.appendChild(seeLessContainer);
+        }
+      }
+      seeLessContainer.style.display = 'block';
     }
   }
 };
@@ -1689,8 +1810,8 @@ window.showLessTableRows = function(templateId, event, device) {
 
     // Găsește tbody-urile
     const tbody = deviceContainer.querySelector('tbody');
-    const tbodyLeft = deviceContainer.querySelector('tbody.dc_tbody_left');
-    const tbodyRight = deviceContainer.querySelector('tbody.dc_tbody_right');
+    const tbodyLeft = deviceContainer.querySelector('tbody[id$="-tbody-left"]');
+    const tbodyRight = deviceContainer.querySelector('tbody[id$="-tbody-right"]');
 
     // Găsește tabelul temporar cu rândurile ascunse
     const tempTable = sectionContainer.querySelector('table');
@@ -1723,6 +1844,46 @@ window.showLessTableRows = function(templateId, event, device) {
       row.removeAttribute('data-see-more-added');
       tempTbody.appendChild(row);
     });
+
+    // Verifică dacă secțiunea mai are rânduri vizibile după mutarea rândurilor înapoi
+    // Dacă nu mai are rânduri vizibile, ascunde și heading-ul secțiunii
+    let hasVisibleRows = false;
+    if (tbodyLeft && tbodyRight) {
+      const leftVisibleRows = tbodyLeft.querySelectorAll('tr:not([data-see-more-added="true"])');
+      const rightVisibleRows = tbodyRight.querySelectorAll('tr:not([data-see-more-added="true"])');
+      hasVisibleRows = leftVisibleRows.length > 0 || rightVisibleRows.length > 0;
+    } else if (tbody) {
+      const visibleRows = tbody.querySelectorAll('tr:not([data-see-more-added="true"])');
+      hasVisibleRows = visibleRows.length > 0;
+    }
+
+    // Dacă secțiunea nu mai are rânduri vizibile, ascunde heading-ul
+    if (!hasVisibleRows) {
+      // Găsește secțiunea în DOM bazat pe sectionIndex
+      const versionClass = device === 'pc' ? 'dc_accordion_pc_version' : 'dc_accordion_mobile_version';
+      const allSections = mainContainer.querySelectorAll('.dc_section');
+      
+      allSections.forEach(sectionDiv => {
+        const versionDiv = sectionDiv.querySelector('.' + versionClass);
+        if (versionDiv) {
+          // Verifică dacă această secțiune conține container-ul tabelului pentru această secțiune
+          const sectionContainerCheck = versionDiv.querySelector('#' + tableId + '-container');
+          if (sectionContainerCheck) {
+            // Ascunde heading-ul (h3 sau dc_section_header)
+            const heading = versionDiv.querySelector('h3.dc_heading');
+            const sectionHeader = versionDiv.querySelector('.dc_section_header');
+            if (heading) {
+              heading.style.display = 'none';
+            }
+            if (sectionHeader) {
+              sectionHeader.style.display = 'none';
+            }
+            // NU ascundem container-ul tabelului, doar heading-ul
+            // Container-ul trebuie să rămână vizibil (chiar dacă este gol) pentru ca "See More" să funcționeze din nou
+          }
+        }
+      });
+    }
   });
 
   // Afișează din nou butonul "See More"
