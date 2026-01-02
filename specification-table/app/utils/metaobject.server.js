@@ -12,6 +12,15 @@ export async function createOrUpdateMetaobject(admin, template) {
   console.log('[createOrUpdateMetaobject] START - Template ID:', template.id);
   console.log('[createOrUpdateMetaobject] Template assignments:', template.assignments);
   
+  // PAS 1: Asigură-te că metaobject definition-ul există înainte de a crea metaobject-ul
+  console.log('[createOrUpdateMetaobject] Ensuring metaobject definition exists...');
+  const metaobjectDefinitionId = await getMetaobjectDefinitionId(admin);
+  if (!metaobjectDefinitionId) {
+    console.error('[createOrUpdateMetaobject] Cannot create metaobject without metaobject definition');
+    throw new Error('Metaobject definition does not exist and could not be created');
+  }
+  console.log('[createOrUpdateMetaobject] Metaobject definition exists:', metaobjectDefinitionId);
+  
   // Verifică dacă template-ul este global (are assignment de tip DEFAULT)
   // Pentru template-ul global, folosim handle-ul fix "specification_template_global"
   // Pentru celelalte, folosim handle-ul bazat pe ID
@@ -424,6 +433,140 @@ export async function deleteMetaobjectByHandle(admin, handle) {
 }
 
 /**
+ * Obține sau creează metaobject definition-ul pentru specification_template
+ * @param {Object} admin - Shopify Admin GraphQL client
+ * @returns {Promise<string|null>} ID-ul metaobject definition-ului sau null dacă nu poate fi creat
+ */
+async function getMetaobjectDefinitionId(admin) {
+  const query = `
+    query getMetaobjectDefinition($type: String!) {
+      metaobjectDefinitionByType(type: $type) {
+        id
+        type
+      }
+    }
+  `;
+
+  try {
+    // Verifică dacă definition-ul există deja (doar dacă avem permisiunea)
+    console.log('[getMetaobjectDefinitionId] Checking for metaobject definition with type: specification_template');
+    try {
+      const response = await admin.graphql(query, {
+        variables: {
+          type: "specification_template",
+        },
+      });
+      const data = await response.json();
+
+      console.log('[getMetaobjectDefinitionId] Query response:', JSON.stringify(data, null, 2));
+
+      if (data.errors) {
+        console.warn("[getMetaobjectDefinitionId] Error fetching metaobject definition (may not have read permission):", data.errors);
+        // Continuă să încerce să creeze definition-ul
+      } else {
+        const definition = data.data?.metaobjectDefinitionByType;
+        if (definition) {
+          console.log('[getMetaobjectDefinitionId] Found existing metaobject definition:', definition.id);
+          return definition.id;
+        } else {
+          console.log('[getMetaobjectDefinitionId] No existing metaobject definition found for type: specification_template');
+        }
+      }
+    } catch (queryError) {
+      // Dacă nu avem permisiunea de read, continuă direct la creare
+      console.warn('[getMetaobjectDefinitionId] Cannot query metaobject definition (may not have read permission), will attempt to create:', queryError.message);
+    }
+
+    // Dacă nu există, încearcă să-l creeze
+    console.log('[getMetaobjectDefinitionId] Metaobject definition not found - creating it...');
+    const createMutation = `
+      mutation metaobjectDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+        metaobjectDefinitionCreate(definition: $definition) {
+          metaobjectDefinition {
+            id
+            type
+          }
+          userErrors {
+            field
+            message
+            code
+          }
+        }
+      }
+    `;
+
+    const createVariables = {
+      definition: {
+        name: "Specification Template",
+        type: "specification_template",
+        access: {
+          storefront: "PUBLIC_READ",
+        },
+        fieldDefinitions: [
+          {
+            key: "template_id",
+            name: "Template ID",
+            type: "single_line_text_field",
+            required: true,
+          },
+          {
+            key: "template_structure",
+            name: "Template Structure",
+            type: "json",
+            required: true,
+          },
+          {
+            key: "template_styling",
+            name: "Template Styling",
+            type: "json",
+            required: true,
+          },
+          {
+            key: "template_settings",
+            name: "Template Settings",
+            type: "json",
+            required: true,
+          },
+        ],
+        capabilities: {
+          publishable: {
+            enabled: true,
+          },
+        },
+      },
+    };
+
+    console.log('[getMetaobjectDefinitionId] Creating metaobject definition with variables:', JSON.stringify(createVariables, null, 2));
+    const createResponse = await admin.graphql(createMutation, { variables: createVariables });
+    const createData = await createResponse.json();
+
+    console.log('[getMetaobjectDefinitionId] Create mutation response:', JSON.stringify(createData, null, 2));
+
+    if (createData.errors) {
+      console.error("[getMetaobjectDefinitionId] GraphQL errors creating definition:", createData.errors);
+      return null;
+    }
+
+    if (createData.data.metaobjectDefinitionCreate.userErrors?.length > 0) {
+      console.error("[getMetaobjectDefinitionId] User errors creating definition:", createData.data.metaobjectDefinitionCreate.userErrors);
+      return null;
+    }
+
+    const createdDefinition = createData.data.metaobjectDefinitionCreate.metaobjectDefinition;
+    if (createdDefinition) {
+      console.log('[getMetaobjectDefinitionId] Metaobject definition created successfully:', createdDefinition.id);
+      return createdDefinition.id;
+    }
+
+    console.warn('[getMetaobjectDefinitionId] Metaobject definition not found and could not be created - response:', JSON.stringify(createData, null, 2));
+    return null;
+  } catch (error) {
+    console.error("[getMetaobjectDefinitionId] Error:", error);
+    return null;
+  }
+}
+
+/**
  * Creează metafield definition-ul dc_specification_template pentru colecții dacă nu există
  * @param {Object} admin - Shopify Admin GraphQL client
  * @returns {Promise<boolean>} True dacă definition-ul există sau a fost creat cu succes
@@ -467,12 +610,19 @@ async function ensureCollectionMetafieldDefinition(admin) {
       return true;
     }
 
+    // Obține ID-ul metaobject definition-ului
+    const metaobjectDefinitionId = await getMetaobjectDefinitionId(admin);
+    if (!metaobjectDefinitionId) {
+      console.error('[ensureCollectionMetafieldDefinition] Cannot create metafield definition without metaobject definition ID');
+      return false;
+    }
+
     // Creează definition-ul explicit
     console.log('[ensureCollectionMetafieldDefinition] Definition does not exist - creating it...');
     const createMutation = `
       mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
         metafieldDefinitionCreate(definition: $definition) {
-          metafieldDefinition {
+          createdDefinition {
             id
             namespace
             key
@@ -492,11 +642,14 @@ async function ensureCollectionMetafieldDefinition(admin) {
         namespace: "custom",
         key: "dc_specification_template",
         ownerType: "COLLECTION",
-        type: {
-          name: "metaobject_reference",
-          metaobjectType: "specification_template",
-        },
+        type: "metaobject_reference",
         description: "Reference to specification template metaobject",
+        validations: [
+          {
+            name: "metaobject_definition_id",
+            value: metaobjectDefinitionId,
+          },
+        ],
       },
     };
 
@@ -565,12 +718,19 @@ async function ensureProductMetafieldDefinition(admin) {
       return true;
     }
 
+    // Obține ID-ul metaobject definition-ului
+    const metaobjectDefinitionId = await getMetaobjectDefinitionId(admin);
+    if (!metaobjectDefinitionId) {
+      console.error('[ensureProductMetafieldDefinition] Cannot create metafield definition without metaobject definition ID');
+      return false;
+    }
+
     // Creează definition-ul explicit
     console.log('[ensureProductMetafieldDefinition] Definition does not exist - creating it...');
     const createMutation = `
       mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
         metafieldDefinitionCreate(definition: $definition) {
-          metafieldDefinition {
+          createdDefinition {
             id
             namespace
             key
@@ -590,11 +750,14 @@ async function ensureProductMetafieldDefinition(admin) {
         namespace: "custom",
         key: "dc_specification_template",
         ownerType: "PRODUCT",
-        type: {
-          name: "metaobject_reference",
-          metaobjectType: "specification_template",
-        },
+        type: "metaobject_reference",
         description: "Reference to specification template metaobject",
+        validations: [
+          {
+            name: "metaobject_definition_id",
+            value: metaobjectDefinitionId,
+          },
+        ],
       },
     };
 

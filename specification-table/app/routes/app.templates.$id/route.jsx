@@ -1,4 +1,4 @@
-import { useLoaderData, useFetcher, Form, useNavigate, useActionData } from "react-router";
+import { useLoaderData, useFetcher, Form, useNavigate, useActionData, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -619,6 +619,7 @@ export default function TemplateEditorPage() {
   const fetcher = useFetcher();
   const actionData = useActionData();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const shopify = useAppBridge();
 
   const [sections, setSections] = useState(() => {
@@ -1026,10 +1027,13 @@ export default function TemplateEditorPage() {
       // Save Bar se va ascunde automat după submit cu succes
       
       // Dacă există redirect, navighează după 1.5 secunde pentru a permite utilizatorului să vadă notificarea
-      // Folosim window.location.href pentru a forța reîncărcarea completă a paginii și a reîncărca datele
+      // Folosim navigate() pentru navigare SPA (fără reload complet) pentru a păstra contextul App Bridge
       if (actionData?.redirect) {
         const timer = setTimeout(() => {
-          window.location.href = actionData.redirect;
+          // Navigare SPA care păstrează contextul React și App Bridge
+          navigate(actionData.redirect, { replace: true });
+          // Reîncarcă datele pentru a afișa template-ul nou creat în listă
+          revalidator.revalidate();
         }, 1500);
         return () => clearTimeout(timer);
       }
@@ -1037,7 +1041,7 @@ export default function TemplateEditorPage() {
       // Dacă există eroare, afișează-o automat
       shopify.toast.show(`Eroare: ${actionData.error}`, { isError: true });
     }
-  }, [actionData, navigate, shopify, templateName, sections, isActive, isAccordion, 
+  }, [actionData, navigate, revalidator, shopify, templateName, sections, isActive, isAccordion, 
       isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, 
       seeMoreHideFromPC, seeMoreHideFromMobile, styling, isNew]);
 
