@@ -620,6 +620,7 @@ export default function TemplateEditorPage() {
   const actionData = useActionData();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+  const processedRedirectRef = useRef(null);
   const shopify = useAppBridge();
 
   const [sections, setSections] = useState(() => {
@@ -997,6 +998,17 @@ export default function TemplateEditorPage() {
   // Monitorizează salvarea cu succes
   useEffect(() => {
     if (actionData?.success) {
+      // Creează un identificator unic pentru acest răspuns pentru a preveni re-executarea
+      const responseId = JSON.stringify({ success: actionData.success, redirect: actionData.redirect });
+      
+      // Verifică dacă am procesat deja acest răspuns
+      if (processedRedirectRef.current === responseId) {
+        return; // Nu procesa din nou același răspuns
+      }
+      
+      // Marchează că am procesat acest răspuns
+      processedRedirectRef.current = responseId;
+      
       // Afișează notificare toast de succes
       shopify.toast.show(
         `Template ${isNew ? "created" : "updated"} successfully!`
@@ -1029,17 +1041,29 @@ export default function TemplateEditorPage() {
       // Dacă există redirect, navighează după 1.5 secunde pentru a permite utilizatorului să vadă notificarea
       // Folosim navigate() pentru navigare SPA (fără reload complet) pentru a păstra contextul App Bridge
       if (actionData?.redirect) {
-        const timer = setTimeout(() => {
-          // Navigare SPA care păstrează contextul React și App Bridge
-          navigate(actionData.redirect, { replace: true });
-          // Reîncarcă datele pentru a afișa template-ul nou creat în listă
+        // Verifică dacă suntem deja pe pagina de redirect pentru a preveni loop-uri
+        const currentPath = window.location.pathname;
+        if (currentPath !== actionData.redirect) {
+          const timer = setTimeout(() => {
+            // Navigare SPA care păstrează contextul React și App Bridge
+            navigate(actionData.redirect, { replace: true });
+            // Reîncarcă datele pentru a afișa template-ul nou creat în listă
+            revalidator.revalidate();
+          }, 1500);
+          return () => clearTimeout(timer);
+        } else {
+          // Suntem deja pe pagina de redirect, doar revalidăm datele
           revalidator.revalidate();
-        }, 1500);
-        return () => clearTimeout(timer);
+        }
       }
     } else if (actionData?.success === false && actionData?.error) {
       // Dacă există eroare, afișează-o automat
       shopify.toast.show(`Eroare: ${actionData.error}`, { isError: true });
+    }
+    
+    // Resetează flag-ul când actionData devine null sau se schimbă complet
+    if (!actionData || (actionData.success === undefined && actionData.error === undefined)) {
+      processedRedirectRef.current = null;
     }
   }, [actionData, navigate, revalidator, shopify, templateName, sections, isActive, isAccordion, 
       isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, 

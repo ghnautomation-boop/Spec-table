@@ -232,7 +232,6 @@
   left: 0;
   right: 0;
   height: 250px;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 1) 100%);
   pointer-events: none;
   z-index: 1;
 }
@@ -242,12 +241,34 @@
   .dc_see_more_fog_overlay_mobile {
     display: none;
   }
+  
+  /* Pe tablet (768px - 1023px), afișează fog-ul de tablet */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .dc_see_more_fog_overlay_pc .dc_fog_tablet {
+      display: block !important;
+    }
+    .dc_see_more_fog_overlay_pc .dc_fog_desktop {
+      display: none !important;
+    }
+  }
+  
+  /* Pe desktop (>= 1024px), afișează fog-ul de desktop */
+  @media (min-width: 1024px) {
+    .dc_see_more_fog_overlay_pc .dc_fog_desktop {
+      display: block !important;
+    }
+    .dc_see_more_fog_overlay_pc .dc_fog_tablet {
+      display: none !important;
+    }
+  }
 }
 
 @media (max-width: 767px) {
   .dc_see_more_fog_overlay_pc {
     display: none;
   }
+  
+  /* Pe mobile, fog-ul mobile este deja afișat prin inline style */
 }
 
 /* Container pentru tabel cu See More - trebuie să fie position relative */

@@ -974,21 +974,42 @@ function renderTemplate(container, template) {
     }
   }
 
-  // Extrage culoarea de background pentru gradient (calculat o singură dată pentru ambele cazuri)
-  const bgColor = styling.backgroundColor || '#ffffff';
-  let r = 255, g = 255, b = 255;
-  if (bgColor.startsWith('#')) {
-    let hex = bgColor.slice(1);
-    if (hex.length === 3) {
-      hex = hex.split('').map(c => c + c).join('');
+  // Funcție helper pentru a converti hex color în RGB
+  function hexToRgb(hex) {
+    let r = 255, g = 255, b = 255;
+    if (hex && hex.startsWith('#')) {
+      let hexValue = hex.slice(1);
+      if (hexValue.length === 3) {
+        hexValue = hexValue.split('').map(c => c + c).join('');
+      }
+      if (hexValue.length === 6) {
+        r = parseInt(hexValue.slice(0, 2), 16);
+        g = parseInt(hexValue.slice(2, 4), 16);
+        b = parseInt(hexValue.slice(4, 6), 16);
+      }
     }
-    if (hex.length === 6) {
-      r = parseInt(hex.slice(0, 2), 16);
-      g = parseInt(hex.slice(2, 4), 16);
-      b = parseInt(hex.slice(4, 6), 16);
-    }
+    return { r, g, b };
   }
-  const fogGradient = 'linear-gradient(to bottom, rgba(' + r + ', ' + g + ', ' + b + ', 0) 0%, rgba(' + r + ', ' + g + ', ' + b + ', 0.8) 50%, rgba(' + r + ', ' + g + ', ' + b + ', 1) 100%)';
+  
+  // Creează fog gradient pentru fiecare device folosind background-ul corect
+  function createFogGradient(bgColor) {
+    const { r, g, b } = hexToRgb(bgColor || '#ffffff');
+    return 'linear-gradient(to bottom, rgba(' + r + ', ' + g + ', ' + b + ', 0) 0%, rgba(' + r + ', ' + g + ', ' + b + ', 0.8) 50%, rgba(' + r + ', ' + g + ', ' + b + ', 1) 100%)';
+  }
+  
+  // Obține fog gradient-urile pentru fiecare device
+  let fogGradientMobile, fogGradientTablet, fogGradientDesktop;
+  if (hasDeviceSpecificStyling) {
+    fogGradientMobile = createFogGradient(mobileStyling.backgroundColor);
+    fogGradientTablet = createFogGradient(tabletStyling.backgroundColor);
+    fogGradientDesktop = createFogGradient(desktopStyling.backgroundColor);
+  } else {
+    // Backward compatibility: folosește un singur fog gradient
+    const fogGradient = createFogGradient(styling.backgroundColor);
+    fogGradientMobile = fogGradient;
+    fogGradientTablet = fogGradient;
+    fogGradientDesktop = fogGradient;
+  }
 
   // Wrap secțiunile într-un div cu position relative pentru overlay
   html += '<div style="position: relative;">';
@@ -1023,12 +1044,22 @@ function renderTemplate(container, template) {
   }
   
   // Adaugă fog overlay în interiorul wrapper-ului cu secțiunile (comun pentru ambele cazuri)
+  // Folosim fog-uri separate pentru mobile, tablet și desktop cu background-uri diferite
   if (hasMorePC || hasMoreMobile) {
     if (hasMorePC) {
-      html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_pc" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
+      // Fog pentru desktop (>= 1024px) și tablet (768px - 1023px)
+      html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_pc" style="position: absolute; left: 0; right: 0; height: 250px; pointer-events: none; z-index: 1;">';
+      // Desktop fog (>= 1024px)
+      html += '<span class="dc_fog_desktop" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: ' + fogGradientDesktop + '; display: block;"></span>';
+      // Tablet fog (768px - 1023px)
+      html += '<span class="dc_fog_tablet" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: ' + fogGradientTablet + '; display: none;"></span>';
+      html += '</div>';
     }
     if (hasMoreMobile) {
-      html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_mobile" style="position: absolute; left: 0; right: 0; height: 250px; background: ' + fogGradient + '; pointer-events: none; z-index: 1;"><span> </span></div>';
+      // Fog pentru mobile (< 768px)
+      html += '<div class="dc_see_more_fog_overlay dc_see_more_fog_overlay_mobile" style="position: absolute; left: 0; right: 0; height: 250px; pointer-events: none; z-index: 1;">';
+      html += '<span class="dc_fog_mobile" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: ' + fogGradientMobile + '; display: block;"></span>';
+      html += '</div>';
     }
   }
   

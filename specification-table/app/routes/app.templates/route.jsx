@@ -1026,6 +1026,7 @@ export default function TemplatesPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+  const processedActionRef = useRef(null);
   const [isMounted, setIsMounted] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState(null);
@@ -1046,27 +1047,61 @@ export default function TemplatesPage() {
   }, [_perf]);
 
   useEffect(() => {
-    if (fetcher.data?.success === false) {
-      shopify.toast.show(`Error: ${fetcher.data.error}`, { isError: true });
-    } else if (fetcher.data?.success) {
-      const formData = fetcher.formData;
-      const actionType = formData?.get("action");
+    if (fetcher.state === "idle" && fetcher.data) {
+      // Creează un identificator unic pentru acest răspuns pentru a preveni re-executarea
+      const responseId = JSON.stringify({ 
+        success: fetcher.data.success, 
+        actionType: fetcher.formData?.get("action"),
+        templateId: fetcher.formData?.get("templateId")
+      });
       
-      if (actionType === "delete") {
-        shopify.toast.show("Template deleted successfully!");
-      } else if (actionType === "duplicate") {
-        shopify.toast.show("Template duplicated successfully!");
-      } else if (actionType === "toggleActive") {
-        shopify.toast.show("Template status updated successfully!");
+      // Verifică dacă am procesat deja acest răspuns
+      if (processedActionRef.current === responseId) {
+        return; // Nu procesa din nou același răspuns
       }
       
-      // Folosim navigate() pentru navigare SPA (fără reload complet) pentru a păstra contextul App Bridge
-      setTimeout(() => {
-        navigate(location.pathname, { replace: true });
-        revalidator.revalidate();
-      }, 500);
+      if (fetcher.data?.success === false) {
+        // Marchează că am procesat acest răspuns (chiar dacă e eroare)
+        processedActionRef.current = responseId;
+        shopify.toast.show(`Error: ${fetcher.data.error}`, { isError: true });
+      } else if (fetcher.data?.success) {
+        // Marchează că am procesat acest răspuns
+        processedActionRef.current = responseId;
+        
+        const formData = fetcher.formData;
+        const actionType = formData?.get("action");
+        
+        if (actionType === "delete") {
+          shopify.toast.show("Template deleted successfully!");
+        } else if (actionType === "duplicate") {
+          shopify.toast.show("Template duplicated successfully!");
+        } else if (actionType === "toggleActive") {
+          shopify.toast.show("Template status updated successfully!");
+        }
+        
+        // Folosim navigate() pentru navigare SPA (fără reload complet) pentru a păstra contextul App Bridge
+        // Verifică dacă suntem deja pe pagina corectă pentru a preveni loop-uri
+        const currentPath = window.location.pathname;
+        if (currentPath === location.pathname) {
+          // Suntem deja pe pagina corectă, doar revalidăm datele
+          setTimeout(() => {
+            revalidator.revalidate();
+          }, 500);
+        } else {
+          // Navigăm la pagina corectă
+          setTimeout(() => {
+            navigate(location.pathname, { replace: true });
+            revalidator.revalidate();
+          }, 500);
+        }
+      }
     }
-  }, [fetcher.data, fetcher.formData, shopify, navigate, location.pathname, revalidator]);
+    
+    // Resetează flag-ul când fetcher.state devine "idle" și nu mai există date
+    if (fetcher.state === "idle" && !fetcher.data) {
+      processedActionRef.current = null;
+    }
+  }, [fetcher.state, fetcher.data, fetcher.formData, shopify, navigate, location.pathname, revalidator]);
 
   const handleDelete = (templateId) => {
     const template = templates.find(t => t.id === templateId);
