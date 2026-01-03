@@ -1,6 +1,7 @@
 import { useLoaderData, useFetcher, Form, useNavigate, useActionData, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { Modal, TitleBar } from "@shopify/app-bridge-react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "~/shopify.server";
 import {
@@ -1434,23 +1435,80 @@ export default function TemplateEditorPage() {
     }
   }, [fetcher.data, shopify, navigate, isNew]);
 
-  // Închide lista de metafield-uri când se dă click în afara ei
+  // Elimină complet scroll-ul modal-ului principal - doar container-ul de metafield-uri are scroll
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (openSelectIndex !== null) {
-        const target = event.target;
-        if (!target.closest('[data-metafield-selector]')) {
-          setOpenSelectIndex(null);
-        }
-      }
-    };
+    if (openSelectIndex === null) return;
 
-    if (openSelectIndex !== null) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
+    // Așteaptă ca modal-ul să fie complet renderat
+    const timeoutId = setTimeout(() => {
+      // Găsește modal-ul App Bridge
+      const modalElement = document.getElementById(`metafield-selector-modal-${openSelectIndex}`);
+      if (!modalElement) return;
+
+      // Găsește iframe-ul modal-ului (App Bridge modals sunt renderate într-un iframe)
+      const modalIframe = modalElement.querySelector('iframe');
+      if (!modalIframe) return;
+
+      const iframeWindow = modalIframe.contentWindow;
+      if (iframeWindow && iframeWindow.document) {
+        // Setează overflow: hidden pe body și html pentru a elimina complet scroll-ul modal-ului
+        if (iframeWindow.document.body) {
+          iframeWindow.document.body.style.overflow = 'hidden';
+          iframeWindow.document.body.style.height = '100%';
+          iframeWindow.document.body.style.margin = '0';
+          iframeWindow.document.body.style.padding = '0';
+        }
+        if (iframeWindow.document.documentElement) {
+          iframeWindow.document.documentElement.style.overflow = 'hidden';
+          iframeWindow.document.documentElement.style.height = '100%';
+          iframeWindow.document.documentElement.style.margin = '0';
+          iframeWindow.document.documentElement.style.padding = '0';
+        }
+
+        // Forțează scroll position la 0 și previne orice scroll
+        const forceScrollToTop = () => {
+          if (iframeWindow.pageYOffset !== 0 || iframeWindow.document.documentElement.scrollTop !== 0) {
+            iframeWindow.scrollTo(0, 0);
+            iframeWindow.document.documentElement.scrollTop = 0;
+            iframeWindow.document.body.scrollTop = 0;
+          }
+        };
+
+        // Adaugă event listener pentru a forța scroll la 0
+        const scrollHandler = () => {
+          forceScrollToTop();
+        };
+
+        iframeWindow.addEventListener('scroll', scrollHandler, true);
+        iframeWindow.document.addEventListener('scroll', scrollHandler, true);
+
+        // Forțează scroll la 0 imediat și periodic pentru a fi sigur
+        forceScrollToTop();
+        const intervalId = setInterval(forceScrollToTop, 100);
+
+        return () => {
+          clearInterval(intervalId);
+          iframeWindow.removeEventListener('scroll', scrollHandler, true);
+          iframeWindow.document.removeEventListener('scroll', scrollHandler, true);
+          if (iframeWindow.document.body) {
+            iframeWindow.document.body.style.overflow = '';
+            iframeWindow.document.body.style.height = '';
+            iframeWindow.document.body.style.margin = '';
+            iframeWindow.document.body.style.padding = '';
+          }
+          if (iframeWindow.document.documentElement) {
+            iframeWindow.document.documentElement.style.overflow = '';
+            iframeWindow.document.documentElement.style.height = '';
+            iframeWindow.document.documentElement.style.margin = '';
+            iframeWindow.document.documentElement.style.padding = '';
+          }
+        };
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [openSelectIndex]);
 
   const addSection = () => {
@@ -1683,7 +1741,8 @@ export default function TemplateEditorPage() {
     return metafieldDefinitions.filter((mf) => !usedIds.has(mf.id));
   };
 
-  const getFilteredMetafields = (sectionIndex) => {
+  // Memoizează rezultatele filtrate pentru fiecare secțiune
+  const getFilteredMetafields = useCallback((sectionIndex) => {
     const available = getAvailableMetafields(sectionIndex);
     const searchTerm = (metafieldSearchTerm[sectionIndex] || "").toLowerCase().trim();
     
@@ -1708,7 +1767,8 @@ export default function TemplateEditorPage() {
     }
 
     // Sortează alfabetic: mai întâi după name (dacă există), apoi după namespace.key
-    return filtered.sort((a, b) => {
+    // Folosim spread operator pentru a nu modifica array-ul original
+    return [...filtered].sort((a, b) => {
       const aName = (a.name || "").toLowerCase();
       const bName = (b.name || "").toLowerCase();
       const aKey = `${a.namespace || ""}.${a.key || ""}`.toLowerCase();
@@ -1729,7 +1789,7 @@ export default function TemplateEditorPage() {
       // Dacă niciunul nu are name, sortează după namespace.key
       return aKey.localeCompare(bKey);
     });
-  };
+  }, [metafieldSearchTerm, sections, metafieldDefinitions]);
 
   // Debug pentru metafield-uri
   console.log("Metafield definitions loaded:", metafieldDefinitions?.length || 0);
@@ -3629,127 +3689,32 @@ export default function TemplateEditorPage() {
                             </s-text>
                           )}
 
-                          <div
-                            style={{ display: "flex", gap: "8px", position: "relative", width: "100%",marginTop: "20px" }}
-                            data-metafield-selector
-                          >
+                            <div
+                              style={{ display: "flex", gap: "8px", position: "relative", width: "100%",marginTop: "20px" }}
+                            >
                             <div style={{ position: "relative", flex: 1 }}>
                               <s-button
                                 type="button"
                                 variant="secondary"
                                 icon = "search"
-                                onClick={() =>
-                                  setOpenSelectIndex(
-                                    openSelectIndex === sectionIndex ? null : sectionIndex
-                                  )
-                                }
+                                onClick={() => {
+                                  if (getAvailableMetafields(sectionIndex).length > 0) {
+                                    setOpenSelectIndex(sectionIndex);
+                                  }
+                                }}
                               >
-                                {openSelectIndex === sectionIndex
-                                  ? "Close the list"
-                                  : getAvailableMetafields(sectionIndex).length > 0
+                                {getAvailableMetafields(sectionIndex).length > 0
                                   ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
                                   : "No any metafields available"}
                               </s-button>
-                              {openSelectIndex === sectionIndex &&
-                                getAvailableMetafields(sectionIndex).length > 0 && (
-                                  <s-box
-                            padding="base"
-                            borderWidth="base"
-                            borderRadius="base"
-                            background="base"
-                            style={{
-                              position: "absolute",
-                              top: "100%",
-                              left: 0,
-                              right: 0,
-                              zIndex: 1000,
-                              marginTop: "8px",
-                              maxHeight: "600px",
-                              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                              border: "1px solid #e1e3e5",
-                              display: "flex",
-                              flexDirection: "column",
-                            }}
-                          >
-                            <s-stack direction="block" gap="base" style={{ flexShrink: 0 }}>
-                              <s-text emphasis="strong">
-                                Select metafields ({getAvailableMetafields(sectionIndex).length} available):
-                              </s-text>
-                              <s-text-field
-                                label="Search metafields"
-                                value={metafieldSearchTerm[sectionIndex] || ""}
-                                onChange={(e) => {
-                                  setMetafieldSearchTerm({
-                                    ...metafieldSearchTerm,
-                                    [sectionIndex]: e.target.value,
-                                  });
-                                }}
-                                placeholder="Search by name, namespace, key..."
-                                autoComplete="off"
-                              />
-                            </s-stack>
-                            <div
-                              style={{ 
-                                maxHeight: "400px", 
-                                overflowY: "auto",
-                                overflowX: "hidden",
-                                border: "1px solid #e1e3e5",
-                                borderRadius: "4px",
-                                padding: "8px",
-                                marginTop: "8px",
-                                flex: "1 1 auto",
-                                minHeight: 0
-                              }}
-                            >
-                              <s-stack
-                                direction="block"
-                                gap="tight"
-                              >
-                                {getFilteredMetafields(sectionIndex).length === 0 ? (
-                                  <s-text tone="subdued" style={{ padding: "16px", textAlign: "center" }}>
-                                    {metafieldSearchTerm[sectionIndex] 
-                                      ? "No metafields found that match the search"
-                                      : "No metafields available"}
-                                  </s-text>
-                                ) : (
-                                  getFilteredMetafields(sectionIndex).map((mf) => {
-                                  const isSelected =
-                                    selectedMetafieldsForSection[
-                                      `${sectionIndex}_${mf.id}`
-                                    ];
-                                  const metafieldLabel = `${mf.namespace}.${mf.key} (${mf.ownerType})${mf.name ? ` - ${mf.name}` : ""}`;
-                                  return (
-                                    <s-checkbox
-                                      key={mf.id}
-                                      checked={isSelected || false}
-                                      onChange={() =>
-                                        toggleMetafieldSelection(
-                                          sectionIndex,
-                                          mf.id
-                                        )
-                                      }
-                                      label={metafieldLabel}
-                                    />
-                                  );
-                                })
-                                )}
-                              </s-stack>
-                            </div>
-                            <s-stack direction="inline" gap="tight" style={{ flexShrink: 0, marginTop: "12px" }}>
-                                <s-button
-                                  type="button"
-                                  variant="primary"
-                                  onClick={() => {
-                                    addSelectedMetafieldsToSection(sectionIndex);
-                                    setOpenSelectIndex(null);
-                                  }}
-                                >
-                                  Add Selected
-                                </s-button>
-                                <s-button
-                                  type="button"
-                                  variant="tertiary"
-                                  onClick={() => {
+                              
+                              {/* Modal pentru selectarea metafield-urilor */}
+                              {openSelectIndex === sectionIndex && getAvailableMetafields(sectionIndex).length > 0 && (
+                                <Modal
+                                  id={`metafield-selector-modal-${sectionIndex}`}
+                                  open={openSelectIndex === sectionIndex}
+                                  variant="large"
+                                  onClose={() => {
                                     setOpenSelectIndex(null);
                                     // Resetează selecțiile pentru această secțiune
                                     const newSelected = { ...selectedMetafieldsForSection };
@@ -3759,26 +3724,121 @@ export default function TemplateEditorPage() {
                                     setSelectedMetafieldsForSection(newSelected);
                                   }}
                                 >
-                                  Cancel
-                                </s-button>
-                              </s-stack>
-                              <div style={{ marginTop: "12px", padding: "8px 12px", backgroundColor: "#f6f6f7", borderRadius: "4px", fontSize: "13px", color: "#6d7175" }}>
-                                <s-text>
-                                  If you are not able to see a specific metafield already created in the store in this list, please{" "}
-                                  <a 
-                                    href="/app/sync" 
-                                    style={{ color: "#008060", textDecoration: "underline", cursor: "pointer" }}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      navigate("/app/sync");
-                                    }}
-                                  >
-                                    Sync metafields from this page → Data Sync
-                                  </a>
-                                </s-text>
-                              </div>
-                                  </s-box>
-                                )}
+                                  <div style={{ padding: "20px", height: "100%", maxHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                                    <div style={{ marginBottom: "16px", flexShrink: 0 }}>
+                                      <h2 style={{ margin: "0 0 12px 0", fontSize: "18px", fontWeight: "600" }}>
+                                        Select metafields ({getAvailableMetafields(sectionIndex).length} available)
+                                      </h2>
+                                      <s-text-field
+                                        label="Search metafields"
+                                        value={metafieldSearchTerm[sectionIndex] || ""}
+                                        onChange={(e) => {
+                                          // Pentru Polaris Web Components, folosim currentTarget.value
+                                          const value = e.currentTarget?.value ?? e.target?.value ?? "";
+                                          setMetafieldSearchTerm((prev) => ({
+                                            ...prev,
+                                            [sectionIndex]: value,
+                                          }));
+                                        }}
+                                        placeholder="Search by name, namespace, key..."
+                                        autoComplete="off"
+                                      />
+                                    </div>
+                                    <div
+                                      style={{ 
+                                        flex: "1 1 auto",
+                                        minHeight: 0,
+                                        overflowY: "auto",
+                                        overflowX: "hidden",
+                                        border: "1px solid #e1e3e5",
+                                        borderRadius: "4px",
+                                        padding: "12px",
+                                      }}
+                                    >
+                                      {(() => {
+                                        const filteredList = getFilteredMetafields(sectionIndex);
+                                        const searchValue = metafieldSearchTerm[sectionIndex] || "";
+                                        
+                                        if (filteredList.length === 0) {
+                                          return (
+                                            <div style={{ padding: "16px", textAlign: "center", color: "#6d7175" }}>
+                                              {searchValue 
+                                                ? "No metafields found that match the search"
+                                                : "No metafields available"}
+                                            </div>
+                                          );
+                                        }
+                                        
+                                        return (
+                                          <div 
+                                            key={`metafield-list-container-${sectionIndex}-${searchValue}`}
+                                            style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+                                          >
+                                            {filteredList.map((mf) => {
+                                              const isSelected =
+                                                selectedMetafieldsForSection[
+                                                  `${sectionIndex}_${mf.id}`
+                                                ];
+                                              const metafieldLabel = `${mf.namespace}.${mf.key} (${mf.ownerType})${mf.name ? ` - ${mf.name}` : ""}`;
+                                              return (
+                                                <s-checkbox
+                                                  key={`${sectionIndex}-${mf.id}`}
+                                                  checked={isSelected || false}
+                                                  onChange={() =>
+                                                    toggleMetafieldSelection(
+                                                      sectionIndex,
+                                                      mf.id
+                                                    )
+                                                  }
+                                                  label={metafieldLabel}
+                                                />
+                                              );
+                                            })}
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+                                    <div style={{ marginTop: "16px", padding: "12px", backgroundColor: "#f6f6f7", borderRadius: "4px", fontSize: "13px", color: "#6d7175", flexShrink: 0 }}>
+                                      If you are not able to see a specific metafield already created in the store in this list, please{" "}
+                                      <a 
+                                        href="/app/sync" 
+                                        style={{ color: "#008060", textDecoration: "underline", cursor: "pointer" }}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setOpenSelectIndex(null);
+                                          navigate("/app/sync");
+                                        }}
+                                      >
+                                        Sync metafields from this page → Data Sync
+                                      </a>
+                                    </div>
+                                  </div>
+                                  <TitleBar title="Select Metafields">
+                                    <button
+                                      variant="primary"
+                                      onClick={() => {
+                                        addSelectedMetafieldsToSection(sectionIndex);
+                                        setOpenSelectIndex(null);
+                                      }}
+                                    >
+                                      Add Selected
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setOpenSelectIndex(null);
+                                        // Resetează selecțiile pentru această secțiune
+                                        const newSelected = { ...selectedMetafieldsForSection };
+                                        getAvailableMetafields(sectionIndex).forEach((mf) => {
+                                          delete newSelected[`${sectionIndex}_${mf.id}`];
+                                        });
+                                        setSelectedMetafieldsForSection(newSelected);
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </TitleBar>
+                                </Modal>
+                              )}
                               </div>
                               
                               <div style={{ position: "relative", flex: 1 }}>
