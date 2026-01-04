@@ -332,6 +332,66 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     return result;
   }
 
+  // Funcție helper pentru a determina dacă un container ar trebui să fie scrollabil
+  // bazat pe width-ul disponibil vs width-ul necesar
+  function shouldMakeScrollable(element, itemCount, itemWidth = 200, gap = 15) {
+    // Obține width-ul disponibil al celulei
+    const tdElement = element.closest('td');
+    if (!tdElement) return itemCount >= 4; // Fallback la logica veche
+    
+    // Calculează width-ul necesar pentru toate itemele
+    const totalWidthNeeded = (itemCount * itemWidth) + ((itemCount - 1) * gap);
+    
+    // Obține width-ul disponibil (folosind requestAnimationFrame pentru a asigura că DOM-ul este actualizat)
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        const availableWidth = tdElement.offsetWidth || tdElement.clientWidth;
+        // Dacă width-ul necesar depășește width-ul disponibil, face scrollabil
+        const shouldScroll = totalWidthNeeded > availableWidth;
+        resolve(shouldScroll);
+      });
+    });
+  }
+
+  // Funcție helper pentru a crea un container scrollabil
+  function createScrollableContainer(items, createItemHtml, className = 'dc-scrollable-list') {
+    const containerHtml = '<div class="' + className + '" style="display: flex; overflow-x: auto; overflow-y: hidden; gap: 15px; padding: 5px 0; width: 100%; max-width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #ccc #f0f0f0;">' +
+      items.map(item => createItemHtml(item)).join('') +
+      '</div>';
+    return containerHtml;
+  }
+
+  // Funcție helper pentru a configura elementul și celula tabelului pentru scrollabil
+  function configureScrollableElement(element) {
+    element.style.display = 'block';
+    element.style.width = '100%';
+    element.style.maxWidth = '100%';
+    element.style.overflow = 'visible';
+    
+    const tdElement = element.closest('td');
+    if (tdElement) {
+      tdElement.classList.add('dc-has-product-list');
+      tdElement.style.overflow = 'visible';
+      tdElement.style.maxWidth = '100%';
+      tdElement.style.width = 'auto';
+      tdElement.style.minWidth = '0';
+      tdElement.style.position = 'relative';
+      
+      const tableElement = tdElement.closest('table');
+      if (tableElement) {
+        tableElement.style.tableLayout = 'fixed';
+        tableElement.style.width = '100%';
+        const labelCell = tdElement.previousElementSibling || tdElement.parentElement.querySelector('.dc_table_td_label');
+        if (labelCell) {
+          const computedWidth = getComputedStyle(labelCell).width;
+          labelCell.style.width = computedWidth;
+          labelCell.style.minWidth = computedWidth;
+          labelCell.style.maxWidth = computedWidth;
+        }
+      }
+    }
+  }
+
   if (metafieldType === 'multi_line_text_field' || metafieldType === 'single_line_text_field') {
     if (typeof value === 'object') {
       element.textContent = JSON.stringify(value);
@@ -339,48 +399,53 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       const formattedValue = applyPrefixSuffix(value, prefix, suffix);
       element.textContent = formattedValue;
     }
-  } else if (metafieldType === 'file_reference') {
-    console.log('[renderMetafieldValue] file_reference detected:', {
-      value: value,
+  } else if (metafieldType === 'file_reference' || metafieldType === 'list.file_reference') {
+    // Verifică dacă este o listă (array) sau un singur fișier
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse file_reference value as JSON:', value);
+      }
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const files = isList ? parsedValue : (parsedValue ? [parsedValue] : []);
+    
+    console.log('[renderMetafieldValue] file_reference:', {
+      metafieldType: metafieldType,
+      ownerType: ownerType,
       valueType: typeof value,
-      isObject: typeof value === 'object',
-      hasUrl: value && typeof value === 'object' && value.url,
-      valueKeys: value && typeof value === 'object' ? Object.keys(value) : null
+      parsedValueType: typeof parsedValue,
+      isList: isList,
+      filesLength: files.length,
+      value: value
     });
-
-    if (value && value !== '' && value !== 'null') {
-      // Verifică dacă valoarea este un obiect (pentru fișiere non-imagine/video) sau un string (pentru imagini)
-      if (typeof value === 'object' && value.url) {
-        // Verifică dacă este video
-        if (value.media_type === 'video') {
-          console.log('[renderMetafieldValue] Processing as video:', value);
-          const videoUrl = value.url;
-          let finalVideoUrl = videoUrl;
-          if (!finalVideoUrl.includes('http')) {
-            finalVideoUrl = 'https:' + finalVideoUrl;
-          }
-          
-          element.innerHTML = '<video controls style="max-width: 100%; max-height: ' + height + 'px; object-fit: contain;" preload="metadata">' +
-            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/mp4">' +
-            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/webm">' +
-            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/ogg">' +
-            'Browser-ul tău nu suportă tag-ul video.' +
-            '</video>';
-        } else {
-          console.log('[renderMetafieldValue] Processing as non-image file:', value);
-          // Este un fișier non-imagine (PDF, DOC, etc.)
-          const fileUrl = value.url;
-          const filename = value.filename || (fileUrl.split('/').pop().split('?')[0]);
+    
+    if (files.length === 0) {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    // Funcție helper pentru a crea HTML-ul unui fișier
+    function createFileItem(fileItem) {
+      // Dacă este string (imagine), returnează HTML pentru imagine
+      if (typeof fileItem === 'string') {
+        return '<img src="' + escapeHtml(String(fileItem)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+      }
+      
+      // Dacă este obiect
+      if (typeof fileItem === 'object' && fileItem.url) {
+        // Verifică media_type - IMPORTANT: generic_file trebuie tratat primul pentru a nu fi confundat cu image
+        if (fileItem.media_type === 'generic_file') {
+          // Este generic_file (PDF, DOC, etc.) - afișează link de download
+          const fileUrl = fileItem.url;
+          const filename = fileItem.filename || (fileUrl.split('/').pop().split('?')[0]);
           const ext = filename.split('.').pop().toLowerCase();
           
-          console.log('[renderMetafieldValue] File details:', {
-            fileUrl: fileUrl,
-            filename: filename,
-            ext: ext
-          });
-          
           // Determină iconița în funcție de extensie
-          let icon = '📎'; // default
+          let icon = '📎';
           if (ext === 'pdf') {
             icon = '📄';
           } else if (ext === 'zip' || ext === 'rar' || ext === '7z') {
@@ -401,28 +466,127 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
             downloadUrl = 'https:' + downloadUrl;
           }
           
-          const displayName = value.alt || filename;
-          console.log('[renderMetafieldValue] Rendering file link:', {
-            downloadUrl: downloadUrl,
-            displayName: displayName,
-            icon: icon
-          });
-          
-          element.innerHTML = '<div class="dc-file" style="display: flex; align-items: center; gap: 8px;">' +
+          const displayName = fileItem.alt || filename;
+          return '<div class="dc-file" style="display: flex; align-items: center; gap: 8px;">' +
             '<span class="dc-file__icon" aria-hidden="true" style="font-size: 1.2em;">' + icon + '</span>' +
             '<a class="dc-file__link" href="' + escapeHtml(downloadUrl) + '" download target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">' +
             escapeHtml(displayName) +
             '</a>' +
             '</div>';
+        } else if (fileItem.media_type === 'video') {
+          // Este video
+          const videoUrl = fileItem.url;
+          let finalVideoUrl = videoUrl;
+          if (!finalVideoUrl.includes('http')) {
+            finalVideoUrl = 'https:' + finalVideoUrl;
+          }
+          return '<video controls style="max-width: 100%; max-height: ' + height + 'px; object-fit: contain;" preload="metadata">' +
+            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/mp4">' +
+            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/webm">' +
+            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/ogg">' +
+            'Browser-ul tău nu suportă tag-ul video.' +
+            '</video>';
+        } else if (fileItem.media_type === 'image') {
+          // Este imagine
+          const imageUrl = fileItem.url;
+          return '<img src="' + escapeHtml(String(imageUrl)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+        } else if (!fileItem.media_type && fileItem.filename) {
+          // Nu are media_type dar are filename - presupunem că este generic_file
+          const fileUrl = fileItem.url;
+          const filename = fileItem.filename || (fileUrl.split('/').pop().split('?')[0]);
+          const ext = filename.split('.').pop().toLowerCase();
+          
+          // Determină iconița în funcție de extensie
+          let icon = '📎';
+          if (ext === 'pdf') {
+            icon = '📄';
+          } else if (ext === 'zip' || ext === 'rar' || ext === '7z') {
+            icon = '🗜️';
+          } else if (ext === 'doc' || ext === 'docx') {
+            icon = '📝';
+          } else if (ext === 'xls' || ext === 'xlsx') {
+            icon = '📊';
+          } else if (ext === 'txt') {
+            icon = '📄';
+          } else if (ext === 'csv') {
+            icon = '📊';
+          }
+          
+          // Asigură URL-ul absolut
+          let downloadUrl = fileUrl;
+          if (!downloadUrl.includes('http')) {
+            downloadUrl = 'https:' + downloadUrl;
+          }
+          
+          const displayName = fileItem.alt || filename;
+          return '<div class="dc-file" style="display: flex; align-items: center; gap: 8px;">' +
+            '<span class="dc-file__icon" aria-hidden="true" style="font-size: 1.2em;">' + icon + '</span>' +
+            '<a class="dc-file__link" href="' + escapeHtml(downloadUrl) + '" download target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">' +
+            escapeHtml(displayName) +
+            '</a>' +
+            '</div>';
+        } else {
+          // Nu are media_type și nu are filename - presupunem că este imagine (comportament vechi)
+          const imageUrl = fileItem.url;
+          return '<img src="' + escapeHtml(String(imageUrl)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
         }
+      }
+      
+      return '';
+    }
+    
+    // Dacă este o listă, verifică tipurile de fișiere
+    if (isList && files.length > 0) {
+      // Verifică dacă toate fișierele sunt generic_file (pentru afișare verticală cu divider)
+      const allGenericFiles = files.every(file => {
+        if (typeof file === 'string') return false; // String-urile sunt imagini
+        if (typeof file === 'object' && file.url) {
+          // Dacă are media_type explicit generic_file
+          if (file.media_type === 'generic_file') return true;
+          // Dacă nu are media_type dar are filename, presupunem că este generic_file
+          if (!file.media_type && file.filename) return true;
+          // Dacă are media_type image sau video, nu este generic_file
+          if (file.media_type === 'image' || file.media_type === 'video') return false;
+        }
+        return false;
+      });
+      
+      if (allGenericFiles) {
+        // Afișează unul sub altul cu divider
+        let containerHtml = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+        files.forEach((file, index) => {
+          containerHtml += createFileItem(file);
+          if (index < files.length - 1) {
+            containerHtml += '<div style="border-top: 1px solid #e0e0e0; margin: 5px 0;"></div>';
+          }
+        });
+        containerHtml += '</div>';
+        element.innerHTML = containerHtml;
+        element.style.display = 'block';
       } else {
-        console.log('[renderMetafieldValue] Processing as image (string URL):', value);
-        // Este o imagine (string URL)
-        element.innerHTML = '<img src="' + escapeHtml(String(value)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+        // Pentru imagini și video, verifică dacă ar trebui să fie scrollabil
+        // Estimează width-ul unui item (imagine/video) - folosim height ca referință
+        const estimatedItemWidth = parseInt(height) || 200;
+        shouldMakeScrollable(element, files.length, estimatedItemWidth, 15).then(shouldScroll => {
+          if (shouldScroll) {
+            const containerHtml = createScrollableContainer(files, createFileItem, 'dc-file-list-scrollable');
+            element.innerHTML = containerHtml;
+            configureScrollableElement(element);
+          } else {
+            let containerHtml = '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
+            files.forEach(file => {
+              containerHtml += createFileItem(file);
+            });
+            containerHtml += '</div>';
+            element.innerHTML = containerHtml;
+            element.style.display = 'flex';
+            element.style.alignItems = 'flex-start';
+          }
+        });
       }
     } else {
-      console.log('[renderMetafieldValue] file_reference value is empty/null');
-      element.innerHTML = 'N/A';
+      // Un singur fișier
+      element.innerHTML = createFileItem(files[0]);
     }
   } else if (metafieldType === 'product_reference' || metafieldType === 'list.product_reference') {
     // Verifică dacă este o listă (array) sau un singur produs
@@ -479,54 +643,25 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       return cardHtml;
     }
     
-    // Dacă sunt 4 sau mai multe produse, creează un container scrollabil orizontal
-    if (products.length >= 4) {
-      let containerHtml = '<div class="dc-product-list-scrollable" style="display: flex; overflow-x: auto; overflow-y: hidden; gap: 15px; padding: 5px 0; width: 100%; max-width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #ccc #f0f0f0;">';
-      products.forEach(product => {
-        containerHtml += createProductCard(product);
-      });
-      containerHtml += '</div>';
-      element.innerHTML = containerHtml;
-      element.style.display = 'block';
-      element.style.width = '100%';
-      element.style.maxWidth = '100%';
-      element.style.overflow = 'visible';
-      // Asigură că celula tabelului permite overflow și are width corect
-      const tdElement = element.closest('td');
-      if (tdElement) {
-        tdElement.classList.add('dc-has-product-list');
-        tdElement.style.overflow = 'visible';
-        tdElement.style.maxWidth = '100%';
-        tdElement.style.width = 'auto';
-        tdElement.style.minWidth = '0';
-        tdElement.style.position = 'relative';
-        // Asigură că prima coloană păstrează lățimea setată
-        const tableElement = tdElement.closest('table');
-        if (tableElement) {
-          // Păstrăm table-layout: fixed pentru a menține lățimile coloanelor
-          tableElement.style.tableLayout = 'fixed';
-          tableElement.style.width = '100%';
-          // Asigură că prima coloană (label) păstrează lățimea setată
-          const labelCell = tdElement.previousElementSibling || tdElement.parentElement.querySelector('.dc_table_td_label');
-          if (labelCell) {
-            const computedWidth = getComputedStyle(labelCell).width;
-            labelCell.style.width = computedWidth;
-            labelCell.style.minWidth = computedWidth;
-            labelCell.style.maxWidth = computedWidth;
-          }
-        }
+    // Determină dacă ar trebui să fie scrollabil bazat pe width
+    shouldMakeScrollable(element, products.length, 200, 15).then(shouldScroll => {
+      if (shouldScroll) {
+        // Creează un container scrollabil orizontal
+        const containerHtml = createScrollableContainer(products, createProductCard, 'dc-product-list-scrollable');
+        element.innerHTML = containerHtml;
+        configureScrollableElement(element);
+      } else {
+        // Afișează într-un flex container normal cu wrap
+        let containerHtml = '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
+        products.forEach(product => {
+          containerHtml += createProductCard(product);
+        });
+        containerHtml += '</div>';
+        element.innerHTML = containerHtml;
+        element.style.display = 'flex';
+        element.style.alignItems = 'flex-start';
       }
-    } else {
-      // Dacă sunt 4 sau mai puține, afișează-le într-un flex container normal
-      let containerHtml = '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
-      products.forEach(product => {
-        containerHtml += createProductCard(product);
-      });
-      containerHtml += '</div>';
-      element.innerHTML = containerHtml;
-      element.style.display = 'flex';
-      element.style.alignItems = 'flex-start';
-    }
+    });
   } else if (metafieldType === 'collection_reference' || metafieldType === 'list.collection_reference') {
     // Verifică dacă este o listă (array) sau o singură colecție
     // Pentru variant metafields, valoarea poate veni ca string JSON, deci încercăm să o parsăm
@@ -582,54 +717,25 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       return cardHtml;
     }
     
-    // Dacă sunt 4 sau mai multe colecții, creează un container scrollabil orizontal
-    if (collections.length >= 4) {
-      let containerHtml = '<div class="dc-product-list-scrollable" style="display: flex; overflow-x: auto; overflow-y: hidden; gap: 15px; padding: 5px 0; width: 100%; max-width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #ccc #f0f0f0;">';
-      collections.forEach(collection => {
-        containerHtml += createCollectionCard(collection);
-      });
-      containerHtml += '</div>';
-      element.innerHTML = containerHtml;
-      element.style.display = 'block';
-      element.style.width = '100%';
-      element.style.maxWidth = '100%';
-      element.style.overflow = 'visible';
-      // Asigură că celula tabelului permite overflow și are width corect
-      const tdElement = element.closest('td');
-      if (tdElement) {
-        tdElement.classList.add('dc-has-product-list');
-        tdElement.style.overflow = 'visible';
-        tdElement.style.maxWidth = '100%';
-        tdElement.style.width = 'auto';
-        tdElement.style.minWidth = '0';
-        tdElement.style.position = 'relative';
-        // Asigură că prima coloană păstrează lățimea setată
-        const tableElement = tdElement.closest('table');
-        if (tableElement) {
-          // Păstrăm table-layout: fixed pentru a menține lățimile coloanelor
-          tableElement.style.tableLayout = 'fixed';
-          tableElement.style.width = '100%';
-          // Asigură că prima coloană (label) păstrează lățimea setată
-          const labelCell = tdElement.previousElementSibling || tdElement.parentElement.querySelector('.dc_table_td_label');
-          if (labelCell) {
-            const computedWidth = getComputedStyle(labelCell).width;
-            labelCell.style.width = computedWidth;
-            labelCell.style.minWidth = computedWidth;
-            labelCell.style.maxWidth = computedWidth;
-          }
-        }
+    // Determină dacă ar trebui să fie scrollabil bazat pe width
+    shouldMakeScrollable(element, collections.length, 200, 15).then(shouldScroll => {
+      if (shouldScroll) {
+        // Creează un container scrollabil orizontal
+        const containerHtml = createScrollableContainer(collections, createCollectionCard, 'dc-collection-list-scrollable');
+        element.innerHTML = containerHtml;
+        configureScrollableElement(element);
+      } else {
+        // Afișează într-un flex container normal cu wrap
+        let containerHtml = '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
+        collections.forEach(collection => {
+          containerHtml += createCollectionCard(collection);
+        });
+        containerHtml += '</div>';
+        element.innerHTML = containerHtml;
+        element.style.display = 'flex';
+        element.style.alignItems = 'flex-start';
       }
-    } else {
-      // Dacă sunt 4 sau mai puține, afișează-le într-un flex container normal
-      let containerHtml = '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
-      collections.forEach(collection => {
-        containerHtml += createCollectionCard(collection);
-      });
-      containerHtml += '</div>';
-      element.innerHTML = containerHtml;
-      element.style.display = 'flex';
-      element.style.alignItems = 'flex-start';
-    }
+    });
   } else if (metafieldType === 'dimension') {
     if (typeof value === 'object') {
       element.textContent = JSON.stringify(value);
