@@ -554,9 +554,9 @@
             '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
           {% endif %}
         {% elsif mf_value.type == 'product_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
           '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'rating' %}
@@ -635,9 +635,9 @@
             '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
           {% endif %}
         {% elsif mf_value.type == 'product_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
-          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
           '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'rating' %}
@@ -739,9 +739,9 @@
               '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
             {% endif %}
           {% elsif variant_mf_value.type == 'product_reference' %}
-            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type == 'collection_reference' %}
-            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type == 'dimension' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type == 'rating' %}

@@ -428,12 +428,23 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     if (value && typeof value === 'object') {
       const productImage = value.featured_image || value.image || '';
       const productTitle = value.title || '';
+      const productUrl = value.url || '';
       let html = '';
+      if (productUrl && productUrl !== 'null') {
+        html += '<a href="' + escapeHtml(String(productUrl)) + '" style="text-decoration: none; color: inherit; display: flex; align-items: start;justify-content:center;flex-direction: column">';
+      } else {
+        html += '<div style="display:flex;align-items:center;">';
+      }
       if (productImage && productImage !== 'null') {
-        html += '<div style="display:flex;align-items:center;"><img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+        html += '<img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;border:1px solid black; border-radius:10px;" />';
       }
       if (productTitle) {
-        html += '<span style="font-weight:bold;margin-left:30px">' + escapeHtml(productTitle) + '</span></div>';
+        html += '<span style="font-weight:bold;margin-left:30px">' + escapeHtml(productTitle) + '</span>';
+      }
+      if (productUrl && productUrl !== 'null') {
+        html += '</a>';
+      } else {
+        html += '</div>';
       }
       element.innerHTML = html || 'N/A';
     } else {
@@ -443,12 +454,23 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     if (value && typeof value === 'object') {
       const collectionImage = value.featured_image || value.image || '';
       const collectionTitle = value.title || '';
+      const collectionUrl = value.url || '';
       let html = '';
+      if (collectionUrl && collectionUrl !== 'null') {
+        html += '<a href="' + escapeHtml(String(collectionUrl)) + '" style="text-decoration: none; color: inherit; display: flex; align-items: start;justify-content:center;flex-direction: column;">';
+      } else {
+        html += '<div>';
+      }
       if (collectionImage && collectionImage !== 'null') {
-        html += '<div><img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" /></div>';
+        html += '<img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;border:1px solid black; border-radius:10px;" />';
       }
       if (collectionTitle) {
-        html += '<div style="font-weight:bold;text-align:center;">' + escapeHtml(collectionTitle) + '</div>';
+        html += '<span style="font-weight:bold;text-align:center;">' + escapeHtml(collectionTitle) + '</span>';
+      }
+      if (collectionUrl && collectionUrl !== 'null') {
+        html += '</a>';
+      } else {
+        html += '</div>';
       }
       element.innerHTML = html || 'N/A';
     } else {
