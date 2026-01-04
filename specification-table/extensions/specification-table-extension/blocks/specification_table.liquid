@@ -500,6 +500,7 @@
   // ConstruieÈ™te obiectul JavaScript cu TOATE metafield-urile disponibile din Liquid
   // Acest obiect este construit direct Ã®n Liquid folosind toate metafield-urile disponibile
   // Pentru file_reference, folosim image_url filter pentru a obÈ›ine URL-ul imaginii
+  console.log('[Liquid] Building allProductMetafieldsFromLiquid...');
   window.allProductMetafieldsFromLiquid = {
     {% comment %} ConstruieÈ™te pentru namespace-ul 'custom' {% endcomment %}
     {% if product.metafields.custom %}
@@ -507,9 +508,32 @@
       {% for metafield_pair in product.metafields.custom %}
         {% assign mf_key = metafield_pair[0] %}
         {% assign mf_value = metafield_pair[1] %}
-        {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+        {% comment %} Pentru file_reference, verificăm dacă este imagine/video sau alt tip de fișier {% endcomment %}
         {% if mf_value.type == 'file_reference' %}
-          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% if mf_value.value != blank %}
+            {% assign file = mf_value.value %}
+            {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+            {% assign media_type = file.media_type | default: '' %}
+            {% if media_type == 'image' %}
+              {% comment %} Este imagine - folosim image_url {% endcomment %}
+              '{{ mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+            {% else %}
+              {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
+              {% assign file_url = file.originalSourceUrl | default: file.url %}
+              {% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}
+              {% assign download_url = file_url %}
+              {% unless download_url contains 'http' %}
+                {% assign download_url = 'https:' | append: download_url %}
+              {% endunless %}
+              {% assign file_alt = file.alt | default: filename %}
+              {% assign file_url_escaped = download_url | json %}
+              {% assign file_filename_escaped = filename | json %}
+              {% assign file_alt_escaped = file_alt | json %}
+              '{{ mf_key }}': {"url": {{ file_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}}{% unless forloop.last %},{% endunless %}
+            {% endif %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
         {% elsif mf_value.type == 'product_reference' %}
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
@@ -528,9 +552,32 @@
       {% for metafield_pair in product.metafields.test_data %}
         {% assign mf_key = metafield_pair[0] %}
         {% assign mf_value = metafield_pair[1] %}
-        {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+        {% comment %} Pentru file_reference, verificăm dacă este imagine/video sau alt tip de fișier {% endcomment %}
         {% if mf_value.type == 'file_reference' %}
-          '{{ mf_key }}': {% if mf_value.value != blank %}'{{ mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% if mf_value.value != blank %}
+            {% assign file = mf_value.value %}
+            {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+            {% assign media_type = file.media_type | default: '' %}
+            {% if media_type == 'image' %}
+              {% comment %} Este imagine - folosim image_url {% endcomment %}
+              '{{ mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+            {% else %}
+              {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
+              {% assign file_url = file.originalSourceUrl | default: file.url %}
+              {% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}
+              {% assign download_url = file_url %}
+              {% unless download_url contains 'http' %}
+                {% assign download_url = 'https:' | append: download_url %}
+              {% endunless %}
+              {% assign file_alt = file.alt | default: filename %}
+              {% assign file_url_escaped = download_url | json %}
+              {% assign file_filename_escaped = filename | json %}
+              {% assign file_alt_escaped = file_alt | json %}
+              '{{ mf_key }}': {"url": {{ file_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}}{% unless forloop.last %},{% endunless %}
+            {% endif %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
         {% elsif mf_value.type == 'product_reference' %}
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
@@ -572,9 +619,32 @@
         {% for variant_mf_pair in current_variant.metafields.custom %}
           {% assign variant_mf_key = variant_mf_pair[0] %}
           {% assign variant_mf_value = variant_mf_pair[1] %}
-          {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+          {% comment %} Pentru file_reference, verificăm dacă este imagine/video sau alt tip de fișier {% endcomment %}
           {% if variant_mf_value.type.name == 'file_reference' %}
-            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+            {% if variant_mf_value.value != blank %}
+              {% assign file = variant_mf_value.value %}
+              {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+              {% assign media_type = file.media_type | default: '' %}
+              {% if media_type == 'image' %}
+                {% comment %} Este imagine - folosim image_url {% endcomment %}
+                '{{ variant_mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+              {% else %}
+                {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
+                {% assign file_url = file.originalSourceUrl | default: file.url %}
+                {% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}
+                {% assign download_url = file_url %}
+                {% unless download_url contains 'http' %}
+                  {% assign download_url = 'https:' | append: download_url %}
+                {% endunless %}
+                {% assign file_alt = file.alt | default: filename %}
+                {% assign file_url_escaped = download_url | json %}
+                {% assign file_filename_escaped = filename | json %}
+                {% assign file_alt_escaped = file_alt | json %}
+                '{{ variant_mf_key }}': {"url": {{ file_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}}{% unless forloop.last %},{% endunless %}
+              {% endif %}
+            {% else %}
+              '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+            {% endif %}
           {% elsif variant_mf_value.type.name == 'product_reference' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type.name == 'collection_reference' %}
@@ -599,9 +669,32 @@
             {% for variant_mf_pair in variant.metafields.custom %}
               {% assign variant_mf_key = variant_mf_pair[0] %}
               {% assign variant_mf_value = variant_mf_pair[1] %}
-              {% comment %} Pentru file_reference, folosim image_url filter {% endcomment %}
+              {% comment %} Pentru file_reference, verificăm dacă este imagine/video sau alt tip de fișier {% endcomment %}
               {% if variant_mf_value.type == 'file_reference' %}
-                '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}'{{ variant_mf_value.value | image_url }}'{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+                {% if variant_mf_value.value != blank %}
+                  {% assign file = variant_mf_value.value %}
+                  {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+                  {% assign media_type = file.media_type | default: '' %}
+                  {% if media_type == 'image' %}
+                    {% comment %} Este imagine - folosim image_url {% endcomment %}
+                    '{{ variant_mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+                  {% else %}
+                    {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
+                    {% assign file_url = file.originalSourceUrl | default: file.url %}
+                    {% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}
+                    {% assign download_url = file_url %}
+                    {% unless download_url contains 'http' %}
+                      {% assign download_url = 'https:' | append: download_url %}
+                    {% endunless %}
+                    {% assign file_alt = file.alt | default: filename %}
+                    {% assign file_url_escaped = download_url | json %}
+                    {% assign file_filename_escaped = filename | json %}
+                    {% assign file_alt_escaped = file_alt | json %}
+                    '{{ variant_mf_key }}': {"url": {{ file_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}}{% unless forloop.last %},{% endunless %}
+                  {% endif %}
+                {% else %}
+                  '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+                {% endif %}
               {% elsif variant_mf_value.type == 'product_reference' %}
                 '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
               {% elsif variant_mf_value.type == 'collection_reference' %}

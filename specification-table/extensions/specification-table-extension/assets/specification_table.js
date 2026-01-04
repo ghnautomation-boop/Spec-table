@@ -126,6 +126,11 @@ function updateMetafieldValuesFromLiquid(container) {
   const variantMetafields = window.variantMetafieldsData || {};
   const productSpecs = window.productSpecsFromLiquid || {};
 
+  // DEBUG: Log all available metafields
+  console.log('[updateMetafieldValuesFromLiquid] All productMetafields:', productMetafields);
+  console.log('[updateMetafieldValuesFromLiquid] All variantMetafields:', variantMetafields);
+  console.log('[updateMetafieldValuesFromLiquid] Found metafieldCells:', metafieldCells.length);
+
   // Obține varianta curentă din URL
   function getCurrentVariantId() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -196,6 +201,11 @@ function updateMetafieldValuesFromLiquid(container) {
     renderMetafieldValue(valueElement, formattedValue, 'single_line_text_field', 'PRODUCT', null, null, container.getAttribute('data-image-height') || '100', prefix, suffix);
   });
 
+  // DEBUG: Log all available metafields
+  console.log('[updateMetafieldValuesFromLiquid] All productMetafields:', productMetafields);
+  console.log('[updateMetafieldValuesFromLiquid] All variantMetafields:', variantMetafields);
+  console.log('[updateMetafieldValuesFromLiquid] Found metafieldCells:', metafieldCells.length);
+
   // Procesează metafields normale
   metafieldCells.forEach(cell => {
     const namespace = cell.dataset.namespace;
@@ -204,6 +214,17 @@ function updateMetafieldValuesFromLiquid(container) {
     const metafieldType = cell.dataset.type || 'single_line_text_field';
     const valueElement = cell.querySelector('[data-metafield-value]');
     if (!valueElement) return;
+
+    // DEBUG: Log metafield cell info
+    console.log('[updateMetafieldValuesFromLiquid] Processing metafield cell:', {
+      namespace: namespace,
+      key: key,
+      ownerType: ownerType,
+      metafieldType: metafieldType,
+      dataType: cell.dataset.type,
+      hasNamespaceInData: productMetafields[namespace] !== undefined,
+      hasKeyInNamespace: productMetafields[namespace] && productMetafields[namespace][key] !== undefined
+    });
 
     // Extrage prefix și suffix din data-attributes
     const prefix = valueElement.getAttribute('data-prefix') || '';
@@ -217,6 +238,12 @@ function updateMetafieldValuesFromLiquid(container) {
           variantMetafields[currentVariantId][namespace] &&
           variantMetafields[currentVariantId][namespace][key] !== undefined) {
         value = variantMetafields[currentVariantId][namespace][key];
+        console.log('[updateMetafieldValuesFromLiquid] Found VARIANT metafield value:', {
+          namespace: namespace,
+          key: key,
+          value: value,
+          valueType: typeof value
+        });
       } else {
         const firstVariantId = Object.keys(variantMetafields)[0];
         if (firstVariantId && variantMetafields[firstVariantId] &&
@@ -230,9 +257,38 @@ function updateMetafieldValuesFromLiquid(container) {
     // Dacă nu am găsit valoarea pentru VARIANT, folosește PRODUCT metafield
     if (value === null && ownerType === 'PRODUCT' && productMetafields[namespace] && productMetafields[namespace][key] !== undefined) {
       value = productMetafields[namespace][key];
+      console.log('[updateMetafieldValuesFromLiquid] Found PRODUCT metafield value:', {
+        namespace: namespace,
+        key: key,
+        value: value,
+        valueType: typeof value,
+        isObject: typeof value === 'object',
+        hasUrl: value && typeof value === 'object' && value.url,
+        valueKeys: value && typeof value === 'object' ? Object.keys(value) : null
+      });
     } else if (value === null && productMetafields[namespace] && productMetafields[namespace][key] !== undefined) {
       value = productMetafields[namespace][key];
+      console.log('[updateMetafieldValuesFromLiquid] Found fallback PRODUCT metafield value:', {
+        namespace: namespace,
+        key: key,
+        value: value,
+        valueType: typeof value,
+        isObject: typeof value === 'object',
+        hasUrl: value && typeof value === 'object' && value.url,
+        valueKeys: value && typeof value === 'object' ? Object.keys(value) : null
+      });
     }
+
+    // DEBUG: Log before rendering
+    console.log('[updateMetafieldValuesFromLiquid] About to render:', {
+      namespace: namespace,
+      key: key,
+      metafieldType: metafieldType,
+      value: value,
+      valueType: typeof value,
+      isObject: typeof value === 'object',
+      hasUrl: value && typeof value === 'object' && value.url
+    });
 
     // Randare diferită în funcție de tipul metafield-ului
     renderMetafieldValue(valueElement, value, metafieldType, ownerType, namespace, key, container.getAttribute('data-image-height') || '100', prefix, suffix);
@@ -241,6 +297,22 @@ function updateMetafieldValuesFromLiquid(container) {
 
 // Funcție pentru a randa valoarea metafield-ului în funcție de tip
 function renderMetafieldValue(element, value, metafieldType, ownerType, namespace, key, imageHeight, prefix, suffix) {
+  // DEBUG: Log toate datele primite
+  console.log('[renderMetafieldValue] DEBUG:', {
+    metafieldType: metafieldType,
+    namespace: namespace,
+    key: key,
+    ownerType: ownerType,
+    valueType: typeof value,
+    value: value,
+    valueIsNull: value === null,
+    valueIsUndefined: value === undefined,
+    valueIsEmpty: value === '',
+    valueIsString: typeof value === 'string',
+    valueIsObject: typeof value === 'object',
+    valueHasUrl: value && typeof value === 'object' && value.url
+  });
+
   if (value === null || value === undefined || value === '') {
     element.innerHTML = 'N/A';
     return;
@@ -268,9 +340,71 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       element.textContent = formattedValue;
     }
   } else if (metafieldType === 'file_reference') {
+    console.log('[renderMetafieldValue] file_reference detected:', {
+      value: value,
+      valueType: typeof value,
+      isObject: typeof value === 'object',
+      hasUrl: value && typeof value === 'object' && value.url,
+      valueKeys: value && typeof value === 'object' ? Object.keys(value) : null
+    });
+
     if (value && value !== '' && value !== 'null') {
-      element.innerHTML = '<img src="' + escapeHtml(String(value)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+      // Verifică dacă valoarea este un obiect (pentru fișiere non-imagine) sau un string (pentru imagini)
+      if (typeof value === 'object' && value.url) {
+        console.log('[renderMetafieldValue] Processing as non-image file:', value);
+        // Este un fișier non-imagine (PDF, DOC, etc.)
+        const fileUrl = value.url;
+        const filename = value.filename || (fileUrl.split('/').pop().split('?')[0]);
+        const ext = filename.split('.').pop().toLowerCase();
+        
+        console.log('[renderMetafieldValue] File details:', {
+          fileUrl: fileUrl,
+          filename: filename,
+          ext: ext
+        });
+        
+        // Determină iconița în funcție de extensie
+        let icon = '📎'; // default
+        if (ext === 'pdf') {
+          icon = '📄';
+        } else if (ext === 'zip' || ext === 'rar' || ext === '7z') {
+          icon = '🗜️';
+        } else if (ext === 'doc' || ext === 'docx') {
+          icon = '📝';
+        } else if (ext === 'xls' || ext === 'xlsx') {
+          icon = '📊';
+        } else if (ext === 'txt') {
+          icon = '📄';
+        } else if (ext === 'csv') {
+          icon = '📊';
+        }
+        
+        // Asigură URL-ul absolut
+        let downloadUrl = fileUrl;
+        if (!downloadUrl.includes('http')) {
+          downloadUrl = 'https:' + downloadUrl;
+        }
+        
+        const displayName = value.alt || filename;
+        console.log('[renderMetafieldValue] Rendering file link:', {
+          downloadUrl: downloadUrl,
+          displayName: displayName,
+          icon: icon
+        });
+        
+        element.innerHTML = '<div class="dc-file" style="display: flex; align-items: center; gap: 8px;">' +
+          '<span class="dc-file__icon" aria-hidden="true" style="font-size: 1.2em;">' + icon + '</span>' +
+          '<a class="dc-file__link" href="' + escapeHtml(downloadUrl) + '" download target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">' +
+          escapeHtml(displayName) +
+          '</a>' +
+          '</div>';
+      } else {
+        console.log('[renderMetafieldValue] Processing as image (string URL):', value);
+        // Este o imagine (string URL)
+        element.innerHTML = '<img src="' + escapeHtml(String(value)) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;" />';
+      }
     } else {
+      console.log('[renderMetafieldValue] file_reference value is empty/null');
       element.innerHTML = 'N/A';
     }
   } else if (metafieldType === 'product_reference') {
@@ -656,16 +790,26 @@ function renderTemplate(container, template) {
       if (productMetafields[metafield.namespace] &&
           productMetafields[metafield.namespace][metafield.key] !== undefined) {
         value = productMetafields[metafield.namespace][metafield.key];
-        hasValue = value !== null &&
-                  value !== undefined &&
-                  value !== '' &&
-                  (typeof value !== 'string' || value.trim() !== '') &&
-                  value !== 'null' &&
-                  value !== 'undefined' &&
-                  (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
-
-        if (hasValue && typeof value === 'object') {
-          hasValue = value.title || value.featured_image || value.image;
+        
+        // Verifică dacă valoarea există și nu este null/undefined
+        if (value === null || value === undefined || value === '') {
+          hasValue = false;
+        } else if (typeof value === 'object') {
+          // Pentru obiecte (file_reference, product_reference, collection_reference)
+          // Dacă are url, este file_reference - afișează-l întotdeauna
+          if (value.url) {
+            hasValue = true;
+            console.log('[metafieldHasValue] file_reference object has url:', metafield.namespace, metafield.key, value);
+          } else {
+            // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
+            hasValue = !!(value.title || value.featured_image || value.image);
+          }
+        } else {
+          // Pentru string-uri și alte tipuri primitive
+          hasValue = value !== 'null' &&
+                    value !== 'undefined' &&
+                    (typeof value !== 'string' || value.trim() !== '') &&
+                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
         }
       }
     } else if (metafield.ownerType === 'VARIANT') {
@@ -674,25 +818,53 @@ function renderTemplate(container, template) {
             variantMetafields[variantId][metafield.namespace] &&
             variantMetafields[variantId][metafield.namespace][metafield.key] !== undefined) {
           value = variantMetafields[variantId][metafield.namespace][metafield.key];
-          hasValue = value !== null &&
-                    value !== undefined &&
-                    value !== '' &&
-                    (typeof value !== 'string' || value.trim() !== '') &&
-                    value !== 'null' &&
-                    value !== 'undefined' &&
-                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
-
-          if (hasValue && typeof value === 'object') {
-            hasValue = value.title || value.featured_image || value.image;
+          
+          // Verifică dacă valoarea există și nu este null/undefined
+          if (value === null || value === undefined || value === '') {
+            hasValue = false;
+          } else if (typeof value === 'object') {
+            // Pentru obiecte (file_reference, product_reference, collection_reference)
+            // Pentru file_reference, verifică dacă are url
+            if (value.url) {
+              hasValue = true;
+            } else {
+              // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
+              hasValue = !!(value.title || value.featured_image || value.image);
+            }
+          } else {
+            // Pentru string-uri și alte tipuri primitive
+            hasValue = value !== 'null' &&
+                      value !== 'undefined' &&
+                      (typeof value !== 'string' || value.trim() !== '') &&
+                      (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
           }
         }
       });
     }
 
+    console.log('[metafieldHasValue] Result:', {
+      namespace: metafield.namespace,
+      key: metafield.key,
+      hasValue: hasValue,
+      value: value,
+      valueType: typeof value,
+      hasUrl: value && typeof value === 'object' && value.url
+    });
+
     return hasValue;
   }
 
   const visibleMetafields = allMetafieldsWithSection.filter(metafield => metafieldHasValue(metafield));
+  
+  console.log('[renderTemplate] Visible metafields after filtering:', {
+    total: allMetafieldsWithSection.length,
+    visible: visibleMetafields.length,
+    visibleMetafields: visibleMetafields.map(mf => ({
+      namespace: mf.namespace,
+      key: mf.key,
+      type: mf.type
+    }))
+  });
   const totalVisibleRows = visibleMetafields.length;
 
   let displayRowsPC = visibleMetafields;
@@ -1268,7 +1440,25 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
   const productMetafields = window.productMetafieldsData || {};
   const variantMetafields = window.variantMetafieldsData || {};
 
+  console.log('[renderMetafieldsRows] Rendering metafields:', {
+    count: metafields.length,
+    metafields: metafields.map(mf => ({
+      namespace: mf.namespace,
+      key: mf.key,
+      type: mf.type,
+      ownerType: mf.ownerType
+    }))
+  });
+
   metafields.forEach((metafield, index) => {
+    console.log('[renderMetafieldsRows] Processing metafield:', {
+      namespace: metafield.namespace,
+      key: metafield.key,
+      type: metafield.type,
+      ownerType: metafield.ownerType,
+      metafieldType: metafield.metafieldType
+    });
+    
     let hasValue = false;
     let value = null;
 
@@ -1292,19 +1482,51 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
         }
       }
     } else if (metafield.ownerType === 'PRODUCT') {
+      console.log('[renderMetafieldsRows] Checking PRODUCT metafield:', {
+        namespace: metafield.namespace,
+        key: metafield.key,
+        hasNamespace: productMetafields[metafield.namespace] !== undefined,
+        hasKey: productMetafields[metafield.namespace] && productMetafields[metafield.namespace][metafield.key] !== undefined
+      });
+      
       if (productMetafields[metafield.namespace] &&
           productMetafields[metafield.namespace][metafield.key] !== undefined) {
         value = productMetafields[metafield.namespace][metafield.key];
-        hasValue = value !== null &&
-                  value !== undefined &&
-                  value !== '' &&
-                  (typeof value !== 'string' || value.trim() !== '') &&
-                  value !== 'null' &&
-                  value !== 'undefined' &&
-                  (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
-        if (hasValue && typeof value === 'object') {
-          hasValue = value.title || value.featured_image || value.image;
+        console.log('[renderMetafieldsRows] Found value for PRODUCT metafield:', {
+          namespace: metafield.namespace,
+          key: metafield.key,
+          value: value,
+          valueType: typeof value,
+          isObject: typeof value === 'object',
+          hasUrl: value && typeof value === 'object' && value.url
+        });
+        
+        // Verifică dacă valoarea există și nu este null/undefined
+        if (value === null || value === undefined || value === '') {
+          hasValue = false;
+        } else if (typeof value === 'object') {
+          // Pentru obiecte (file_reference, product_reference, collection_reference)
+          // Dacă are url, este file_reference - afișează-l întotdeauna
+          if (value.url) {
+            hasValue = true;
+            console.log('[renderMetafieldsRows] file_reference object has url - will be displayed:', value);
+          } else {
+            // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
+            hasValue = !!(value.title || value.featured_image || value.image);
+          }
+        } else {
+          // Pentru string-uri și alte tipuri primitive
+          hasValue = value !== 'null' &&
+                    value !== 'undefined' &&
+                    (typeof value !== 'string' || value.trim() !== '') &&
+                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
         }
+        
+        console.log('[renderMetafieldsRows] Final hasValue for PRODUCT metafield:', {
+          namespace: metafield.namespace,
+          key: metafield.key,
+          hasValue: hasValue
+        });
       }
     } else if (metafield.ownerType === 'VARIANT') {
       Object.keys(variantMetafields).forEach(variantId => {
@@ -1312,15 +1534,25 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
             variantMetafields[variantId][metafield.namespace] &&
             variantMetafields[variantId][metafield.namespace][metafield.key] !== undefined) {
           value = variantMetafields[variantId][metafield.namespace][metafield.key];
-          hasValue = value !== null &&
-                    value !== undefined &&
-                    value !== '' &&
-                    (typeof value !== 'string' || value.trim() !== '') &&
-                    value !== 'null' &&
-                    value !== 'undefined' &&
-                    (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
-          if (hasValue && typeof value === 'object') {
-            hasValue = value.title || value.featured_image || value.image;
+          
+          // Verifică dacă valoarea există și nu este null/undefined
+          if (value === null || value === undefined || value === '') {
+            hasValue = false;
+          } else if (typeof value === 'object') {
+            // Pentru obiecte (file_reference, product_reference, collection_reference)
+            // Pentru file_reference, verifică dacă are url
+            if (value.url) {
+              hasValue = true;
+            } else {
+              // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
+              hasValue = !!(value.title || value.featured_image || value.image);
+            }
+          } else {
+            // Pentru string-uri și alte tipuri primitive
+            hasValue = value !== 'null' &&
+                      value !== 'undefined' &&
+                      (typeof value !== 'string' || value.trim() !== '') &&
+                      (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
           }
         }
       });
@@ -1381,6 +1613,14 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     if (hideFromMobile) {
       rowClasses += ' dc_hide_from_mobile';
     }
+    console.log('[renderMetafieldsRows] Final check before rendering row:', {
+      namespace: metafield.namespace,
+      key: metafield.key,
+      hasValue: hasValue,
+      value: value,
+      willBeHidden: !hasValue
+    });
+    
     if (!hasValue) {
       rowClasses += ' dc_hidden';
     }

@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "description-container-v1"
-application_url = "https://experienced-logo-petersburg-minimize.trycloudflare.com"
+application_url = "https://sometimes-asthma-benjamin-decor.trycloudflare.com"
 embedded = true
 
 [build]
@@ -50,9 +50,9 @@ scopes = "read_products,write_products,read_collection_listings,read_themes,read
 
 [auth]
 redirect_urls = [
-  "https://experienced-logo-petersburg-minimize.trycloudflare.com/auth/callback",
-  "https://experienced-logo-petersburg-minimize.trycloudflare.comauth/shopify/callback",
-  "https://experienced-logo-petersburg-minimize.trycloudflare.com/api/auth/callback"
+  "https://sometimes-asthma-benjamin-decor.trycloudflare.com/auth/callback",
+  "https://sometimes-asthma-benjamin-decor.trycloudflare.com/auth/shopify/callback",
+  "https://sometimes-asthma-benjamin-decor.trycloudflare.com/api/auth/callback"
 ]
 
 

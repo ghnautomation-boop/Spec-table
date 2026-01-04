@@ -431,3 +431,26 @@
     display: block;
   }
 }
+
+/* File Reference Styles */
+.dc-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-file__icon {
+  font-size: 1.2em;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dc-file__link {
+  color: var(--dc-value-text-color, #000000);
+  text-decoration: underline;
+  transition: opacity 0.2s ease;
+}
+
+.dc-file__link:hover {
+  opacity: 0.8;
+}
