@@ -555,10 +555,32 @@
           {% endif %}
         {% elsif mf_value.type == 'product_reference' %}
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'list.product_reference' %}
+          '{{ mf_key }}': {% if mf_value.value and mf_value.value.size > 0 %}[{% for ref_product in mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'list.collection_reference' %}
+          '{{ mf_key }}': {% if mf_value.value and mf_value.value.size > 0 %}[{% for ref_collection in mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
           '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'volume' %}
+          {% if mf_value.value != blank %}
+            {% assign volume_obj = mf_value.value %}
+            {% assign volume_value = volume_obj.value | default: '0' %}
+            {% assign volume_unit = volume_obj.unit | default: '' %}
+            '{{ mf_key }}': {"value": {{ volume_value }}, "unit": {{ volume_unit | json }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
+        {% elsif mf_value.type == 'money' %}
+          {% if mf_value.value != blank %}
+            {% assign money_obj = mf_value.value %}
+            {% assign money_amount = money_obj.amount | default: '0' %}
+            {% assign money_currency = money_obj.currency_code | default: '' %}
+            '{{ mf_key }}': {"amount": {{ money_amount }}, "currency_code": {{ money_currency | json }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
         {% elsif mf_value.type == 'rating' %}
           {% if mf_value.value != blank %}
             {% comment %} Pentru rating, accesăm direct proprietățile obiectului {% endcomment %}
@@ -636,10 +658,32 @@
           {% endif %}
         {% elsif mf_value.type == 'product_reference' %}
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'list.product_reference' %}
+          '{{ mf_key }}': {% if mf_value.value and mf_value.value.size > 0 %}[{% for ref_product in mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'collection_reference' %}
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'list.collection_reference' %}
+          '{{ mf_key }}': {% if mf_value.value and mf_value.value.size > 0 %}[{% for ref_collection in mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
           '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'volume' %}
+          {% if mf_value.value != blank %}
+            {% assign volume_obj = mf_value.value %}
+            {% assign volume_value = volume_obj.value | default: '0' %}
+            {% assign volume_unit = volume_obj.unit | default: '' %}
+            '{{ mf_key }}': {"value": {{ volume_value }}, "unit": {{ volume_unit | json }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
+        {% elsif mf_value.type == 'money' %}
+          {% if mf_value.value != blank %}
+            {% assign money_obj = mf_value.value %}
+            {% assign money_amount = money_obj.amount | default: '0' %}
+            {% assign money_currency = money_obj.currency_code | default: '' %}
+            '{{ mf_key }}': {"amount": {{ money_amount }}, "currency_code": {{ money_currency | json }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
         {% elsif mf_value.type == 'rating' %}
           {% if mf_value.value != blank %}
             {% comment %} Pentru rating, accesăm direct proprietățile obiectului {% endcomment %}
@@ -740,10 +784,32 @@
             {% endif %}
           {% elsif variant_mf_value.type == 'product_reference' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% elsif variant_mf_value.type == 'list.product_reference' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value and variant_mf_value.value.size > 0 %}[{% for ref_product in variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type == 'collection_reference' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% elsif variant_mf_value.type == 'list.collection_reference' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value and variant_mf_value.value.size > 0 %}[{% for ref_collection in variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
           {% elsif variant_mf_value.type == 'dimension' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% elsif variant_mf_value.type == 'volume' %}
+            {% if variant_mf_value.value != blank %}
+              {% assign volume_obj = variant_mf_value.value %}
+              {% assign volume_value = volume_obj.value | default: '0' %}
+              {% assign volume_unit = volume_obj.unit | default: '' %}
+              '{{ variant_mf_key }}': {"value": {{ volume_value }}, "unit": {{ volume_unit | json }}}{% unless forloop.last %},{% endunless %}
+            {% else %}
+              '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+            {% endif %}
+          {% elsif variant_mf_value.type == 'money' %}
+            {% if variant_mf_value.value != blank %}
+              {% assign money_obj = variant_mf_value.value %}
+              {% assign money_amount = money_obj.amount | default: '0' %}
+              {% assign money_currency = money_obj.currency_code | default: '' %}
+              '{{ variant_mf_key }}': {"amount": {{ money_amount }}, "currency_code": {{ money_currency | json }}}{% unless forloop.last %},{% endunless %}
+            {% else %}
+              '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+            {% endif %}
           {% elsif variant_mf_value.type == 'rating' %}
             {% if variant_mf_value.value != blank %}
               {% comment %} Pentru rating, accesăm direct proprietățile obiectului {% endcomment %}
@@ -822,7 +888,9 @@
                   '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
                 {% endif %}
               {% elsif variant_mf_value.type == 'product_reference' %}
-                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+                '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+              {% elsif variant_mf_value.type == 'list.product_reference' %}
+                '{{ variant_mf_key }}': {% if variant_mf_value.value and variant_mf_value.value.size > 0 %}[{% for ref_product in variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
               {% elsif variant_mf_value.type == 'collection_reference' %}
                 '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
               {% elsif variant_mf_value.type == 'dimension' %}

@@ -424,57 +424,211 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       console.log('[renderMetafieldValue] file_reference value is empty/null');
       element.innerHTML = 'N/A';
     }
-  } else if (metafieldType === 'product_reference') {
-    if (value && typeof value === 'object') {
-      const productImage = value.featured_image || value.image || '';
-      const productTitle = value.title || '';
-      const productUrl = value.url || '';
-      let html = '';
-      if (productUrl && productUrl !== 'null') {
-        html += '<a href="' + escapeHtml(String(productUrl)) + '" style="text-decoration: none; color: inherit; display: inline-block; align-self: flex-start;">';
+  } else if (metafieldType === 'product_reference' || metafieldType === 'list.product_reference') {
+    // Verifică dacă este o listă (array) sau un singur produs
+    // Pentru variant metafields, valoarea poate veni ca string JSON, deci încercăm să o parsăm
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse product_reference value as JSON:', value);
       }
-      html += '<div style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); background: #fff; max-width: 200px;">';
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const products = isList ? parsedValue : (parsedValue ? [parsedValue] : []);
+    
+    console.log('[renderMetafieldValue] product_reference:', {
+      metafieldType: metafieldType,
+      ownerType: ownerType,
+      valueType: typeof value,
+      parsedValueType: typeof parsedValue,
+      isList: isList,
+      productsLength: products.length,
+      value: value,
+      parsedValue: parsedValue
+    });
+    
+    if (products.length === 0) {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    // Funcție helper pentru a crea HTML-ul unui card de produs
+    function createProductCard(product) {
+      const productImage = product.featured_image || product.image || '';
+      const productTitle = product.title || '';
+      const productUrl = product.url || '';
+      let cardHtml = '';
+      
+      if (productUrl && productUrl !== 'null') {
+        cardHtml += '<a href="' + escapeHtml(String(productUrl)) + '" style="text-decoration: none; color: inherit; display: inline-block;">';
+      }
+      cardHtml += '<div style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); background: #fff; max-width: 200px; min-width: 200px; flex-shrink: 0;">';
       if (productImage && productImage !== 'null') {
-        html += '<img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="width: 100%; height: ' + height + 'px; object-fit: contain; border-radius: 4px; margin-bottom: 8px;" />';
+        cardHtml += '<img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="width: 100%; height: ' + height + 'px; object-fit: contain; border-radius: 4px; margin-bottom: 8px;" />';
       }
       if (productTitle) {
-        html += '<span style="font-weight: bold; text-align: center; font-size: 14px; line-height: 1.4;">' + escapeHtml(productTitle) + '</span>';
+        cardHtml += '<span style="font-weight: bold; text-align: center; font-size: 14px; line-height: 1.4;">' + escapeHtml(productTitle) + '</span>';
       }
-      html += '</div>';
+      cardHtml += '</div>';
       if (productUrl && productUrl !== 'null') {
-        html += '</a>';
+        cardHtml += '</a>';
       }
-      element.innerHTML = html || 'N/A';
+      return cardHtml;
+    }
+    
+    // Dacă sunt 4 sau mai multe produse, creează un container scrollabil orizontal
+    if (products.length >= 4) {
+      let containerHtml = '<div class="dc-product-list-scrollable" style="display: flex; overflow-x: auto; overflow-y: hidden; gap: 15px; padding: 5px 0; width: 100%; max-width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #ccc #f0f0f0;">';
+      products.forEach(product => {
+        containerHtml += createProductCard(product);
+      });
+      containerHtml += '</div>';
+      element.innerHTML = containerHtml;
+      element.style.display = 'block';
+      element.style.width = '100%';
+      element.style.maxWidth = '100%';
+      element.style.overflow = 'visible';
+      // Asigură că celula tabelului permite overflow și are width corect
+      const tdElement = element.closest('td');
+      if (tdElement) {
+        tdElement.classList.add('dc-has-product-list');
+        tdElement.style.overflow = 'visible';
+        tdElement.style.maxWidth = '100%';
+        tdElement.style.width = 'auto';
+        tdElement.style.minWidth = '0';
+        tdElement.style.position = 'relative';
+        // Asigură că prima coloană păstrează lățimea setată
+        const tableElement = tdElement.closest('table');
+        if (tableElement) {
+          // Păstrăm table-layout: fixed pentru a menține lățimile coloanelor
+          tableElement.style.tableLayout = 'fixed';
+          tableElement.style.width = '100%';
+          // Asigură că prima coloană (label) păstrează lățimea setată
+          const labelCell = tdElement.previousElementSibling || tdElement.parentElement.querySelector('.dc_table_td_label');
+          if (labelCell) {
+            const computedWidth = getComputedStyle(labelCell).width;
+            labelCell.style.width = computedWidth;
+            labelCell.style.minWidth = computedWidth;
+            labelCell.style.maxWidth = computedWidth;
+          }
+        }
+      }
+    } else {
+      // Dacă sunt 4 sau mai puține, afișează-le într-un flex container normal
+      let containerHtml = '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
+      products.forEach(product => {
+        containerHtml += createProductCard(product);
+      });
+      containerHtml += '</div>';
+      element.innerHTML = containerHtml;
       element.style.display = 'flex';
       element.style.alignItems = 'flex-start';
-    } else {
-      element.innerHTML = 'N/A';
     }
-  } else if (metafieldType === 'collection_reference') {
-    if (value && typeof value === 'object') {
-      const collectionImage = value.featured_image || value.image || '';
-      const collectionTitle = value.title || '';
-      const collectionUrl = value.url || '';
-      let html = '';
-      if (collectionUrl && collectionUrl !== 'null') {
-        html += '<a href="' + escapeHtml(String(collectionUrl)) + '" style="text-decoration: none; color: inherit; display: inline-block; align-self: flex-start;">';
+  } else if (metafieldType === 'collection_reference' || metafieldType === 'list.collection_reference') {
+    // Verifică dacă este o listă (array) sau o singură colecție
+    // Pentru variant metafields, valoarea poate veni ca string JSON, deci încercăm să o parsăm
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse collection_reference value as JSON:', value);
       }
-      html += '<div style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); background: #fff; max-width: 200px;">';
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const collections = isList ? parsedValue : (parsedValue ? [parsedValue] : []);
+    
+    console.log('[renderMetafieldValue] collection_reference:', {
+      metafieldType: metafieldType,
+      ownerType: ownerType,
+      valueType: typeof value,
+      parsedValueType: typeof parsedValue,
+      isList: isList,
+      collectionsLength: collections.length,
+      value: value,
+      parsedValue: parsedValue
+    });
+    
+    if (collections.length === 0) {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    // Funcție helper pentru a crea HTML-ul unui card de colecție
+    function createCollectionCard(collection) {
+      const collectionImage = collection.featured_image || collection.image || '';
+      const collectionTitle = collection.title || '';
+      const collectionUrl = collection.url || '';
+      let cardHtml = '';
+      
+      if (collectionUrl && collectionUrl !== 'null') {
+        cardHtml += '<a href="' + escapeHtml(String(collectionUrl)) + '" style="text-decoration: none; color: inherit; display: inline-block;">';
+      }
+      cardHtml += '<div style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); background: #fff; max-width: 200px; min-width: 200px; flex-shrink: 0;">';
       if (collectionImage && collectionImage !== 'null') {
-        html += '<img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="width: 100%; height: ' + height + 'px; object-fit: contain; border-radius: 4px; margin-bottom: 8px;" />';
+        cardHtml += '<img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="width: 100%; height: ' + height + 'px; object-fit: contain; border-radius: 4px; margin-bottom: 8px;" />';
       }
       if (collectionTitle) {
-        html += '<span style="font-weight: bold; text-align: center; font-size: 14px; line-height: 1.4;">' + escapeHtml(collectionTitle) + '</span>';
+        cardHtml += '<span style="font-weight: bold; text-align: center; font-size: 14px; line-height: 1.4;">' + escapeHtml(collectionTitle) + '</span>';
       }
-      html += '</div>';
+      cardHtml += '</div>';
       if (collectionUrl && collectionUrl !== 'null') {
-        html += '</a>';
+        cardHtml += '</a>';
       }
-      element.innerHTML = html || 'N/A';
+      return cardHtml;
+    }
+    
+    // Dacă sunt 4 sau mai multe colecții, creează un container scrollabil orizontal
+    if (collections.length >= 4) {
+      let containerHtml = '<div class="dc-product-list-scrollable" style="display: flex; overflow-x: auto; overflow-y: hidden; gap: 15px; padding: 5px 0; width: 100%; max-width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #ccc #f0f0f0;">';
+      collections.forEach(collection => {
+        containerHtml += createCollectionCard(collection);
+      });
+      containerHtml += '</div>';
+      element.innerHTML = containerHtml;
+      element.style.display = 'block';
+      element.style.width = '100%';
+      element.style.maxWidth = '100%';
+      element.style.overflow = 'visible';
+      // Asigură că celula tabelului permite overflow și are width corect
+      const tdElement = element.closest('td');
+      if (tdElement) {
+        tdElement.classList.add('dc-has-product-list');
+        tdElement.style.overflow = 'visible';
+        tdElement.style.maxWidth = '100%';
+        tdElement.style.width = 'auto';
+        tdElement.style.minWidth = '0';
+        tdElement.style.position = 'relative';
+        // Asigură că prima coloană păstrează lățimea setată
+        const tableElement = tdElement.closest('table');
+        if (tableElement) {
+          // Păstrăm table-layout: fixed pentru a menține lățimile coloanelor
+          tableElement.style.tableLayout = 'fixed';
+          tableElement.style.width = '100%';
+          // Asigură că prima coloană (label) păstrează lățimea setată
+          const labelCell = tdElement.previousElementSibling || tdElement.parentElement.querySelector('.dc_table_td_label');
+          if (labelCell) {
+            const computedWidth = getComputedStyle(labelCell).width;
+            labelCell.style.width = computedWidth;
+            labelCell.style.minWidth = computedWidth;
+            labelCell.style.maxWidth = computedWidth;
+          }
+        }
+      }
+    } else {
+      // Dacă sunt 4 sau mai puține, afișează-le într-un flex container normal
+      let containerHtml = '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
+      collections.forEach(collection => {
+        containerHtml += createCollectionCard(collection);
+      });
+      containerHtml += '</div>';
+      element.innerHTML = containerHtml;
       element.style.display = 'flex';
       element.style.alignItems = 'flex-start';
-    } else {
-      element.innerHTML = 'N/A';
     }
   } else if (metafieldType === 'dimension') {
     if (typeof value === 'object') {
@@ -482,6 +636,26 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     } else {
       const formattedValue = applyPrefixSuffix(value, prefix, suffix);
       element.textContent = formattedValue;
+    }
+  } else if (metafieldType === 'volume') {
+    // Pentru metafield-uri de tip volume, afișăm valoarea cu unitatea
+    if (value !== null && value !== undefined && value !== '') {
+      let displayValue = '';
+      if (typeof value === 'object' && value.value !== undefined) {
+        // Dacă este obiect cu value și unit, afișăm "value unit"
+        const volumeValue = value.value;
+        const volumeUnit = value.unit || '';
+        displayValue = volumeUnit ? volumeValue + ' ' + volumeUnit : String(volumeValue);
+      } else if (typeof value === 'object') {
+        // Dacă este obiect fără proprietăți clare, încearcă să extragă valoarea
+        displayValue = value.value !== undefined ? String(value.value) : JSON.stringify(value);
+      } else {
+        displayValue = String(value);
+      }
+      const formattedValue = applyPrefixSuffix(displayValue, prefix, suffix);
+      element.textContent = formattedValue;
+    } else {
+      element.textContent = 'N/A';
     }
   } else if (metafieldType === 'url' || metafieldType === 'link') {
     // Pentru metafield-uri de tip url sau link, afișăm ca link clicabil
@@ -535,6 +709,30 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       element.innerHTML = '<span style="width: 24px; height: 24px; border-radius: 50%; background-color: ' + escapeHtml(colorValue) + '; border: 2px solid #1a1a1a; display: inline-block;" aria-label="Color: ' + escapeHtml(colorValue) + '"></span>';
     } else {
       element.innerHTML = 'N/A';
+    }
+  } else if (metafieldType === 'money') {
+    // Pentru metafield-uri de tip money, împărțim amount la 100 și formatăm cu 2 zecimale
+    if (value !== null && value !== undefined && value !== '') {
+      let displayValue = '';
+      if (typeof value === 'object' && value.amount !== undefined) {
+        // Dacă este obiect cu amount și currency_code, împărțim amount la 100
+        const amount = parseFloat(value.amount) || 0;
+        const currencyCode = value.currency_code || '';
+        const formattedAmount = (amount / 100).toFixed(2);
+        displayValue = currencyCode ? formattedAmount + ' ' + currencyCode : formattedAmount;
+      } else if (typeof value === 'object') {
+        // Dacă este obiect fără proprietăți clare, încearcă să extragă amount
+        const amount = parseFloat(value.amount || value.value || 0) || 0;
+        displayValue = (amount / 100).toFixed(2);
+      } else {
+        // Dacă este un număr direct, împărțim la 100
+        const amount = parseFloat(value) || 0;
+        displayValue = (amount / 100).toFixed(2);
+      }
+      const formattedValue = applyPrefixSuffix(displayValue, prefix, suffix);
+      element.textContent = formattedValue;
+    } else {
+      element.textContent = 'N/A';
     }
   } else if (metafieldType === 'rating') {
     // Pentru metafield-uri de tip rating, afișăm stele pline/goale
@@ -937,7 +1135,7 @@ function renderTemplate(container, template) {
         if (value === null || value === undefined || value === '') {
           hasValue = false;
         } else if (typeof value === 'object') {
-          // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
+          // Pentru obiecte (file_reference, product_reference, collection_reference, rating, volume, dimension, weight)
           // Dacă are url, este file_reference - afișează-l întotdeauna
           if (value.url) {
             hasValue = true;
@@ -946,6 +1144,23 @@ function renderTemplate(container, template) {
             // Pentru rating, verifică dacă value există și nu este null/0
             hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
             console.log('[metafieldHasValue] rating object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
+          } else if (value.value !== undefined && value.unit !== undefined) {
+            // Pentru volume, dimension sau weight, verifică dacă value există
+            hasValue = value.value !== null && value.value !== undefined && value.value !== '';
+            console.log('[metafieldHasValue] volume/dimension/weight object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
+          } else if (value.amount !== undefined) {
+            // Pentru money, verifică dacă amount există și nu este 0
+            const amountValue = parseFloat(value.amount) || 0;
+            hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
+            console.log('[metafieldHasValue] money object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
+          } else if (Array.isArray(value)) {
+            // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
+            hasValue = value.length > 0;
+            console.log('[metafieldHasValue] list.product_reference/list.collection_reference array:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
+          } else if (Array.isArray(value)) {
+            // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
+            hasValue = value.length > 0;
+            console.log('[renderMetafieldsRows] list.product_reference/list.collection_reference array:', value, 'hasValue:', hasValue);
           } else {
             // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
             hasValue = !!(value.title || value.featured_image || value.image);
@@ -968,8 +1183,12 @@ function renderTemplate(container, template) {
           // Verifică dacă valoarea există și nu este null/undefined
           if (value === null || value === undefined || value === '') {
             hasValue = false;
+          } else if (Array.isArray(value)) {
+            // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
+            hasValue = value.length > 0;
+            console.log('[metafieldHasValue] VARIANT list.product_reference/list.collection_reference array:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else if (typeof value === 'object') {
-            // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
+            // Pentru obiecte (file_reference, product_reference, collection_reference, rating, volume, dimension, weight)
             // Dacă are url, este file_reference (imagine, video sau fișier) - afișează-l întotdeauna
             if (value.url) {
               hasValue = true;
@@ -977,6 +1196,15 @@ function renderTemplate(container, template) {
               // Pentru rating, verifică dacă value există și nu este null/0
               hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
               console.log('[metafieldHasValue] VARIANT rating object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
+            } else if (value.value !== undefined && value.unit !== undefined) {
+              // Pentru volume, dimension sau weight, verifică dacă value există
+              hasValue = value.value !== null && value.value !== undefined && value.value !== '';
+              console.log('[metafieldHasValue] VARIANT volume/dimension/weight object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
+            } else if (value.amount !== undefined) {
+              // Pentru money, verifică dacă amount există și nu este 0
+              const amountValue = parseFloat(value.amount) || 0;
+              hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
+              console.log('[metafieldHasValue] VARIANT money object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
             } else {
               // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
               hasValue = !!(value.title || value.featured_image || value.image);
@@ -1655,7 +1883,7 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
         if (value === null || value === undefined || value === '') {
           hasValue = false;
         } else if (typeof value === 'object') {
-          // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
+          // Pentru obiecte (file_reference, product_reference, collection_reference, rating, volume, dimension, weight)
           // Dacă are url, este file_reference - afișează-l întotdeauna
           if (value.url) {
             hasValue = true;
@@ -1664,6 +1892,23 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
             // Pentru rating, verifică dacă value există și nu este null/0
             hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
             console.log('[renderMetafieldsRows] rating object:', value, 'hasValue:', hasValue);
+          } else if (value.value !== undefined && value.unit !== undefined) {
+            // Pentru volume, dimension sau weight, verifică dacă value există
+            hasValue = value.value !== null && value.value !== undefined && value.value !== '';
+            console.log('[renderMetafieldsRows] volume/dimension/weight object:', value, 'hasValue:', hasValue);
+          } else if (value.amount !== undefined) {
+            // Pentru money, verifică dacă amount există și nu este 0
+            const amountValue = parseFloat(value.amount) || 0;
+            hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
+            console.log('[renderMetafieldsRows] money object:', value, 'hasValue:', hasValue);
+          } else if (Array.isArray(value)) {
+            // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
+            hasValue = value.length > 0;
+            console.log('[metafieldHasValue] list.product_reference/list.collection_reference array:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
+          } else if (Array.isArray(value)) {
+            // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
+            hasValue = value.length > 0;
+            console.log('[renderMetafieldsRows] list.product_reference/list.collection_reference array:', value, 'hasValue:', hasValue);
           } else {
             // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
             hasValue = !!(value.title || value.featured_image || value.image);
@@ -1692,8 +1937,12 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
           // Verifică dacă valoarea există și nu este null/undefined
           if (value === null || value === undefined || value === '') {
             hasValue = false;
+          } else if (Array.isArray(value)) {
+            // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
+            hasValue = value.length > 0;
+            console.log('[renderMetafieldsRows] VARIANT list.product_reference/list.collection_reference array:', value, 'hasValue:', hasValue);
           } else if (typeof value === 'object') {
-            // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
+            // Pentru obiecte (file_reference, product_reference, collection_reference, rating, volume, dimension, weight)
             // Dacă are url, este file_reference (imagine, video sau fișier) - afișează-l întotdeauna
             if (value.url) {
               hasValue = true;
@@ -1701,6 +1950,15 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
               // Pentru rating, verifică dacă value există și nu este null/0
               hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
               console.log('[renderMetafieldsRows] VARIANT rating object:', value, 'hasValue:', hasValue);
+            } else if (value.value !== undefined && value.unit !== undefined) {
+              // Pentru volume, dimension sau weight, verifică dacă value există
+              hasValue = value.value !== null && value.value !== undefined && value.value !== '';
+              console.log('[renderMetafieldsRows] VARIANT volume/dimension/weight object:', value, 'hasValue:', hasValue);
+            } else if (value.amount !== undefined) {
+              // Pentru money, verifică dacă amount există și nu este 0
+              const amountValue = parseFloat(value.amount) || 0;
+              hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
+              console.log('[renderMetafieldsRows] VARIANT money object:', value, 'hasValue:', hasValue);
             } else {
               // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
               hasValue = !!(value.title || value.featured_image || value.image);

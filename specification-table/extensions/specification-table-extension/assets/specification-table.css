@@ -92,6 +92,7 @@
 .dc_table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 /* Table Row */
@@ -104,6 +105,8 @@
   padding: 8px;
   font-weight: bold;
   width: var(--dc-first-column-width, var(--dc-column-ratio, 40%));
+  min-width: var(--dc-first-column-width, var(--dc-column-ratio, 40%));
+  max-width: var(--dc-first-column-width, var(--dc-column-ratio, 40%));
   color: var(--dc-specification-text-color, #000000);
   font-family: var(--dc-text-font-family, inherit);
   font-size: var(--dc-text-font-size, 14px);
@@ -121,6 +124,46 @@
   text-transform: var(--dc-text-transform, none);
   padding-top: var(--dc-spec-spacing, 8px);
   padding-bottom: var(--dc-spec-spacing, 8px);
+}
+
+/* Product List Scrollable Container */
+.dc-product-list-scrollable {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 15px;
+  padding: 5px 0;
+  width: 100%;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #ccc #f0f0f0;
+}
+
+.dc-product-list-scrollable::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dc-product-list-scrollable::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.dc-product-list-scrollable::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.dc-product-list-scrollable::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* Permite overflow pentru celulele tabelului care conțin liste de produse */
+.dc_table_td_value.dc-has-product-list {
+  overflow: visible !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  position: relative;
 }
 
 /* Tooltip Icon */
