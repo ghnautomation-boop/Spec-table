@@ -444,6 +444,36 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       const formattedValue = applyPrefixSuffix(value, prefix, suffix);
       element.textContent = formattedValue;
     }
+  } else if (metafieldType === 'url' || metafieldType === 'link') {
+    // Pentru metafield-uri de tip url sau link, afișăm ca link clicabil
+    if (value && value !== '' && value !== 'null') {
+      let url = String(value);
+      
+      // Asigură URL-ul absolut (dacă nu începe cu http/https)
+      if (!url.includes('http://') && !url.includes('https://')) {
+        url = 'https://' + url;
+      }
+      
+      // Folosește prefix/suffix pentru textul link-ului
+      const linkText = applyPrefixSuffix(value, prefix, suffix);
+      
+      element.innerHTML = '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">' +
+        escapeHtml(linkText) +
+        '</a>';
+    } else {
+      element.innerHTML = 'N/A';
+    }
+  } else if (metafieldType === 'boolean') {
+    // Pentru metafield-uri de tip boolean, afișăm iconițe (✓ pentru true, ✗ pentru false)
+    const boolValue = value === true || value === 'true' || value === 1 || value === '1';
+    
+    if (boolValue) {
+      // Bifa verde pentru true
+      element.innerHTML = '<span style="color: #22c55e; font-size: 1.2em; font-weight: bold;" aria-label="true">✓</span>';
+    } else {
+      // X roșu pentru false
+      element.innerHTML = '<span style="color: #ef4444; font-size: 1.2em; font-weight: bold;" aria-label="false">✗</span>';
+    }
   } else {
     if (typeof value === 'object') {
       element.textContent = JSON.stringify(value);
