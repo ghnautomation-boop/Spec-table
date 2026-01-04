@@ -431,22 +431,22 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       const productUrl = value.url || '';
       let html = '';
       if (productUrl && productUrl !== 'null') {
-        html += '<a href="' + escapeHtml(String(productUrl)) + '" style="text-decoration: none; color: inherit; display: flex; align-items: start;justify-content:center;flex-direction: column">';
-      } else {
-        html += '<div style="display:flex;align-items:center;">';
+        html += '<a href="' + escapeHtml(String(productUrl)) + '" style="text-decoration: none; color: inherit; display: inline-block; align-self: flex-start;">';
       }
+      html += '<div style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); background: #fff; max-width: 200px;">';
       if (productImage && productImage !== 'null') {
-        html += '<img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;border:1px solid black; border-radius:10px;" />';
+        html += '<img src="' + escapeHtml(String(productImage)) + '" alt="' + escapeHtml(productTitle) + '" style="width: 100%; height: ' + height + 'px; object-fit: contain; border-radius: 4px; margin-bottom: 8px;" />';
       }
       if (productTitle) {
-        html += '<span style="font-weight:bold;margin-left:30px">' + escapeHtml(productTitle) + '</span>';
+        html += '<span style="font-weight: bold; text-align: center; font-size: 14px; line-height: 1.4;">' + escapeHtml(productTitle) + '</span>';
       }
+      html += '</div>';
       if (productUrl && productUrl !== 'null') {
         html += '</a>';
-      } else {
-        html += '</div>';
       }
       element.innerHTML = html || 'N/A';
+      element.style.display = 'flex';
+      element.style.alignItems = 'flex-start';
     } else {
       element.innerHTML = 'N/A';
     }
@@ -457,22 +457,22 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       const collectionUrl = value.url || '';
       let html = '';
       if (collectionUrl && collectionUrl !== 'null') {
-        html += '<a href="' + escapeHtml(String(collectionUrl)) + '" style="text-decoration: none; color: inherit; display: flex; align-items: start;justify-content:center;flex-direction: column;">';
-      } else {
-        html += '<div>';
+        html += '<a href="' + escapeHtml(String(collectionUrl)) + '" style="text-decoration: none; color: inherit; display: inline-block; align-self: flex-start;">';
       }
+      html += '<div style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); background: #fff; max-width: 200px;">';
       if (collectionImage && collectionImage !== 'null') {
-        html += '<img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="max-width: 100%; height: ' + height + 'px; object-fit: contain;border:1px solid black; border-radius:10px;" />';
+        html += '<img src="' + escapeHtml(String(collectionImage)) + '" alt="' + escapeHtml(collectionTitle) + '" style="width: 100%; height: ' + height + 'px; object-fit: contain; border-radius: 4px; margin-bottom: 8px;" />';
       }
       if (collectionTitle) {
-        html += '<span style="font-weight:bold;text-align:center;">' + escapeHtml(collectionTitle) + '</span>';
+        html += '<span style="font-weight: bold; text-align: center; font-size: 14px; line-height: 1.4;">' + escapeHtml(collectionTitle) + '</span>';
       }
+      html += '</div>';
       if (collectionUrl && collectionUrl !== 'null') {
         html += '</a>';
-      } else {
-        html += '</div>';
       }
       element.innerHTML = html || 'N/A';
+      element.style.display = 'flex';
+      element.style.alignItems = 'flex-start';
     } else {
       element.innerHTML = 'N/A';
     }
