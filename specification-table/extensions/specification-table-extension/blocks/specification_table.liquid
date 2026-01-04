@@ -512,11 +512,30 @@
         {% if mf_value.type == 'file_reference' %}
           {% if mf_value.value != blank %}
             {% assign file = mf_value.value %}
-            {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+            {% comment %} Verifică media_type pentru a diferenția între imagine, video și fișier {% endcomment %}
             {% assign media_type = file.media_type | default: '' %}
             {% if media_type == 'image' %}
               {% comment %} Este imagine - folosim image_url {% endcomment %}
               '{{ mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+            {% elsif media_type == 'video' %}
+              {% comment %} Este video - construim obiectul cu url, filename, alt și media_type {% endcomment %}
+              {% comment %} Pentru video, verificăm dacă există sources array, altfel folosim originalSourceUrl sau url {% endcomment %}
+              {% if file.sources.size > 0 %}
+                {% assign video_url = file.sources[0].url %}
+              {% elsif file.originalSourceUrl %}
+                {% assign video_url = file.originalSourceUrl %}
+              {% else %}
+                {% assign video_url = file.url %}
+              {% endif %}
+              {% unless video_url contains 'http' %}
+                {% assign video_url = 'https:' | append: video_url %}
+              {% endunless %}
+              {% assign filename = file.filename | default: video_url | split: '/' | last | split: '?' | first %}
+              {% assign file_alt = file.alt | default: filename %}
+              {% assign video_url_escaped = video_url | json %}
+              {% assign file_filename_escaped = filename | json %}
+              {% assign file_alt_escaped = file_alt | json %}
+              '{{ mf_key }}': {"url": {{ video_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}, "media_type": "video"}{% unless forloop.last %},{% endunless %}
             {% else %}
               {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
               {% assign file_url = file.originalSourceUrl | default: file.url %}
@@ -540,6 +559,24 @@
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
           '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'rating' %}
+          {% if mf_value.value != blank %}
+            {% comment %} Pentru rating, accesăm direct proprietățile obiectului {% endcomment %}
+            {% assign rating_obj = mf_value.value %}
+            {% comment %} Încearcă mai multe moduri de accesare a valorii {% endcomment %}
+            {% if rating_obj.value != blank %}
+              {% assign rating_value = rating_obj.value %}
+            {% elsif rating_obj != blank %}
+              {% assign rating_value = rating_obj %}
+        {% else %}
+              {% assign rating_value = '0' %}
+            {% endif %}
+            {% assign rating_scale_max = rating_obj.scale_max | default: '5' %}
+            {% assign rating_scale_min = rating_obj.scale_min | default: '1' %}
+            '{{ mf_key }}': {"scale_min": {{ rating_scale_min }}, "scale_max": {{ rating_scale_max }}, "value": {{ rating_value }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
         {% else %}
           '{{ mf_key }}': {{ mf_value.value | json }}{% unless forloop.last %},{% endunless %}
         {% endif %}
@@ -556,11 +593,30 @@
         {% if mf_value.type == 'file_reference' %}
           {% if mf_value.value != blank %}
             {% assign file = mf_value.value %}
-            {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+            {% comment %} Verifică media_type pentru a diferenția între imagine, video și fișier {% endcomment %}
             {% assign media_type = file.media_type | default: '' %}
             {% if media_type == 'image' %}
               {% comment %} Este imagine - folosim image_url {% endcomment %}
               '{{ mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+            {% elsif media_type == 'video' %}
+              {% comment %} Este video - construim obiectul cu url, filename, alt și media_type {% endcomment %}
+              {% comment %} Pentru video, verificăm dacă există sources array, altfel folosim originalSourceUrl sau url {% endcomment %}
+              {% if file.sources.size > 0 %}
+                {% assign video_url = file.sources[0].url %}
+              {% elsif file.originalSourceUrl %}
+                {% assign video_url = file.originalSourceUrl %}
+              {% else %}
+                {% assign video_url = file.url %}
+              {% endif %}
+              {% unless video_url contains 'http' %}
+                {% assign video_url = 'https:' | append: video_url %}
+              {% endunless %}
+              {% assign filename = file.filename | default: video_url | split: '/' | last | split: '?' | first %}
+              {% assign file_alt = file.alt | default: filename %}
+              {% assign video_url_escaped = video_url | json %}
+              {% assign file_filename_escaped = filename | json %}
+              {% assign file_alt_escaped = file_alt | json %}
+              '{{ mf_key }}': {"url": {{ video_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}, "media_type": "video"}{% unless forloop.last %},{% endunless %}
             {% else %}
               {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
               {% assign file_url = file.originalSourceUrl | default: file.url %}
@@ -584,6 +640,24 @@
           '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
         {% elsif mf_value.type == 'dimension' %}
           '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'rating' %}
+          {% if mf_value.value != blank %}
+            {% comment %} Pentru rating, accesăm direct proprietățile obiectului {% endcomment %}
+            {% assign rating_obj = mf_value.value %}
+            {% comment %} Încearcă mai multe moduri de accesare a valorii {% endcomment %}
+            {% if rating_obj.value != blank %}
+              {% assign rating_value = rating_obj.value %}
+            {% elsif rating_obj != blank %}
+              {% assign rating_value = rating_obj %}
+        {% else %}
+              {% assign rating_value = '0' %}
+            {% endif %}
+            {% assign rating_scale_max = rating_obj.scale_max | default: '5' %}
+            {% assign rating_scale_min = rating_obj.scale_min | default: '1' %}
+            '{{ mf_key }}': {"scale_min": {{ rating_scale_min }}, "scale_max": {{ rating_scale_max }}, "value": {{ rating_value }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
         {% else %}
           '{{ mf_key }}': {{ mf_value.value | json }}{% unless forloop.last %},{% endunless %}
         {% endif %}
@@ -611,23 +685,42 @@
   // Folosim varianta curentÄƒ (selected_or_first_available_variant) pentru a obÈ›ine metafield-urile
   // Pentru file_reference, folosim image_url filter pentru a obÈ›ine URL-ul imaginii
   window.allVariantMetafieldsFromLiquid = {};
-  {% if current_variant %}
-    {% assign current_variant_id = current_variant.id | split: '/' | last %}
+  {% if product.selected_or_first_available_variant %}
+    {% assign current_variant_id = product.selected_or_first_available_variant.id | split: '/' | last %}
     window.allVariantMetafieldsFromLiquid['{{ current_variant_id }}'] = {
-      {% if current_variant.metafields.custom %}
+      {% if product.selected_or_first_available_variant.metafields.custom %}
       custom: {
-        {% for variant_mf_pair in current_variant.metafields.custom %}
+        {% for variant_mf_pair in product.selected_or_first_available_variant.metafields.custom %}
           {% assign variant_mf_key = variant_mf_pair[0] %}
           {% assign variant_mf_value = variant_mf_pair[1] %}
           {% comment %} Pentru file_reference, verificăm dacă este imagine/video sau alt tip de fișier {% endcomment %}
-          {% if variant_mf_value.type.name == 'file_reference' %}
+          {% if variant_mf_value.type == 'file_reference' %}
             {% if variant_mf_value.value != blank %}
               {% assign file = variant_mf_value.value %}
-              {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+              {% comment %} Verifică media_type pentru a diferenția între imagine, video și fișier {% endcomment %}
               {% assign media_type = file.media_type | default: '' %}
               {% if media_type == 'image' %}
                 {% comment %} Este imagine - folosim image_url {% endcomment %}
                 '{{ variant_mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+              {% elsif media_type == 'video' %}
+                {% comment %} Este video - construim obiectul cu url, filename, alt și media_type {% endcomment %}
+                {% comment %} Pentru video, verificăm dacă există sources array, altfel folosim originalSourceUrl sau url {% endcomment %}
+                {% if file.sources.size > 0 %}
+                  {% assign video_url = file.sources[0].url %}
+                {% elsif file.originalSourceUrl %}
+                  {% assign video_url = file.originalSourceUrl %}
+                {% else %}
+                  {% assign video_url = file.url %}
+                {% endif %}
+                {% unless video_url contains 'http' %}
+                  {% assign video_url = 'https:' | append: video_url %}
+                {% endunless %}
+                {% assign filename = file.filename | default: video_url | split: '/' | last | split: '?' | first %}
+                {% assign file_alt = file.alt | default: filename %}
+                {% assign video_url_escaped = video_url | json %}
+                {% assign file_filename_escaped = filename | json %}
+                {% assign file_alt_escaped = file_alt | json %}
+                '{{ variant_mf_key }}': {"url": {{ video_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}, "media_type": "video"}{% unless forloop.last %},{% endunless %}
               {% else %}
                 {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
                 {% assign file_url = file.originalSourceUrl | default: file.url %}
@@ -645,12 +738,32 @@
             {% else %}
               '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
             {% endif %}
-          {% elsif variant_mf_value.type.name == 'product_reference' %}
+          {% elsif variant_mf_value.type == 'product_reference' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
-          {% elsif variant_mf_value.type.name == 'collection_reference' %}
+          {% elsif variant_mf_value.type == 'collection_reference' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
-          {% elsif variant_mf_value.type.name == 'dimension' %}
+          {% elsif variant_mf_value.type == 'dimension' %}
             '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% elsif variant_mf_value.type == 'rating' %}
+            {% if variant_mf_value.value != blank %}
+              {% comment %} Pentru rating, accesăm direct proprietățile obiectului {% endcomment %}
+              {% assign rating_obj = variant_mf_value.value %}
+              {% comment %} Încearcă mai multe moduri de accesare a valorii {% endcomment %}
+              {% if rating_obj.value != blank %}
+                {% assign rating_value = rating_obj.value %}
+              {% elsif rating_obj.rating != blank %}
+                {% assign rating_value = rating_obj.rating %}
+              {% elsif rating_obj != blank %}
+                {% assign rating_value = rating_obj %}
+              {% else %}
+                {% assign rating_value = '0' %}
+              {% endif %}
+              {% assign rating_scale_max = rating_obj.scale_max | default: '5' %}
+              {% assign rating_scale_min = rating_obj.scale_min | default: '1' %}
+              '{{ variant_mf_key }}': {"scale_min": {{ rating_scale_min }}, "scale_max": {{ rating_scale_max }}, "value": {{ rating_value }}}{% unless forloop.last %},{% endunless %}
+            {% else %}
+              '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+            {% endif %}
           {% else %}
             '{{ variant_mf_key }}': {{ variant_mf_value.value | json }}{% unless forloop.last %},{% endunless %}
           {% endif %}
@@ -673,11 +786,24 @@
               {% if variant_mf_value.type == 'file_reference' %}
                 {% if variant_mf_value.value != blank %}
                   {% assign file = variant_mf_value.value %}
-                  {% comment %} Verifică media_type pentru a diferenția între imagine și fișier {% endcomment %}
+                  {% comment %} Verifică media_type pentru a diferenția între imagine, video și fișier {% endcomment %}
                   {% assign media_type = file.media_type | default: '' %}
                   {% if media_type == 'image' %}
                     {% comment %} Este imagine - folosim image_url {% endcomment %}
                     '{{ variant_mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+                  {% elsif media_type == 'video' %}
+                    {% comment %} Este video - construim obiectul cu url, filename, alt și media_type {% endcomment %}
+                    {% assign file_url = file.originalSourceUrl | default: file.url %}
+                    {% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}
+                    {% assign video_url = file_url %}
+                    {% unless video_url contains 'http' %}
+                      {% assign video_url = 'https:' | append: video_url %}
+                    {% endunless %}
+                    {% assign file_alt = file.alt | default: filename %}
+                    {% assign video_url_escaped = video_url | json %}
+                    {% assign file_filename_escaped = filename | json %}
+                    {% assign file_alt_escaped = file_alt | json %}
+                    '{{ variant_mf_key }}': {"url": {{ video_url_escaped }}, "filename": {{ file_filename_escaped }}, "alt": {{ file_alt_escaped }}, "media_type": "video"}{% unless forloop.last %},{% endunless %}
                   {% else %}
                     {% comment %} Este fișier (generic_file sau alt tip) - construim obiectul cu url, filename, alt {% endcomment %}
                     {% assign file_url = file.originalSourceUrl | default: file.url %}
@@ -701,6 +827,26 @@
                 '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_collection = variant_mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
               {% elsif variant_mf_value.type == 'dimension' %}
                 '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+              {% elsif variant_mf_value.type == 'rating' %}
+                {% if variant_mf_value.value != blank %}
+                  {% comment %} Pentru rating, accesăm direct proprietățile obiectului {% endcomment %}
+                  {% assign rating_obj = variant_mf_value.value %}
+                  {% comment %} Încearcă mai multe moduri de accesare a valorii {% endcomment %}
+                  {% if rating_obj.value != blank %}
+                    {% assign rating_value = rating_obj.value %}
+                  {% elsif rating_obj.rating != blank %}
+                    {% assign rating_value = rating_obj.rating %}
+                  {% elsif rating_obj != blank %}
+                    {% assign rating_value = rating_obj %}
+                  {% else %}
+                    {% assign rating_value = '0' %}
+                  {% endif %}
+                  {% assign rating_scale_max = rating_obj.scale_max | default: '5' %}
+                  {% assign rating_scale_min = rating_obj.scale_min | default: '1' %}
+                  '{{ variant_mf_key }}': {"scale_min": {{ rating_scale_min }}, "scale_max": {{ rating_scale_max }}, "value": {{ rating_value }}}{% unless forloop.last %},{% endunless %}
+              {% else %}
+                  '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+                {% endif %}
               {% else %}
                 '{{ variant_mf_key }}': {{ variant_mf_value.value | json }}{% unless forloop.last %},{% endunless %}
               {% endif %}

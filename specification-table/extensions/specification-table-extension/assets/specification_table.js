@@ -349,55 +349,72 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     });
 
     if (value && value !== '' && value !== 'null') {
-      // Verifică dacă valoarea este un obiect (pentru fișiere non-imagine) sau un string (pentru imagini)
+      // Verifică dacă valoarea este un obiect (pentru fișiere non-imagine/video) sau un string (pentru imagini)
       if (typeof value === 'object' && value.url) {
-        console.log('[renderMetafieldValue] Processing as non-image file:', value);
-        // Este un fișier non-imagine (PDF, DOC, etc.)
-        const fileUrl = value.url;
-        const filename = value.filename || (fileUrl.split('/').pop().split('?')[0]);
-        const ext = filename.split('.').pop().toLowerCase();
-        
-        console.log('[renderMetafieldValue] File details:', {
-          fileUrl: fileUrl,
-          filename: filename,
-          ext: ext
-        });
-        
-        // Determină iconița în funcție de extensie
-        let icon = '📎'; // default
-        if (ext === 'pdf') {
-          icon = '📄';
-        } else if (ext === 'zip' || ext === 'rar' || ext === '7z') {
-          icon = '🗜️';
-        } else if (ext === 'doc' || ext === 'docx') {
-          icon = '📝';
-        } else if (ext === 'xls' || ext === 'xlsx') {
-          icon = '📊';
-        } else if (ext === 'txt') {
-          icon = '📄';
-        } else if (ext === 'csv') {
-          icon = '📊';
+        // Verifică dacă este video
+        if (value.media_type === 'video') {
+          console.log('[renderMetafieldValue] Processing as video:', value);
+          const videoUrl = value.url;
+          let finalVideoUrl = videoUrl;
+          if (!finalVideoUrl.includes('http')) {
+            finalVideoUrl = 'https:' + finalVideoUrl;
+          }
+          
+          element.innerHTML = '<video controls style="max-width: 100%; max-height: ' + height + 'px; object-fit: contain;" preload="metadata">' +
+            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/mp4">' +
+            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/webm">' +
+            '<source src="' + escapeHtml(finalVideoUrl) + '" type="video/ogg">' +
+            'Browser-ul tău nu suportă tag-ul video.' +
+            '</video>';
+        } else {
+          console.log('[renderMetafieldValue] Processing as non-image file:', value);
+          // Este un fișier non-imagine (PDF, DOC, etc.)
+          const fileUrl = value.url;
+          const filename = value.filename || (fileUrl.split('/').pop().split('?')[0]);
+          const ext = filename.split('.').pop().toLowerCase();
+          
+          console.log('[renderMetafieldValue] File details:', {
+            fileUrl: fileUrl,
+            filename: filename,
+            ext: ext
+          });
+          
+          // Determină iconița în funcție de extensie
+          let icon = '📎'; // default
+          if (ext === 'pdf') {
+            icon = '📄';
+          } else if (ext === 'zip' || ext === 'rar' || ext === '7z') {
+            icon = '🗜️';
+          } else if (ext === 'doc' || ext === 'docx') {
+            icon = '📝';
+          } else if (ext === 'xls' || ext === 'xlsx') {
+            icon = '📊';
+          } else if (ext === 'txt') {
+            icon = '📄';
+          } else if (ext === 'csv') {
+            icon = '📊';
+          }
+          
+          // Asigură URL-ul absolut
+          let downloadUrl = fileUrl;
+          if (!downloadUrl.includes('http')) {
+            downloadUrl = 'https:' + downloadUrl;
+          }
+          
+          const displayName = value.alt || filename;
+          console.log('[renderMetafieldValue] Rendering file link:', {
+            downloadUrl: downloadUrl,
+            displayName: displayName,
+            icon: icon
+          });
+          
+          element.innerHTML = '<div class="dc-file" style="display: flex; align-items: center; gap: 8px;">' +
+            '<span class="dc-file__icon" aria-hidden="true" style="font-size: 1.2em;">' + icon + '</span>' +
+            '<a class="dc-file__link" href="' + escapeHtml(downloadUrl) + '" download target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">' +
+            escapeHtml(displayName) +
+            '</a>' +
+            '</div>';
         }
-        
-        // Asigură URL-ul absolut
-        let downloadUrl = fileUrl;
-        if (!downloadUrl.includes('http')) {
-          downloadUrl = 'https:' + downloadUrl;
-        }
-        
-        const displayName = value.alt || filename;
-        console.log('[renderMetafieldValue] Rendering file link:', {
-          downloadUrl: downloadUrl,
-          displayName: displayName,
-          icon: icon
-        });
-        
-        element.innerHTML = '<div class="dc-file" style="display: flex; align-items: center; gap: 8px;">' +
-          '<span class="dc-file__icon" aria-hidden="true" style="font-size: 1.2em;">' + icon + '</span>' +
-          '<a class="dc-file__link" href="' + escapeHtml(downloadUrl) + '" download target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">' +
-          escapeHtml(displayName) +
-          '</a>' +
-          '</div>';
       } else {
         console.log('[renderMetafieldValue] Processing as image (string URL):', value);
         // Este o imagine (string URL)
@@ -473,6 +490,79 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     } else {
       // X roșu pentru false
       element.innerHTML = '<span style="color: #ef4444; font-size: 1.2em; font-weight: bold;" aria-label="false">✗</span>';
+    }
+  } else if (metafieldType === 'color') {
+    // Pentru metafield-uri de tip color, afișăm un cerc colorat cu border negru
+    if (value && value !== '' && value !== 'null') {
+      let colorValue = String(value).trim();
+      
+      // Asigură că culoarea începe cu # dacă nu are deja
+      if (!colorValue.startsWith('#')) {
+        colorValue = '#' + colorValue;
+      }
+      
+      // Validează formatul culorii (hex de 3 sau 6 caractere)
+      const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+      if (!hexColorRegex.test(colorValue)) {
+        // Dacă nu este un format valid, afișează valoarea ca text
+        element.textContent = colorValue;
+        return;
+      }
+      
+      // Randează doar un cerc colorat cu border negru (fără text)
+      element.innerHTML = '<span style="width: 24px; height: 24px; border-radius: 50%; background-color: ' + escapeHtml(colorValue) + '; border: 2px solid #1a1a1a; display: inline-block;" aria-label="Color: ' + escapeHtml(colorValue) + '"></span>';
+    } else {
+      element.innerHTML = 'N/A';
+    }
+  } else if (metafieldType === 'rating') {
+    // Pentru metafield-uri de tip rating, afișăm stele pline/goale
+    if (value && value !== '' && value !== 'null') {
+      let ratingData = null;
+      
+      // Verifică dacă valoarea este un obiect sau un string JSON
+      if (typeof value === 'object') {
+        ratingData = value;
+      } else if (typeof value === 'string') {
+        try {
+          ratingData = JSON.parse(value);
+        } catch (e) {
+          // Dacă nu este JSON valid, încearcă să extragă doar valoarea
+          const numValue = parseFloat(value);
+          if (!isNaN(numValue)) {
+            ratingData = { value: numValue, scale_max: 5, scale_min: 1 };
+          }
+        }
+      }
+      
+      if (ratingData && ratingData.value !== undefined) {
+        const ratingValue = parseFloat(ratingData.value) || 0;
+        const scaleMax = parseFloat(ratingData.scale_max) || 5;
+        const scaleMin = parseFloat(ratingData.scale_min) || 1;
+        
+        // Calculează numărul de stele pline și goale
+        const fullStars = Math.floor(ratingValue);
+        const emptyStars = Math.max(0, Math.floor(scaleMax) - fullStars);
+        
+        // Randează stelele
+        let starsHtml = '<div style="display: inline-flex; align-items: center; gap: 2px;">';
+        
+        // Stele pline
+        for (let i = 0; i < fullStars; i++) {
+          starsHtml += '<span style="color: #fbbf24; font-size: 1.2em;" aria-hidden="true">★</span>';
+        }
+        
+        // Stele goale
+        for (let i = 0; i < emptyStars; i++) {
+          starsHtml += '<span style="color: #d1d5db; font-size: 1.2em;" aria-hidden="true">★</span>';
+        }
+        
+        starsHtml += '</div>';
+        element.innerHTML = starsHtml;
+      } else {
+        element.innerHTML = 'N/A';
+      }
+    } else {
+      element.innerHTML = 'N/A';
     }
   } else {
     if (typeof value === 'object') {
@@ -825,11 +915,15 @@ function renderTemplate(container, template) {
         if (value === null || value === undefined || value === '') {
           hasValue = false;
         } else if (typeof value === 'object') {
-          // Pentru obiecte (file_reference, product_reference, collection_reference)
+          // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
           // Dacă are url, este file_reference - afișează-l întotdeauna
           if (value.url) {
             hasValue = true;
             console.log('[metafieldHasValue] file_reference object has url:', metafield.namespace, metafield.key, value);
+          } else if (value.value !== undefined && value.scale_max !== undefined) {
+            // Pentru rating, verifică dacă value există și nu este null/0
+            hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
+            console.log('[metafieldHasValue] rating object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else {
             // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
             hasValue = !!(value.title || value.featured_image || value.image);
@@ -853,10 +947,14 @@ function renderTemplate(container, template) {
           if (value === null || value === undefined || value === '') {
             hasValue = false;
           } else if (typeof value === 'object') {
-            // Pentru obiecte (file_reference, product_reference, collection_reference)
-            // Pentru file_reference, verifică dacă are url
+            // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
+            // Dacă are url, este file_reference (imagine, video sau fișier) - afișează-l întotdeauna
             if (value.url) {
               hasValue = true;
+            } else if (value.value !== undefined && value.scale_max !== undefined) {
+              // Pentru rating, verifică dacă value există și nu este null/0
+              hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
+              console.log('[metafieldHasValue] VARIANT rating object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
             } else {
               // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
               hasValue = !!(value.title || value.featured_image || value.image);
@@ -1535,11 +1633,15 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
         if (value === null || value === undefined || value === '') {
           hasValue = false;
         } else if (typeof value === 'object') {
-          // Pentru obiecte (file_reference, product_reference, collection_reference)
+          // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
           // Dacă are url, este file_reference - afișează-l întotdeauna
           if (value.url) {
             hasValue = true;
             console.log('[renderMetafieldsRows] file_reference object has url - will be displayed:', value);
+          } else if (value.value !== undefined && value.scale_max !== undefined) {
+            // Pentru rating, verifică dacă value există și nu este null/0
+            hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
+            console.log('[renderMetafieldsRows] rating object:', value, 'hasValue:', hasValue);
           } else {
             // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
             hasValue = !!(value.title || value.featured_image || value.image);
@@ -1569,10 +1671,14 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
           if (value === null || value === undefined || value === '') {
             hasValue = false;
           } else if (typeof value === 'object') {
-            // Pentru obiecte (file_reference, product_reference, collection_reference)
-            // Pentru file_reference, verifică dacă are url
+            // Pentru obiecte (file_reference, product_reference, collection_reference, rating)
+            // Dacă are url, este file_reference (imagine, video sau fișier) - afișează-l întotdeauna
             if (value.url) {
               hasValue = true;
+            } else if (value.value !== undefined && value.scale_max !== undefined) {
+              // Pentru rating, verifică dacă value există și nu este null/0
+              hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
+              console.log('[renderMetafieldsRows] VARIANT rating object:', value, 'hasValue:', hasValue);
             } else {
               // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
               hasValue = !!(value.title || value.featured_image || value.image);
