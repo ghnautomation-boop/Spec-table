@@ -392,11 +392,38 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     }
   }
 
-  if (metafieldType === 'multi_line_text_field' || metafieldType === 'single_line_text_field') {
-    if (typeof value === 'object') {
-      element.textContent = JSON.stringify(value);
+  if (metafieldType === 'multi_line_text_field' || metafieldType === 'single_line_text_field' || 
+      metafieldType === 'list.multi_line_text_field' || metafieldType === 'list.single_line_text_field') {
+    // Verifică dacă este o listă (array) sau o singură valoare
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse text field value as JSON:', value);
+      }
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const items = isList ? parsedValue : (parsedValue !== null && parsedValue !== undefined ? [parsedValue] : []);
+    
+    if (items.length === 0) {
+      element.textContent = 'N/A';
+      return;
+    }
+    
+    if (isList) {
+      // Pentru liste, afișează fiecare item pe o linie nouă sau separate prin virgulă
+      const formattedItems = items.map(item => {
+        const itemValue = typeof item === 'object' ? JSON.stringify(item) : String(item);
+        return applyPrefixSuffix(itemValue, prefix, suffix);
+      });
+      element.textContent = formattedItems.join(', ');
+      element.style.whiteSpace = 'pre-wrap';
     } else {
-      const formattedValue = applyPrefixSuffix(value, prefix, suffix);
+      // Un singur item
+      const itemValue = typeof items[0] === 'object' ? JSON.stringify(items[0]) : String(items[0]);
+      const formattedValue = applyPrefixSuffix(itemValue, prefix, suffix);
       element.textContent = formattedValue;
     }
   } else if (metafieldType === 'file_reference' || metafieldType === 'list.file_reference') {
@@ -736,67 +763,196 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
         element.style.alignItems = 'flex-start';
       }
     });
-  } else if (metafieldType === 'dimension') {
-    if (typeof value === 'object') {
-      element.textContent = JSON.stringify(value);
-    } else {
-      const formattedValue = applyPrefixSuffix(value, prefix, suffix);
-      element.textContent = formattedValue;
-    }
-  } else if (metafieldType === 'volume') {
-    // Pentru metafield-uri de tip volume, afișăm valoarea cu unitatea
-    if (value !== null && value !== undefined && value !== '') {
-      let displayValue = '';
-      if (typeof value === 'object' && value.value !== undefined) {
-        // Dacă este obiect cu value și unit, afișăm "value unit"
-        const volumeValue = value.value;
-        const volumeUnit = value.unit || '';
-        displayValue = volumeUnit ? volumeValue + ' ' + volumeUnit : String(volumeValue);
-      } else if (typeof value === 'object') {
-        // Dacă este obiect fără proprietăți clare, încearcă să extragă valoarea
-        displayValue = value.value !== undefined ? String(value.value) : JSON.stringify(value);
-      } else {
-        displayValue = String(value);
+  } else if (metafieldType === 'dimension' || metafieldType === 'list.dimension') {
+    // Verifică dacă este o listă (array) sau o singură valoare
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse dimension value as JSON:', value);
       }
-      const formattedValue = applyPrefixSuffix(displayValue, prefix, suffix);
-      element.textContent = formattedValue;
-    } else {
-      element.textContent = 'N/A';
     }
-  } else if (metafieldType === 'url' || metafieldType === 'link') {
-    // Pentru metafield-uri de tip url sau link, afișăm ca link clicabil
-    if (value && value !== '' && value !== 'null') {
-      let url = String(value);
+    
+    const isList = Array.isArray(parsedValue);
+    const items = isList ? parsedValue : (parsedValue !== null && parsedValue !== undefined ? [parsedValue] : []);
+    
+    if (items.length === 0) {
+      element.textContent = 'N/A';
+      return;
+    }
+    
+    const formatDimension = (dim) => {
+      if (typeof dim === 'object' && dim.value !== undefined && dim.unit !== undefined) {
+        return dim.value + ' ' + dim.unit;
+      } else if (typeof dim === 'object' && dim.value !== undefined) {
+        return String(dim.value);
+      } else if (typeof dim === 'object') {
+        return JSON.stringify(dim);
+      } else {
+        return String(dim);
+      }
+    };
+    
+    if (isList) {
+      const formattedItems = items.map(item => {
+        const formatted = formatDimension(item);
+        return applyPrefixSuffix(formatted, prefix, suffix);
+      });
+      element.textContent = formattedItems.join(', ');
+    } else {
+      const formatted = formatDimension(items[0]);
+      const formattedValue = applyPrefixSuffix(formatted, prefix, suffix);
+      element.textContent = formattedValue;
+    }
+  } else if (metafieldType === 'volume' || metafieldType === 'list.volume') {
+    // Verifică dacă este o listă (array) sau o singură valoare
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse volume value as JSON:', value);
+      }
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const items = isList ? parsedValue : (parsedValue !== null && parsedValue !== undefined && parsedValue !== '' ? [parsedValue] : []);
+    
+    if (items.length === 0) {
+      element.textContent = 'N/A';
+      return;
+    }
+    
+    const formatVolume = (vol) => {
+      if (typeof vol === 'object' && vol.value !== undefined) {
+        const volumeValue = vol.value;
+        const volumeUnit = vol.unit || '';
+        return volumeUnit ? volumeValue + ' ' + volumeUnit : String(volumeValue);
+      } else if (typeof vol === 'object') {
+        return JSON.stringify(vol);
+      } else {
+        return String(vol);
+      }
+    };
+    
+    if (isList) {
+      const formattedItems = items.map(item => {
+        const formatted = formatVolume(item);
+        return applyPrefixSuffix(formatted, prefix, suffix);
+      });
+      element.textContent = formattedItems.join(', ');
+    } else {
+      const formatted = formatVolume(items[0]);
+      const formattedValue = applyPrefixSuffix(formatted, prefix, suffix);
+      element.textContent = formattedValue;
+    }
+  } else if (metafieldType === 'url' || metafieldType === 'link' || metafieldType === 'list.url' || metafieldType === 'list.link') {
+    // Verifică dacă este o listă (array) sau o singură valoare
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse url/link value as JSON:', value);
+      }
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const items = isList ? parsedValue : (parsedValue !== null && parsedValue !== undefined && parsedValue !== '' && parsedValue !== 'null' ? [parsedValue] : []);
+    
+    if (items.length === 0) {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    const createLink = (item) => {
+      let url = '';
+      let linkText = '';
       
-      // Asigură URL-ul absolut (dacă nu începe cu http/https)
+      if (typeof item === 'object' && item.url) {
+        // Pentru link type, folosește url și text din obiect
+        url = String(item.url);
+        linkText = item.text || url;
+      } else {
+        // Pentru url type sau string simplu
+        url = String(item);
+        linkText = url;
+      }
+      
+      // Asigură URL-ul absolut
       if (!url.includes('http://') && !url.includes('https://')) {
         url = 'https://' + url;
       }
       
-      // Folosește prefix/suffix pentru textul link-ului
-      const linkText = applyPrefixSuffix(value, prefix, suffix);
-      
-      element.innerHTML = '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">' +
-        escapeHtml(linkText) +
+      const formattedText = applyPrefixSuffix(linkText, prefix, suffix);
+      return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">' +
+        escapeHtml(formattedText) +
         '</a>';
-    } else {
-      element.innerHTML = 'N/A';
-    }
-  } else if (metafieldType === 'boolean') {
-    // Pentru metafield-uri de tip boolean, afișăm iconițe (✓ pentru true, ✗ pentru false)
-    const boolValue = value === true || value === 'true' || value === 1 || value === '1';
+    };
     
-    if (boolValue) {
-      // Bifa verde pentru true
-      element.innerHTML = '<span style="color: #22c55e; font-size: 1.2em; font-weight: bold;" aria-label="true">✓</span>';
+    if (isList) {
+      // Pentru liste, afișează fiecare link pe o linie nouă sau separate
+      const linksHtml = items.map(item => createLink(item)).join('<br>');
+      element.innerHTML = linksHtml;
     } else {
-      // X roșu pentru false
-      element.innerHTML = '<span style="color: #ef4444; font-size: 1.2em; font-weight: bold;" aria-label="false">✗</span>';
+      element.innerHTML = createLink(items[0]);
     }
-  } else if (metafieldType === 'color') {
-    // Pentru metafield-uri de tip color, afișăm un cerc colorat cu border negru
-    if (value && value !== '' && value !== 'null') {
-      let colorValue = String(value).trim();
+  } else if (metafieldType === 'boolean' || metafieldType === 'list.boolean') {
+    // Verifică dacă este o listă (array) sau o singură valoare
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse boolean value as JSON:', value);
+      }
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const items = isList ? parsedValue : (parsedValue !== null && parsedValue !== undefined ? [parsedValue] : []);
+    
+    if (items.length === 0) {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    const createBooleanIcon = (boolVal) => {
+      const boolValue = boolVal === true || boolVal === 'true' || boolVal === 1 || boolVal === '1';
+      if (boolValue) {
+        return '<span style="color: #22c55e; font-size: 1.2em; font-weight: bold;" aria-label="true">✓</span>';
+      } else {
+        return '<span style="color: #ef4444; font-size: 1.2em; font-weight: bold;" aria-label="false">✗</span>';
+      }
+    };
+    
+    if (isList) {
+      const iconsHtml = items.map(item => createBooleanIcon(item)).join(' ');
+      element.innerHTML = iconsHtml;
+    } else {
+      element.innerHTML = createBooleanIcon(items[0]);
+    }
+  } else if (metafieldType === 'color' || metafieldType === 'list.color') {
+    // Verifică dacă este o listă (array) sau o singură valoare
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse color value as JSON:', value);
+      }
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const items = isList ? parsedValue : (parsedValue !== null && parsedValue !== undefined && parsedValue !== '' && parsedValue !== 'null' ? [parsedValue] : []);
+    
+    if (items.length === 0) {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    const createColorCircle = (colorVal) => {
+      let colorValue = String(colorVal).trim();
       
       // Asigură că culoarea începe cu # dacă nu are deja
       if (!colorValue.startsWith('#')) {
@@ -807,16 +963,20 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
       if (!hexColorRegex.test(colorValue)) {
         // Dacă nu este un format valid, afișează valoarea ca text
-        element.textContent = colorValue;
-        return;
+        return '<span>' + escapeHtml(colorValue) + '</span>';
       }
       
-      // Randează doar un cerc colorat cu border negru (fără text)
-      element.innerHTML = '<span style="width: 24px; height: 24px; border-radius: 50%; background-color: ' + escapeHtml(colorValue) + '; border: 2px solid #1a1a1a; display: inline-block;" aria-label="Color: ' + escapeHtml(colorValue) + '"></span>';
+      // Randează un cerc colorat cu border negru
+      return '<span style="width: 24px; height: 24px; border-radius: 50%; background-color: ' + escapeHtml(colorValue) + '; border: 2px solid #1a1a1a; display: inline-block; margin-right: 8px;" aria-label="Color: ' + escapeHtml(colorValue) + '"></span>';
+    };
+    
+    if (isList) {
+      const circlesHtml = items.map(item => createColorCircle(item)).join('');
+      element.innerHTML = circlesHtml;
     } else {
-      element.innerHTML = 'N/A';
+      element.innerHTML = createColorCircle(items[0]);
     }
-  } else if (metafieldType === 'money') {
+  } else if (metafieldType === 'money' || metafieldType === 'list.money') {
     // Pentru metafield-uri de tip money, împărțim amount la 100 și formatăm cu 2 zecimale
     if (value !== null && value !== undefined && value !== '') {
       let displayValue = '';
@@ -840,20 +1000,35 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
     } else {
       element.textContent = 'N/A';
     }
-  } else if (metafieldType === 'rating') {
-    // Pentru metafield-uri de tip rating, afișăm stele pline/goale
-    if (value && value !== '' && value !== 'null') {
+  } else if (metafieldType === 'rating' || metafieldType === 'list.rating') {
+    // Verifică dacă este o listă (array) sau o singură valoare
+    let parsedValue = value;
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        console.warn('[renderMetafieldValue] Failed to parse rating value as JSON:', value);
+      }
+    }
+    
+    const isList = Array.isArray(parsedValue);
+    const items = isList ? parsedValue : (parsedValue !== null && parsedValue !== undefined && parsedValue !== '' && parsedValue !== 'null' ? [parsedValue] : []);
+    
+    if (items.length === 0) {
+      element.innerHTML = 'N/A';
+      return;
+    }
+    
+    const createRatingStars = (ratingVal) => {
       let ratingData = null;
       
-      // Verifică dacă valoarea este un obiect sau un string JSON
-      if (typeof value === 'object') {
-        ratingData = value;
-      } else if (typeof value === 'string') {
+      if (typeof ratingVal === 'object') {
+        ratingData = ratingVal;
+      } else if (typeof ratingVal === 'string') {
         try {
-          ratingData = JSON.parse(value);
+          ratingData = JSON.parse(ratingVal);
         } catch (e) {
-          // Dacă nu este JSON valid, încearcă să extragă doar valoarea
-          const numValue = parseFloat(value);
+          const numValue = parseFloat(ratingVal);
           if (!isNaN(numValue)) {
             ratingData = { value: numValue, scale_max: 5, scale_min: 1 };
           }
@@ -865,30 +1040,27 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
         const scaleMax = parseFloat(ratingData.scale_max) || 5;
         const scaleMin = parseFloat(ratingData.scale_min) || 1;
         
-        // Calculează numărul de stele pline și goale
         const fullStars = Math.floor(ratingValue);
         const emptyStars = Math.max(0, Math.floor(scaleMax) - fullStars);
         
-        // Randează stelele
         let starsHtml = '<div style="display: inline-flex; align-items: center; gap: 2px;">';
-        
-        // Stele pline
         for (let i = 0; i < fullStars; i++) {
           starsHtml += '<span style="color: #fbbf24; font-size: 1.2em;" aria-hidden="true">★</span>';
         }
-        
-        // Stele goale
         for (let i = 0; i < emptyStars; i++) {
           starsHtml += '<span style="color: #d1d5db; font-size: 1.2em;" aria-hidden="true">★</span>';
         }
-        
         starsHtml += '</div>';
-        element.innerHTML = starsHtml;
-      } else {
-        element.innerHTML = 'N/A';
+        return starsHtml;
       }
+      return 'N/A';
+    };
+    
+    if (isList) {
+      const starsHtml = items.map(item => createRatingStars(item)).join(' ');
+      element.innerHTML = starsHtml;
     } else {
-      element.innerHTML = 'N/A';
+      element.innerHTML = createRatingStars(items[0]);
     }
   } else {
     if (typeof value === 'object') {
