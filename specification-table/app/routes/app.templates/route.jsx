@@ -1036,6 +1036,30 @@ export default function TemplatesPage() {
     setIsMounted(true);
   }, []);
 
+  // Interceptează click-ul pe butonul "Create New Template" din slot="primary-action" pentru navigare SPA
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const handleClick = (e) => {
+      // Verifică dacă click-ul este pe un buton cu data-spa-navigate
+      const target = e.target.closest('[data-spa-navigate]');
+      if (target && target.getAttribute('href') === '/app/templates/new') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        navigate("/app/templates/new");
+        return false;
+      }
+    };
+
+    // Folosim capture phase pentru a intercepta înainte ca Polaris să proceseze
+    document.addEventListener('click', handleClick, true);
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+    };
+  }, [isMounted, navigate]);
+
+
   // Afișează performance metrics în consola browser-ului (doar în development)
   useEffect(() => {
     if (_perf) {
@@ -1248,7 +1272,13 @@ export default function TemplatesPage() {
             <button onClick={cancelDelete}>Cancel</button>
           </TitleBar>
         </Modal>
-        <s-button slot="primary-action" href="/app/templates/new" variant="primary" suppressHydrationWarning>
+        <s-button 
+          slot="primary-action" 
+          href="/app/templates/new"
+          variant="primary" 
+          size="large"
+          data-spa-navigate="true"
+        >
           + Create New Template
         </s-button>
 
