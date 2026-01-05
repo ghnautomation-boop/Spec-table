@@ -192,8 +192,8 @@ const PLANS = [
     interval: "EVERY_30_DAYS", // EVERY_30_DAYS sau ANNUAL
     cta: "Select Plan",
     featured: false,
-    quantities: ["Up to 300 products", "10 templates"],
-    features: ["Dynamic metafields", "Template assignments", "Custom tooltips", "Advanced support"],
+    quantities: ["Up to 300 products", "20 templates"],
+    features: ["Dynamic metafields", "Template assignments", "Custom tooltips", "Custom names","Suffix & Preffix"],
     maxProducts: 300,
   },
   {
@@ -204,13 +204,11 @@ const PLANS = [
     interval: "EVERY_30_DAYS",
     cta: "Select Plan",
     featured: false,
-    quantities: ["Up to 1,000 products", "50 templates"],
+    quantities: ["Up to 1,000 products", "75 templates"],
     features: [
       "Dynamic metafields",
       "Template assignments",
-      "Custom tooltips",
-      "Custom names",	
-      "Priority support",
+       "Custom tooltips", "Custom names","Suffix & Preffix",
     ],
     maxProducts: 1000,
   },
@@ -222,13 +220,11 @@ const PLANS = [
     interval: "EVERY_30_DAYS",
     cta: "Select Plan",
     featured: true,
-    quantities: ["Up to 10,000 products", "200 templates"],
+    quantities: ["Up to 10,000 products", "250 templates"],
     features: [
       "Dynamic metafields",
       "Template assignments",
-      "Custom tooltips",
-      "Custom names",
-      "Priority support",     
+      "Custom tooltips", "Custom names","Suffix & Preffix",    
     ],
     maxProducts: 10000,
   },
@@ -244,9 +240,7 @@ const PLANS = [
     features: [
       "Dynamic metafields",
       "Template assignments",
-      "Custom tooltips",
-      "Custom names",
-      "Priority support",
+       "Custom tooltips", "Custom names","Suffix & Preffix","Advanced Support"
     ],
     maxProducts: Infinity,
   },

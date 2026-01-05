@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useFetcher, useLoaderData } from "react-router";
+import { useEffect, useState, useRef } from "react";
+import { useFetcher, useLoaderData, useNavigate, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
@@ -140,16 +140,9 @@ export const action = async ({ request }) => {
     return { success: true, themeId, themeName };
   }
 
-  if (action === "markExtensionApplied") {
+  if (action === "markExtensionAppliedAndActivated") {
     await updateSetupProgress(shopDomain, {
       step2_extensionApplied: true,
-    });
-
-    return { success: true };
-  }
-
-  if (action === "markExtensionActivated") {
-    await updateSetupProgress(shopDomain, {
       step3_extensionActivated: true,
     });
 
@@ -186,6 +179,8 @@ export const action = async ({ request }) => {
 export default function Index() {
   const { themes, progress, templates, shopDomain, stats } = useLoaderData();
   const fetcher = useFetcher();
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const shopify = useAppBridge();
   const [selectedThemeId, setSelectedThemeId] = useState(
     progress?.step1_selectedThemeId || null
@@ -204,6 +199,15 @@ export default function Index() {
   });
 
   const isLoading = fetcher.state === "submitting";
+  
+  // State pentru a ține minte dacă se așteaptă confirmarea pentru selectarea temei
+  const [isSelectingTheme, setIsSelectingTheme] = useState(false);
+  
+  // Ref pentru a preveni re-executarea revalidării
+  const processedSuccessRef = useRef(null);
+  
+  // Ref pentru a ține minte dacă am pornit selectarea temei
+  const isSelectingThemeRef = useRef(false);
 
   // State pentru vizibilitate și expandare
   const [visible, setVisible] = useState({
@@ -216,28 +220,69 @@ export default function Index() {
     step3: false,
     step4: false,
     step5: false,
-    step6: false,
   });
 
   // Calculează progresul total
   const completedSteps = [
     progress?.step1_themeSelected,
-    progress?.step2_extensionApplied,
-    progress?.step3_extensionActivated,
+    progress?.step2_extensionApplied && progress?.step3_extensionActivated, // Combinat în un singur step
     progress?.step4_templateCreated,
     progress?.step5_assignmentConfigured,
     progress?.step6_tested,
   ].filter(Boolean).length;
 
-  const totalSteps = 6;
+  const totalSteps = 5;
   const progressPercentage = (completedSteps / totalSteps) * 100;
 
   useEffect(() => {
-    if (fetcher.data?.success) {
-      shopify.toast.show("Progress updated successfully!");
-      window.location.reload();
+    // Verifică dacă se așteaptă confirmarea pentru selectarea temei
+    const formData = fetcher.formData;
+    const actionType = formData?.get("action");
+    const isThemeSelection = actionType === "selectTheme";
+    
+    // Setează flag-ul când începe submit-ul pentru selectarea temei
+    if (fetcher.state === "submitting" && isThemeSelection) {
+      setIsSelectingTheme(true);
+      isSelectingThemeRef.current = true;
     }
-  }, [fetcher.data, shopify]);
+    
+    // Verifică doar când fetcher-ul este idle și are date de succes
+    if (fetcher.state === "idle" && fetcher.data?.success) {
+      // Creează un identificator unic bazat pe conținutul răspunsului (fără timestamp)
+      const responseId = JSON.stringify(fetcher.data);
+      
+      // Verifică dacă am procesat deja acest răspuns
+      if (processedSuccessRef.current === responseId) {
+        return; // Nu procesa din nou același răspuns
+      }
+      
+      // Marchează că am procesat acest răspuns
+      processedSuccessRef.current = responseId;
+      
+      // Ascunde loader-ul dacă era activ pentru selectarea temei
+      if (isSelectingThemeRef.current) {
+        setIsSelectingTheme(false);
+        isSelectingThemeRef.current = false;
+      }
+      
+      shopify.toast.show("Progress updated successfully!");
+      
+      // Revalidăm datele doar o dată, folosind setTimeout pentru a preveni loop-uri
+      setTimeout(() => {
+        revalidator.revalidate();
+      }, 100);
+    }
+    
+    // Resetează ref-ul când fetcher.state devine "idle" și nu mai există date
+    if (fetcher.state === "idle" && !fetcher.data) {
+      processedSuccessRef.current = null;
+      // Ascunde loader-ul dacă era activ
+      if (isSelectingThemeRef.current) {
+        setIsSelectingTheme(false);
+        isSelectingThemeRef.current = false;
+      }
+    }
+  }, [fetcher.state, fetcher.data, fetcher.formData, shopify, revalidator]);
 
   const handleSelectTheme = (themeId, themeName) => {
     setSelectedThemeId(themeId);
@@ -284,9 +329,14 @@ export default function Index() {
     }
     
     const shop = shopDomain.replace(".myshopify.com", "");
-    const url = `https://admin.shopify.com/store/${shop}/themes/${themeId}/editor?template=product`;
+    // Deep linking pentru a adăuga automat app block-ul SmartSpecs Table
+    // api_key = client_id din shopify.app.toml
+    // handle = numele fișierului block-ului fără extensie (specification_table)
+    const apiKey = "0016f30db22fa84f9b5068900f240d15";
+    const blockHandle = "specification_table";
+    const url = `https://admin.shopify.com/store/${shop}/themes/${themeId}/editor?template=product&addAppBlockId=${apiKey}/${blockHandle}&target=newAppsSection`;
     
-    console.log("[getThemeEditorUrl] Generated URL:", url);
+    console.log("[getThemeEditorUrl] Generated URL with deep linking:", url);
     return url;
   };
 
@@ -364,14 +414,13 @@ export default function Index() {
     },
     {
       id: 2,
-      title: "Apply Extension",
-      description: "Open Theme Editor and apply the extension",
-      completed: progress?.step2_extensionApplied || false,
+      title: "Apply&Activate Extension",
+      description: "Open Theme Editor and activate the extension",
+      completed: (progress?.step2_extensionApplied && progress?.step3_extensionActivated) || false,
       content: (
         <s-stack direction="block" gap="base">
           <s-paragraph>
-            After selecting the theme, click the button below to open Theme Editor
-            and apply the extension.
+            Click the button below to open Theme Editor. The "SmartSpecs Table" app block will be automatically added to your product page. Review it in the preview and save the changes.
           </s-paragraph>
           {progress?.step1_themeSelected && selectedThemeId ? (
             <s-stack direction="inline" gap="base">
@@ -399,10 +448,10 @@ export default function Index() {
               </s-button>
               <s-button
                 variant="secondary"
-                onClick={() => handleMarkStep("markExtensionApplied")}
+                onClick={() => handleMarkStep("markExtensionAppliedAndActivated")}
                 loading={isLoading}
               >
-                I have applied the extension
+                I have applied and activated the extension
               </s-button>
             </s-stack>
           ) : (
@@ -415,22 +464,21 @@ export default function Index() {
     },
     {
       id: 3,
-      title: "Activate Extension",
-      description: "Add the block to your product page",
-      completed: progress?.step3_extensionActivated || false,
+      title: "Create Template",
+      description: "Create your first specification template",
+      completed: progress?.step4_templateCreated || false,
       content: (
         <s-stack direction="block" gap="base">
           <s-paragraph>
-            In Theme Editor, find the "Specification Table" block in the left sidebar
-            (under "App blocks") and add it to the product page. Then save the changes.
+            Create the first template to configure the structure and styles of the
+            specification table.
           </s-paragraph>
-          {progress?.step2_extensionApplied ? (
-            <s-button
-              variant="secondary"
-              onClick={() => handleMarkStep("markExtensionActivated")}
-              loading={isLoading}
+          {progress?.step2_extensionApplied && progress?.step3_extensionActivated ? (
+            <s-button 
+              variant="primary"
+              onClick={() => navigate("/app/templates/new")}
             >
-              I have activated the extension
+              Create Template
             </s-button>
           ) : (
             <s-paragraph tone="subdued">
@@ -442,29 +490,6 @@ export default function Index() {
     },
     {
       id: 4,
-      title: "Create Template",
-      description: "Create your first specification template",
-      completed: progress?.step4_templateCreated || false,
-      content: (
-        <s-stack direction="block" gap="base">
-          <s-paragraph>
-            Create the first template to configure the structure and styles of the
-            specification table.
-          </s-paragraph>
-          {progress?.step3_extensionActivated ? (
-            <s-link href="/app/templates/new">
-              <s-button variant="primary">Create Template</s-button>
-            </s-link>
-          ) : (
-            <s-paragraph tone="subdued">
-              Complete Step 3 first.
-            </s-paragraph>
-          )}
-        </s-stack>
-      ),
-    },
-    {
-      id: 5,
       title: "Configure Assignments",
       description: "Set up product and collection assignments",
       completed: progress?.step5_assignmentConfigured || false,
@@ -475,19 +500,22 @@ export default function Index() {
             template applies to.
           </s-paragraph>
           {progress?.step4_templateCreated ? (
-            <s-link href="/app/templates">
-              <s-button variant="primary">View Templates</s-button>
-            </s-link>
+            <s-button 
+              variant="primary"
+              onClick={() => navigate("/app/templates")}
+            >
+              View Templates
+            </s-button>
           ) : (
             <s-paragraph tone="subdued">
-              Complete Step 4 first.
+              Complete Step 3 first.
             </s-paragraph>
           )}
         </s-stack>
       ),
     },
     {
-      id: 6,
+      id: 5,
       title: "Test Application",
       description: "Verify everything works correctly",
       completed: progress?.step6_tested || false,
@@ -507,7 +535,7 @@ export default function Index() {
             </s-button>
           ) : (
             <s-paragraph tone="subdued">
-              Complete Step 5 first.
+              Complete Step 4 first.
             </s-paragraph>
           )}
         </s-stack>
@@ -543,7 +571,7 @@ export default function Index() {
           gap="small"
         >
           <s-clickable
-            href="/app/sync"
+            onClick={() => navigate("/app/sync")}
             paddingBlock="small-400"
             paddingInline="small-100"
             borderRadius="base"
@@ -555,7 +583,7 @@ export default function Index() {
           </s-clickable>
           <s-divider direction="block" />
           <s-clickable
-            href="/app/sync"
+            onClick={() => navigate("/app/sync")}
             paddingBlock="small-400"
             paddingInline="small-100"
             borderRadius="base"
@@ -567,7 +595,7 @@ export default function Index() {
           </s-clickable>
           <s-divider direction="block" />
           <s-clickable
-            href="/app/templates"
+            onClick={() => navigate("/app/templates")}
             paddingBlock="small-400"
             paddingInline="small-100"
             borderRadius="base"
@@ -617,6 +645,15 @@ export default function Index() {
               <s-paragraph>
                 Use this personalized guide to get your store ready for sales.
               </s-paragraph>
+              {/* Banner informativ când se așteaptă confirmarea pentru selectarea temei */}
+              {isSelectingTheme && (
+                <s-banner tone="info" style={{ marginBottom: "1rem" }}>
+                  <s-stack direction="inline" gap="base" blockAlignment="center">
+                    <s-spinner size="small" />
+                    <s-text>Waiting for the theme to be selected...</s-text>
+                  </s-stack>
+                </s-banner>
+              )}
               <s-stack direction="block" gap="tight">
                 <s-stack direction="inline" gap="base" blockAlignment="center" alignment="space-between">
                   <s-paragraph color="subdued">
@@ -835,45 +872,6 @@ export default function Index() {
                     borderRadius="base"
                   >
                     {steps[4].content}
-                  </s-box>
-                </s-box>
-              </s-box>
-              {/* Step 6 */}
-              <s-divider />
-              <s-box>
-                <s-grid
-                  gridTemplateColumns="1fr auto"
-                  gap="base"
-                  padding="small"
-                >
-                  <s-stack direction="inline" gap="base" blockAlignment="center">
-                    {steps[5].completed ? (
-                      <s-icon type="check-circle-filled" tone="success" />
-                    ) : (
-                      <s-icon type="check-circle" tone="subdued" />
-                    )}
-                    <s-text>{steps[5].title}</s-text>
-                  </s-stack>
-                  <s-button
-                    onClick={() => {
-                      setExpanded({ ...expanded, step6: !expanded.step6 });
-                    }}
-                    accessibilityLabel="Toggle step 6 details"
-                    variant="tertiary"
-                    icon={expanded.step6 ? "chevron-up" : "chevron-down"}
-                  ></s-button>
-                </s-grid>
-                <s-box
-                  padding="small"
-                  paddingBlockStart="none"
-                  display={expanded.step6 ? "auto" : "none"}
-                >
-                  <s-box
-                    padding="base"
-                    background="subdued"
-                    borderRadius="base"
-                  >
-                    {steps[5].content}
                   </s-box>
                 </s-box>
               </s-box>
