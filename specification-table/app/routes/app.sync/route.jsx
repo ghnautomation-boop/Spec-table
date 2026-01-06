@@ -178,6 +178,7 @@ export const action = async ({ request }) => {
         metafieldDefinitions: results.metafieldDefinitions
           ? {
               totalSynced: results.metafieldDefinitions.totalSynced,
+              totalDeleted: results.metafieldDefinitions.totalDeleted || 0,
             }
           : null,
         errors: results.errors,
@@ -218,9 +219,13 @@ export default function SyncPage() {
     if (fetcher.data?.success) {
       if (fetcher.data.results) {
         const results = fetcher.data.results;
-        shopify.toast.show(
-          `Sync completed! Metafield definitions synced: ${results.metafieldDefinitions?.totalSynced || 0}`
-        );
+        const synced = results.metafieldDefinitions?.totalSynced || 0;
+        const deleted = results.metafieldDefinitions?.totalDeleted || 0;
+        let message = `Sync completed! Metafield definitions synced: ${synced}`;
+        if (deleted > 0) {
+          message += `, deleted: ${deleted}`;
+        }
+        shopify.toast.show(message);
       }
     } else if (fetcher.data?.success === false) {
       shopify.toast.show(`Error: ${fetcher.data.error}`, { isError: true });
@@ -423,20 +428,38 @@ export default function SyncPage() {
           <s-section>
             <s-heading size="medium">Sync Results</s-heading>
             <s-stack direction="block" gap="base" style={{ marginTop: "16px" }}>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="success-subdued"
-                style={{ maxWidth: "300px" }}
-              >
-                <s-stack direction="block" gap="tight">
-                  <s-text tone="subdued">Metafield Definitions Synced</s-text>
-                  <s-text emphasis="strong" size="large">
-                    {fetcher.data.results.metafieldDefinitions?.totalSynced || 0}
-                  </s-text>
-                </s-stack>
-              </s-box>
+              <s-stack direction="block" gap="base">
+                <s-box
+                  padding="base"
+                  borderWidth="base"
+                  borderRadius="base"
+                  background="success-subdued"
+                  style={{ maxWidth: "300px" }}
+                >
+                  <s-stack direction="block" gap="tight">
+                    <s-text tone="subdued">Metafield Definitions Synced</s-text>
+                    <s-text emphasis="strong" size="large">
+                      {fetcher.data.results.metafieldDefinitions?.totalSynced || 0}
+                    </s-text>
+                  </s-stack>
+                </s-box>
+                {fetcher.data.results.metafieldDefinitions?.totalDeleted > 0 && (
+                  <s-box
+                    padding="base"
+                    borderWidth="base"
+                    borderRadius="base"
+                    background="warning-subdued"
+                    style={{ maxWidth: "300px" }}
+                  >
+                    <s-stack direction="block" gap="tight">
+                      <s-text tone="subdued">Metafield Definitions Deleted</s-text>
+                      <s-text emphasis="strong" size="large">
+                        {fetcher.data.results.metafieldDefinitions?.totalDeleted || 0}
+                      </s-text>
+                    </s-stack>
+                  </s-box>
+                )}
+              </s-stack>
               
               {fetcher.data.results.errors?.length > 0 && (
                 <s-banner tone="critical">

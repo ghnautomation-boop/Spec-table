@@ -431,6 +431,10 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
   // Deci facem întotdeauna sync complet (toate metafield-urile), indiferent de `updatedAfter`
   // Parametrul `updatedAfter` este ignorat pentru metafield definitions
 
+  // Set pentru a stoca toate metafield-urile din Shopify (pentru comparație)
+  // Format: `${namespace}:${key}:${ownerType}`
+  const shopifyMetafields = new Set();
+
   // Sincronizează metafield-urile pentru PRODUCT
   hasNextPage = true;
   cursor = null;
@@ -477,6 +481,9 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
       // Normalizează ownerType: PRODUCT_VARIANT -> VARIANT, PRODUCT rămâne PRODUCT
       const normalizedOwnerType =
         definition.ownerType === "PRODUCT_VARIANT" ? "VARIANT" : definition.ownerType;
+
+      // Adaugă în set pentru comparație ulterioară
+      shopifyMetafields.add(`${definition.namespace}:${definition.key}:${normalizedOwnerType}`);
 
       await prisma.metafieldDefinition.upsert({
         where: {
@@ -556,6 +563,9 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
       // Normalizează ownerType: PRODUCTVARIANT -> VARIANT (pentru consistență în DB)
       const normalizedOwnerType = "VARIANT";
 
+      // Adaugă în set pentru comparație ulterioară
+      shopifyMetafields.add(`${definition.namespace}:${definition.key}:${normalizedOwnerType}`);
+
       await prisma.metafieldDefinition.upsert({
         where: {
           namespace_key_ownerType_shopId: {
@@ -585,7 +595,45 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
     cursor = pageInfo.endCursor;
   }
 
-  return { totalSynced, shopId: shop.id };
+  // NOUA LOGICĂ: Șterge metafield-urile care există în App Database dar nu mai există în Shopify
+  // Obține toate metafield-urile din App Database pentru acest shop
+  const appMetafields = await prisma.metafieldDefinition.findMany({
+    where: {
+      shopId: shop.id,
+    },
+    select: {
+      id: true,
+      namespace: true,
+      key: true,
+      ownerType: true,
+    },
+  });
+
+  // Identifică metafield-urile care trebuie șterse
+  const metafieldsToDelete = appMetafields.filter((appMetafield) => {
+    const key = `${appMetafield.namespace}:${appMetafield.key}:${appMetafield.ownerType}`;
+    return !shopifyMetafields.has(key);
+  });
+
+  // Șterge metafield-urile care nu mai există în Shopify
+  let totalDeleted = 0;
+  if (metafieldsToDelete.length > 0) {
+    const idsToDelete = metafieldsToDelete.map((m) => m.id);
+    const deleteResult = await prisma.metafieldDefinition.deleteMany({
+      where: {
+        id: {
+          in: idsToDelete,
+        },
+        shopId: shop.id,
+      },
+    });
+    totalDeleted = deleteResult.count;
+    console.log(
+      `[syncMetafieldDefinitions] Deleted ${totalDeleted} metafield definitions that no longer exist in Shopify for shop ${shopDomain}`
+    );
+  }
+
+  return { totalSynced, totalDeleted, shopId: shop.id };
 }
 
 /**
