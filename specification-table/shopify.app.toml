@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
-name = "description-container-v1"
+name = "Smart Specs"
 application_url = "https://payday-qualified-copying-bosnia.trycloudflare.com"
 embedded = true
 

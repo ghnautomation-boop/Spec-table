@@ -212,9 +212,11 @@ export default function Index() {
   // State pentru vizibilitate și expandare
   const [visible, setVisible] = useState({
     setupGuide: true,
+    niceToKnow: true,
   });
   const [expanded, setExpanded] = useState({
     setupGuide: true,
+    niceToKnow: false,
     step1: false,
     step2: false,
     step3: false,
@@ -473,6 +475,31 @@ export default function Index() {
             Create the first template to configure the structure and styles of the
             specification table.
           </s-paragraph>
+          <div style={{ 
+            position: "relative", 
+            paddingBottom: "56.25%", 
+            height: 0, 
+            overflow: "hidden",
+            maxWidth: "100%",
+            borderRadius: "8px",
+            overflow: "hidden"
+          }}>
+            <iframe
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                border: "none",
+                borderRadius: "8px"
+              }}
+              src="https://www.youtube.com/embed/SsFsk70_NlQ"
+              title="How to Create Template Tutorial"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
           {progress?.step2_extensionApplied && progress?.step3_extensionActivated ? (
             <s-button 
               variant="primary"
@@ -546,6 +573,32 @@ export default function Index() {
   return (
     <s-page>
       {/* === */}
+      {/* Promotional Banner */}
+      {/* === */}
+      <s-section>
+        <s-box
+          padding="none"
+          borderRadius="base"
+          style={{
+            overflow: "hidden",
+            width: "100%",
+            maxWidth: "100%"
+          }}
+        >
+          <img
+            src="https://cdn.shopify.com/s/files/1/0676/3655/9923/files/ChatGPT_Image_6_ian._2026_14_52_33.png?v=1767707577"
+            alt="Promotional Banner"
+            style={{
+              width: "100%",
+              height: "220px",
+              display: "block",
+              objectFit: "cover"
+            }}
+          />
+        </s-box>
+      </s-section>
+
+      {/* === */}
       {/* Intro Banner */}
       {/* === */}
       {!progress?.completedAt && (
@@ -607,6 +660,153 @@ export default function Index() {
           </s-clickable>
         </s-grid>
       </s-section>
+
+      {/* === */}
+      {/* Nice to know before using */}
+      {/* === */}
+      {visible.niceToKnow && (
+        <s-section>
+          <s-grid gap="small">
+            {/* Header */}
+            <s-grid gap="small-200">
+              <s-grid
+                gridTemplateColumns="1fr auto auto"
+                gap="small-300"
+                alignItems="center"
+              >
+                <s-heading>Nice to know before using</s-heading>
+                <s-button
+                  accessibilityLabel="Dismiss Nice to Know"
+                  onClick={() => setVisible({ ...visible, niceToKnow: false })}
+                  variant="tertiary"
+                  tone="neutral"
+                  icon="x"
+                ></s-button>
+                <s-button
+                  accessibilityLabel="Toggle nice to know section"
+                  onClick={() =>
+                    setExpanded({
+                      ...expanded,
+                      niceToKnow: !expanded.niceToKnow,
+                    })
+                  }
+                  variant="tertiary"
+                  tone="neutral"
+                  icon={expanded.niceToKnow ? "chevron-up" : "chevron-down"}
+                ></s-button>
+              </s-grid>
+              <s-paragraph>
+                Learn about metafields and how to use them effectively in your store.
+              </s-paragraph>
+            </s-grid>
+            {/* Content Container */}
+            <s-box
+              borderRadius="base"
+              border="base"
+              background="base"
+              display={expanded.niceToKnow ? "auto" : "none"}
+            >
+              <s-box padding="base">
+                <s-stack direction="block" gap="base">
+                  <s-heading size="medium">Understanding Metafields</s-heading>
+                  
+                  <s-paragraph>
+                    <s-text emphasis="strong">What are Metafields?</s-text>
+                    <br />
+                    Metafields are custom fields that allow you to store additional information about your products, variants, collections, and other Shopify resources. They extend the default data structure and enable you to add specialized data that's specific to your business needs.
+                  </s-paragraph>
+
+                  <s-paragraph>
+                    <s-text emphasis="strong">Types of Metafields:</s-text>
+                    <br />
+                    Metafields support various data types including:
+                  </s-paragraph>
+                  
+                  <s-unordered-list>
+                    <s-list-item>
+                      <s-text emphasis="strong">Single line text:</s-text> Short text values (e.g., brand name, model number)
+                    </s-list-item>
+                    <s-list-item>
+                      <s-text emphasis="strong">Multi-line text:</s-text> Longer text content (e.g., detailed descriptions, notes)
+                    </s-list-item>
+                    <s-list-item>
+                      <s-text emphasis="strong">Number (integer/decimal):</s-text> Numeric values (e.g., weight, dimensions, ratings)
+                    </s-list-item>
+                    <s-list-item>
+                      <s-text emphasis="strong">Date:</s-text> Date and time values (e.g., release date, warranty expiration)
+                    </s-list-item>
+                    <s-list-item>
+                      <s-text emphasis="strong">URL:</s-text> Web links (e.g., product manuals, video tutorials)
+                    </s-list-item>
+                    <s-list-item>
+                      <s-text emphasis="strong">JSON:</s-text> Structured data (e.g., complex specifications, configurations)
+                    </s-list-item>
+                    <s-list-item>
+                      <s-text emphasis="strong">File reference:</s-text> Images, PDFs, and other files
+                    </s-list-item>
+                    <s-list-item>
+                      <s-text emphasis="strong">List:</s-text> Multiple values of the same type (e.g., color options, features)
+                    </s-list-item>
+                  </s-unordered-list>
+
+                  <s-paragraph>
+                    <s-text emphasis="strong">What are Metafields used for?</s-text>
+                    <br />
+                    Metafields are essential for creating rich product experiences. They enable you to:
+                  </s-paragraph>
+
+                  <s-unordered-list>
+                    <s-list-item>Display detailed product specifications and technical data</s-list-item>
+                    <s-list-item>Add custom attributes that aren't available in standard Shopify fields</s-list-item>
+                    <s-list-item>Organize and structure product information for better presentation</s-list-item>
+                    <s-list-item>Create dynamic content that adapts to your product catalog</s-list-item>
+                    <s-list-item>Enhance SEO with structured data and additional metadata</s-list-item>
+                  </s-unordered-list>
+
+                  <s-paragraph>
+                    <s-text emphasis="strong">Product vs Variant Metafields:</s-text>
+                    <br />
+                    You can create metafields at both the product level and variant level. Product metafields apply to the entire product, while variant metafields are specific to individual product variants (e.g., different sizes, colors, or configurations). This allows you to have both shared and unique specifications for different product options.
+                  </s-paragraph>
+
+                  <s-divider />
+
+                  <s-heading size="medium">Tutorial Video</s-heading>
+                  <s-paragraph>
+                    Watch this video tutorial to learn how to create and manage metafields in your Shopify store:
+                  </s-paragraph>
+                  
+                  <div style={{ 
+                    position: "relative", 
+                    paddingBottom: "56.25%", 
+                    height: 0, 
+                    overflow: "hidden",
+                    maxWidth: "100%",
+                    borderRadius: "8px",
+                    overflow: "hidden"
+                  }}>
+                    <iframe
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        height: "100%",
+                        border: "none",
+                        borderRadius: "8px"
+                      }}
+                      src="https://www.youtube.com/embed/GUGCpeMiSlE"
+                      title="Metafields Tutorial"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                </s-stack>
+              </s-box>
+            </s-box>
+          </s-grid>
+        </s-section>
+      )}
 
       {/* === */}
       {/* Setup Guide */}

@@ -1,5 +1,5 @@
 {
-  "name": "description-container-v1",
+  "name": "Smart Specs",
   "private": true,
   "scripts": {
     "build": "react-router build",
