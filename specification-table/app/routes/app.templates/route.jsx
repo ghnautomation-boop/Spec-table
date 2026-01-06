@@ -1030,34 +1030,94 @@ export default function TemplatesPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState(null);
+  const createButtonRef = useRef(null);
+
+  // Creează funcția globală IMEDIAT, înainte de orice altceva
+  // Această funcție trebuie să fie disponibilă când s-page clonează butonul
+  useEffect(() => {
+    // Creează funcția globală imediat, fără să aștepte isMounted
+    window.handleCreateNewTemplate = () => {
+      navigate("/app/templates/new");
+    };
+
+    // Cleanup la unmount
+    return () => {
+      delete window.handleCreateNewTemplate;
+    };
+  }, [navigate]); // Nu depinde de isMounted, doar de navigate
 
   // Client-side mounting pentru a evita problemele de hidratare cu web components
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Interceptează click-ul pe butonul "Create New Template" din slot="primary-action" pentru navigare SPA
+  // Folosim MutationObserver pentru a detecta când butonul este clonat în shadow DOM
+  // și adăugăm event listener direct pe elementul clonat
   useEffect(() => {
     if (!isMounted) return;
 
-    const handleClick = (e) => {
-      // Verifică dacă click-ul este pe un buton cu data-spa-navigate
-      const target = e.target.closest('[data-spa-navigate]');
-      if (target && target.getAttribute('href') === '/app/templates/new') {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        navigate("/app/templates/new");
-        return false;
+    const attachListenerToClonedButton = () => {
+      // Caută butonul clonat în shadow DOM al s-page
+      const sPage = document.querySelector('s-page');
+      if (!sPage) return;
+
+      // Încearcă să găsească butonul în shadow root
+      const shadowRoot = sPage.shadowRoot;
+      if (shadowRoot) {
+        const clonedButton = shadowRoot.querySelector('s-button[slot="primary-action"], button[slot="primary-action"], s-button, button');
+        if (clonedButton) {
+          const buttonText = clonedButton.textContent?.trim() || '';
+          if (buttonText.includes('Create New Template') || buttonText.includes('+ Create New Template')) {
+            // Șterge listener-ul vechi dacă există
+            clonedButton.removeEventListener('click', handleClonedButtonClick);
+            // Adaugă listener nou
+            clonedButton.addEventListener('click', handleClonedButtonClick, true);
+          }
+        }
+      }
+
+      // Caută și în DOM normal (fallback)
+      const normalButton = document.querySelector('s-button[slot="primary-action"]');
+      if (normalButton && !normalButton.hasAttribute('data-listener-attached')) {
+        const buttonText = normalButton.textContent?.trim() || '';
+        if (buttonText.includes('Create New Template') || buttonText.includes('+ Create New Template')) {
+          normalButton.setAttribute('data-listener-attached', 'true');
+          normalButton.addEventListener('click', handleClonedButtonClick, true);
+        }
       }
     };
 
-    // Folosim capture phase pentru a intercepta înainte ca Polaris să proceseze
-    document.addEventListener('click', handleClick, true);
+    const handleClonedButtonClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      navigate("/app/templates/new");
+      return false;
+    };
+
+    // Observă schimbările în DOM pentru a detecta când butonul este clonat
+    const observer = new MutationObserver(() => {
+      attachListenerToClonedButton();
+    });
+
+    // Observă schimbările în document
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['slot']
+    });
+
+    // Încearcă imediat să atașeze listener-ul
+    setTimeout(attachListenerToClonedButton, 100);
+    setTimeout(attachListenerToClonedButton, 500);
+    setTimeout(attachListenerToClonedButton, 1000);
+
     return () => {
-      document.removeEventListener('click', handleClick, true);
+      observer.disconnect();
     };
   }, [isMounted, navigate]);
+
 
 
   // Afișează performance metrics în consola browser-ului (doar în development)
@@ -1274,10 +1334,15 @@ export default function TemplatesPage() {
         </Modal>
         <s-button 
           slot="primary-action" 
-          href="/app/templates/new"
           variant="primary" 
           size="large"
-          data-spa-navigate="true"
+          ref={createButtonRef}
+          onclick="window.handleCreateNewTemplate && window.handleCreateNewTemplate(); return false;"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            navigate("/app/templates/new");
+          }}
         >
           + Create New Template
         </s-button>
