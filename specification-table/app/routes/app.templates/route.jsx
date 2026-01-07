@@ -30,9 +30,6 @@ export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const authTime = performance.now() - perfStart;
   
-  if (process.env.NODE_ENV === "development") {
-    console.log(`[PERF] Authentication: ${authTime.toFixed(2)}ms`);
-  }
   
   // Paralelizează query-urile pentru performanță mai bună
   // Măsoară fiecare query individual dar le rulează în paralel
@@ -86,19 +83,6 @@ export const loader = async ({ request }) => {
   
   const totalTime = performance.now() - perfStart;
   
-  if (process.env.NODE_ENV === "development") {
-    console.log("📊 [PERF] ========== SERVER PERFORMANCE REPORT ==========");
-    console.log(`   🔐 Authentication: ${authTime.toFixed(2)}ms`);
-    console.log(`   🗄️  Database Queries:`);
-    console.log(`      - Templates: ${templatesTime.toFixed(2)}ms`);
-    console.log(`      - Products: ${productsTime.toFixed(2)}ms`);
-    console.log(`      - Collections: ${collectionsTime.toFixed(2)}ms`);
-    console.log(`      - Assignments: ${assignmentsTime.toFixed(2)}ms`);
-    console.log(`   ⏱️  Total Queries: ${queryTime.toFixed(2)}ms`);
-    console.log(`   ⚙️  Data Processing: ${(performance.now() - processingStart).toFixed(2)}ms`);
-    console.log(`   ⏱️  Total Server Time: ${totalTime.toFixed(2)}ms`);
-    console.log("📊 =================================================");
-  }
 
   // Creează map-uri pentru a verifica rapid ce este deja assignat
   const assignedCollections = new Set();
@@ -169,13 +153,6 @@ export const action = async ({ request }) => {
       const isExcluded = formData.get("isExcluded") === "true";
       const pendingActiveState = formData.get("pendingActiveState");
       
-      console.log('[action:assign] Received formData:', {
-        assignmentType,
-        targetIdsCount: targetIds.length,
-        targetIds: targetIds,
-        isExcluded,
-        pendingActiveState
-      });
       
       // Dacă există o modificare nesalvată care face template-ul activ, salvăm-o mai întâi
       if (pendingActiveState === "true") {
@@ -194,25 +171,14 @@ export const action = async ({ request }) => {
           
           // Dacă template-ul nu este activ în DB, îl activăm
           if (template && !template.isActive) {
-            console.log('[action:assign] Activating template before assignment...');
             await toggleTemplateActive(templateId, session.shop, admin, true);
             // Așteaptă puțin pentru a se actualiza starea în DB
             await new Promise(resolve => setTimeout(resolve, 100));
-            console.log('[action:assign] Template activated, proceeding with assignment...');
           }
         }
       }
       
-      console.log('[action:assign] Calling saveTemplateAssignment with:', {
-        templateId,
-        assignmentType,
-        targetIdsCount: targetIds.length,
-        targetIds: targetIds
-      });
-      
       const result = await saveTemplateAssignment(templateId, assignmentType, targetIds, session.shop, isExcluded, admin);
-      
-      console.log('[action:assign] saveTemplateAssignment result:', result);
       
       // Verifică dacă assignment-ul s-a salvat corect în DB
       if (result.success) {
@@ -235,13 +201,6 @@ export const action = async ({ request }) => {
             },
           });
           
-          console.log('[action:assign] Template after save:', {
-            templateId: savedTemplate?.id,
-            assignmentsCount: savedTemplate?.assignments?.length || 0,
-            assignment: savedTemplate?.assignments?.[0],
-            targetsCount: savedTemplate?.assignments?.[0]?.targets?.length || 0,
-            targets: savedTemplate?.assignments?.[0]?.targets || []
-          });
         }
       }
       return { 
@@ -313,9 +272,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
   
   // Logging pentru debugging
   useEffect(() => {
-    console.log('[TemplateAssignment] Assignment loaded:', assignment);
-    console.log('[TemplateAssignment] Selected products:', selectedProducts);
-    console.log('[TemplateAssignment] Selected collections:', selectedCollections);
   }, [assignment, selectedProducts, selectedCollections]);
   
   // Actualizează state-ul când assignment-ul se schimbă (după salvare)
@@ -531,22 +487,9 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
       }
     }
 
-    // Debug: verifică dacă targetIds este gol
-    console.log('[TemplateAssignment] handleSave called:', {
-      assignmentType,
-      actualAssignmentType,
-      selectedProducts: selectedProducts.length,
-      selectedCollections: selectedCollections.length,
-      targetIds: targetIds.length,
-      targetIdsArray: targetIds,
-      hasPendingActiveChange,
-      pendingActiveState,
-      hasFormTarget: !!e.currentTarget
-    });
 
     // Dacă nu există targetIds și nu este GLOBAL, nu facem nimic
     if (targetIds.length === 0 && actualAssignmentType !== "DEFAULT") {
-      console.warn('[TemplateAssignment] No targetIds selected, skipping assignment');
       shopify.toast.show("Please select at least one product or collection", { isError: true });
       return;
     }
@@ -564,13 +507,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
       formData.append("targetIds", id);
     });
 
-    console.log('[TemplateAssignment] Submitting formData:', {
-      action: formData.get("action"),
-      templateId: formData.get("templateId"),
-      assignmentType: formData.get("assignmentType"),
-      targetIdsCount: formData.getAll("targetIds").length,
-      pendingActiveState: formData.get("pendingActiveState")
-    });
 
     fetcher.submit(formData, { method: "POST" });
   };
@@ -591,15 +527,10 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
   // Funcție pentru deschiderea Resource Picker pentru produse
   const handleOpenProductPicker = useCallback(async () => {
     try {
-      console.log('[Resource Picker] Current selectedProducts:', selectedProducts);
-      
       // Pregătește preselection: convertim shopifyId-urile selectate în format GraphQL
       const preselectedIds = selectedProducts
         .map(id => shopifyIdToGraphQL(id, 'Product'))
         .filter(Boolean);
-      
-      console.log('[Resource Picker] Opening product picker with preselectedIds:', preselectedIds);
-      console.log('[Resource Picker] Formatted selectionIds:', preselectedIds.map(id => ({ id })));
       
       const result = await shopify.resourcePicker({
         type: 'product',
@@ -609,8 +540,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
           variants: false, // Nu afișa variantele, doar produsele principale
         },
       });
-      
-      console.log('[Resource Picker] Result:', result);
       
       if (result && result.selection) {
         // Convertește ID-urile din format GraphQL în shopifyId normalizat
@@ -622,7 +551,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
           })
           .filter(Boolean);
         
-        console.log('[Resource Picker] Converted IDs:', newSelectedIds);
         
         // Verifică conflictele pentru toate selecțiile (nu doar cele noi)
         // Excludem resursele care sunt deja assignate la template-ul curent
@@ -673,7 +601,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         }
       }
     } catch (error) {
-      console.error('Error opening product picker:', error);
       shopify.toast.show('Failed to open product picker. Please try again.', { isError: true });
     }
   }, [selectedProducts, shopify, products]);
@@ -681,23 +608,16 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
   // Funcție pentru deschiderea Resource Picker pentru colecții
   const handleOpenCollectionPicker = useCallback(async () => {
     try {
-      console.log('[Resource Picker] Current selectedCollections:', selectedCollections);
-      
       // Pregătește preselection: convertim shopifyId-urile selectate în format GraphQL
       const preselectedIds = selectedCollections
         .map(id => shopifyIdToGraphQL(id, 'Collection'))
         .filter(Boolean);
-      
-      console.log('[Resource Picker] Opening collection picker with preselectedIds:', preselectedIds);
-      console.log('[Resource Picker] Formatted selectionIds:', preselectedIds.map(id => ({ id })));
       
       const result = await shopify.resourcePicker({
         type: 'collection',
         multiple: true,
         selectionIds: preselectedIds.length > 0 ? preselectedIds.map(id => ({ id })) : undefined,
       });
-      
-      console.log('[Resource Picker] Result:', result);
       
       if (result && result.selection) {
         // Convertește ID-urile din format GraphQL în shopifyId normalizat
@@ -709,7 +629,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
           })
           .filter(Boolean);
         
-        console.log('[Resource Picker] Converted IDs:', newSelectedIds);
         
         // Verifică conflictele pentru toate selecțiile (nu doar cele noi)
         // Excludem resursele care sunt deja assignate la template-ul curent
@@ -729,7 +648,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         removedIds.forEach(id => conflictsCacheRef.current.collections.delete(id));
         
         // Actualizează state-ul doar cu resursele valide
-        console.log('[Resource Picker] Setting selectedCollections to:', validSelectedIds);
         setSelectedCollections(validSelectedIds);
         
         // Afișează notificare detaliată dacă au fost eliminate resurse
@@ -761,7 +679,6 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
         }
       }
     } catch (error) {
-      console.error('Error opening collection picker:', error);
       shopify.toast.show('Failed to open collection picker. Please try again.', { isError: true });
     }
   }, [selectedCollections, shopify, collections]);
@@ -1120,15 +1037,6 @@ export default function TemplatesPage() {
 
 
 
-  // Afișează performance metrics în consola browser-ului (doar în development)
-  useEffect(() => {
-    if (_perf) {
-      console.log("🚀 [PERF] Page Load Performance:", _perf);
-      console.log(`   Authentication: ${_perf.auth}ms`);
-      console.log(`   Database Queries: ${_perf.queries}ms`);
-      console.log(`   Total Server Time: ${_perf.total}ms`);
-    }
-  }, [_perf]);
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data) {

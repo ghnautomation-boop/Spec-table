@@ -170,18 +170,6 @@ export const loader = async ({ request, params }) => {
     getMetafieldDefinitions(session.shop),
   ]);
 
-  // Debug: verifică dacă datele sunt corecte în template
-  if (template) {
-    console.log("Loader - Template loaded:", JSON.stringify(template.sections?.map(s => ({
-      heading: s.heading,
-      metafields: s.metafields?.map(mf => ({
-        metafieldDefinitionId: mf.metafieldDefinitionId,
-        customName: mf.customName,
-        tooltipEnabled: mf.tooltipEnabled,
-        tooltipText: mf.tooltipText,
-      }))
-    })), null, 2));
-  }
 
   return {
     template,
@@ -224,19 +212,6 @@ export const action = async ({ request, params }) => {
   const isCollapsible = formData.get("isCollapsible") === "true";
   const collapsibleOnPC = formData.get("collapsibleOnPC") === "true";
   const collapsibleOnMobile = formData.get("collapsibleOnMobile") === "true";
-  
-  // Debug logging
-  console.log("Form submission - seeMore values:", {
-    seeMoreEnabled,
-    seeMoreHideFromPC,
-    seeMoreHideFromMobile,
-    splitViewPerSection,
-    splitViewPerMetafield,
-    splitViewPerSectionRaw,
-    splitViewPerMetafieldRaw,
-    rawPC: formData.get("seeMoreHideFromPC"),
-    rawMobile: formData.get("seeMoreHideFromMobile")
-  });
 
   // Validare: Template name nu poate fi gol
   if (!name || name.trim() === "") {
@@ -256,7 +231,6 @@ export const action = async ({ request, params }) => {
         stylingData = migrateStylingToDeviceSpecific(stylingData);
       }
     } catch (e) {
-      console.error("Error parsing styling JSON:", e);
       // Fallback la logica veche
       stylingData = null;
     }
@@ -311,13 +285,11 @@ export const action = async ({ request, params }) => {
       const value = formData.get("seeLessButtonStyle");
       const fallback = formData.get("seeMoreButtonStyle");
       const result = (value && value.trim() !== "") ? value.trim() : ((fallback && fallback.trim() !== "") ? fallback.trim() : "arrow");
-      console.log('[Action] seeLessButtonStyle - value:', value, 'fallback:', fallback, 'result:', result);
       return result;
     })(),
     seeLessButtonText: (() => {
       const value = formData.get("seeLessButtonText");
       const result = (value && value.trim() !== "") ? value.trim() : "See Less";
-      console.log('[Action] seeLessButtonText - value:', value, 'result:', result);
       return result;
     })(),
     seeLessHideFromPC: formData.get("seeLessHideFromPC") === "true",
@@ -379,16 +351,6 @@ export const action = async ({ request, params }) => {
         const suffixRaw = formData.get(`section_${i}_metafield_${j}_suffix`);
         const suffix = suffixRaw && suffixRaw.trim() !== "" ? suffixRaw.trim() : null;
         
-        console.log(`Product Spec ${j} in section ${i}:`, {
-          productSpecType,
-          customName,
-          tooltipEnabled,
-          tooltipText,
-          hideFromPC,
-          hideFromMobile,
-          prefix,
-          suffix,
-        });
         
         metafields.push({
           type: 'product_spec',
@@ -418,16 +380,6 @@ export const action = async ({ request, params }) => {
         const suffixRaw = formData.get(`section_${i}_metafield_${j}_suffix`);
         const suffix = suffixRaw && suffixRaw.trim() !== "" ? suffixRaw.trim() : null;
         
-        console.log(`Metafield ${j} in section ${i}:`, {
-          metafieldId,
-          customName,
-          tooltipEnabled,
-          tooltipText,
-          hideFromPC,
-          hideFromMobile,
-          prefix,
-          suffix,
-        });
         
         metafields.push({
           type: 'metafield',
@@ -637,16 +589,6 @@ export default function TemplateEditorPage() {
     const initialSections = template.sections.map(section => ({
       heading: section.heading,
       metafields: (section.metafields || []).map(mf => {
-        // Debug: verifică ce date sunt disponibile
-        console.log("Loading metafield from template - raw data:", {
-          id: mf.id,
-          metafieldDefinitionId: mf.metafieldDefinitionId,
-          customName: mf.customName,
-          tooltipEnabled: mf.tooltipEnabled,
-          tooltipText: mf.tooltipText,
-          allKeys: Object.keys(mf),
-        });
-        
         return {
           metafieldDefinitionId: mf.metafieldDefinitionId,
           // Folosește valorile direct din baza de date, nu null coalescing
@@ -661,7 +603,6 @@ export default function TemplateEditorPage() {
       })
     }));
     
-    console.log("Initial sections loaded:", JSON.stringify(initialSections, null, 2));
     return initialSections;
   });
 
@@ -777,10 +718,6 @@ export default function TemplateEditorPage() {
   });
 
 
-  // Debug: log sections când se schimbă
-  useEffect(() => {
-    console.log("Sections state updated:", JSON.stringify(sections, null, 2));
-  }, [sections]);
 
   // Actualizează manual valorile hidden inputs-urilor când se schimbă sections
   useEffect(() => {
@@ -826,11 +763,9 @@ export default function TemplateEditorPage() {
     
     if (seeMoreHideFromPCInput) {
       seeMoreHideFromPCInput.value = seeMoreHideFromPC ? "true" : "false";
-      console.log("Updated seeMoreHideFromPC hidden input:", seeMoreHideFromPCInput.value);
     }
     if (seeMoreHideFromMobileInput) {
       seeMoreHideFromMobileInput.value = seeMoreHideFromMobile ? "true" : "false";
-      console.log("Updated seeMoreHideFromMobile hidden input:", seeMoreHideFromMobileInput.value);
     }
   }, [seeMoreHideFromPC, seeMoreHideFromMobile]);
   
@@ -841,11 +776,9 @@ export default function TemplateEditorPage() {
     
     if (seeLessHideFromPCInput) {
       seeLessHideFromPCInput.value = seeLessHideFromPC ? "true" : "false";
-      console.log("Updated seeLessHideFromPC hidden input:", seeLessHideFromPCInput.value);
     }
     if (seeLessHideFromMobileInput) {
       seeLessHideFromMobileInput.value = seeLessHideFromMobile ? "true" : "false";
-      console.log("Updated seeLessHideFromMobile hidden input:", seeLessHideFromMobileInput.value);
     }
   }, [seeLessHideFromPC, seeLessHideFromMobile]);
 
@@ -856,11 +789,9 @@ export default function TemplateEditorPage() {
     
     if (splitViewPerSectionInput) {
       splitViewPerSectionInput.value = splitViewPerSection ? "true" : "false";
-      console.log("Updated splitViewPerSection hidden input:", splitViewPerSectionInput.value);
     }
     if (splitViewPerMetafieldInput) {
       splitViewPerMetafieldInput.value = splitViewPerMetafield ? "true" : "false";
-      console.log("Updated splitViewPerMetafield hidden input:", splitViewPerMetafieldInput.value);
     }
   }, [splitViewPerSection, splitViewPerMetafield]);
 
@@ -1680,16 +1611,6 @@ export default function TemplateEditorPage() {
     const prefix = data.prefix && data.prefix.trim() !== "" ? data.prefix.trim() : null;
     const suffix = data.suffix && data.suffix.trim() !== "" ? data.suffix.trim() : null;
     
-    console.log("Updating metafield data:", {
-      sectionIndex,
-      metafieldIndex,
-      customName,
-      tooltipEnabled: data.tooltipEnabled,
-      tooltipText,
-      prefix,
-      suffix,
-    });
-    
     // Logica mutually exclusive: dacă unul este true, celălalt devine false
     let hideFromPC = data.hideFromPC || false;
     let hideFromMobile = data.hideFromMobile || false;
@@ -1792,7 +1713,6 @@ export default function TemplateEditorPage() {
   }, [metafieldSearchTerm, sections, metafieldDefinitions]);
 
   // Debug pentru metafield-uri
-  console.log("Metafield definitions loaded:", metafieldDefinitions?.length || 0);
 
   // Component pentru secțiune accordion
   const AccordionSection = ({ section, sectionIndex, styling, metafieldDefinitions, renderMetafieldRow, globalIndexOffset }) => {
@@ -2635,15 +2555,11 @@ export default function TemplateEditorPage() {
               
               if (splitViewPerSectionInput) {
                 splitViewPerSectionInput.value = splitViewPerSectionValue ? "true" : "false";
-                console.log("onSubmit - Updated splitViewPerSection:", splitViewPerSectionInput.value, "from state:", splitViewPerSectionValue);
               } else {
-                console.error("onSubmit - splitViewPerSection input not found!");
               }
               if (splitViewPerMetafieldInput) {
                 splitViewPerMetafieldInput.value = splitViewPerMetafieldValue ? "true" : "false";
-                console.log("onSubmit - Updated splitViewPerMetafield:", splitViewPerMetafieldInput.value, "from state:", splitViewPerMetafieldValue);
               } else {
-                console.error("onSubmit - splitViewPerMetafield input not found!");
               }
               
               // Actualizează valorile pentru seeMoreHideFromPC și seeMoreHideFromMobile
@@ -2652,11 +2568,9 @@ export default function TemplateEditorPage() {
               
               if (seeMoreHideFromPCInput) {
                 seeMoreHideFromPCInput.value = seeMoreHideFromPC ? "true" : "false";
-                console.log("onSubmit - Updated seeMoreHideFromPC:", seeMoreHideFromPCInput.value);
               }
               if (seeMoreHideFromMobileInput) {
                 seeMoreHideFromMobileInput.value = seeMoreHideFromMobile ? "true" : "false";
-                console.log("onSubmit - Updated seeMoreHideFromMobile:", seeMoreHideFromMobileInput.value);
               }
               
               // Actualizează valorile pentru seeLessHideFromPC și seeLessHideFromMobile
@@ -2665,11 +2579,9 @@ export default function TemplateEditorPage() {
               
               if (seeLessHideFromPCInput) {
                 seeLessHideFromPCInput.value = seeLessHideFromPC ? "true" : "false";
-                console.log("onSubmit - Updated seeLessHideFromPC:", seeLessHideFromPCInput.value);
               }
               if (seeLessHideFromMobileInput) {
                 seeLessHideFromMobileInput.value = seeLessHideFromMobile ? "true" : "false";
-                console.log("onSubmit - Updated seeLessHideFromMobile:", seeLessHideFromMobileInput.value);
               }
               
               // Actualizează valorile pentru isAccordionHideFromPC și isAccordionHideFromMobile

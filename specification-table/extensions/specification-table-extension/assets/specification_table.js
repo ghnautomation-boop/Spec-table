@@ -27,7 +27,7 @@ window.initSpecificationTable = function(containerId, templateData) {
 
   // Verifică dacă există template din metaobject
   if (!templateStructureJson || !templateStylingJson || !templateSettingsJson) {
-    container.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No template found.</div>';
+    container.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;"></div>';
     return;
   }
 
