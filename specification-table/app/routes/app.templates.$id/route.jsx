@@ -9,7 +9,11 @@ import {
   getMetafieldDefinitions,
   createTemplate,
   updateTemplate,
+  getTemplates,
 } from "~/models/template.server";
+import { getCurrentSubscription } from "~/models/billing.server";
+import { getMaxTemplatesForPlan } from "~/models/plans.server";
+import prisma from "~/db.server";
 
 // Helper functions pentru conversie hex <-> rgba
 function hexToRgba(hex) {
@@ -162,14 +166,59 @@ function RangeSlider({ label, value, onChange, min = 0, max = 100, step = 1 }) {
 }
 
 export const loader = async ({ request, params }) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { id } = params;
+
+  // Dacă încercăm să creăm un template nou, verifică limita
+  if (id === "new") {
+    // Obține planul curent
+    let currentPlan = null;
+    try {
+      const currentSubscription = await getCurrentSubscription(admin);
+      if (currentSubscription?.name) {
+        currentPlan = currentSubscription.name.toLowerCase();
+      } else {
+        // Fallback: verifică în DB pentru backward compatibility
+        const shop = await prisma.shop.findUnique({
+          where: { shopDomain: session.shop },
+          select: { id: true },
+        });
+        if (shop) {
+          const planRows = await prisma.$queryRaw`
+            SELECT "planKey" FROM "ShopPlan" WHERE "shopId" = ${shop.id} LIMIT 1
+          `;
+          if (Array.isArray(planRows) && planRows.length > 0) {
+            currentPlan = planRows[0].planKey;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("[app.templates.$id] Could not fetch current plan:", error.message);
+    }
+
+    // Obține numărul de template-uri existente
+    const templates = await getTemplates(session.shop);
+    const currentTemplatesCount = templates.length;
+    const planKeyForLimit = currentPlan || "starter"; // Temporar pentru testare
+    const maxTemplates = getMaxTemplatesForPlan(planKeyForLimit);
+    const isTemplateLimitReached = currentTemplatesCount >= maxTemplates;
+
+    // Dacă limita este atinsă, redirect către pagina de templates cu mesaj
+    if (isTemplateLimitReached) {
+      const url = new URL(request.url);
+      url.pathname = "/app/templates";
+      url.searchParams.set("limitReached", "true");
+      throw new Response("", {
+        status: 302,
+        headers: { Location: url.toString() },
+      });
+    }
+  }
 
   const [template, metafieldDefinitions] = await Promise.all([
     id !== "new" ? getTemplate(id, session.shop) : null,
     getMetafieldDefinitions(session.shop),
   ]);
-
 
   return {
     template,
@@ -401,6 +450,49 @@ export const action = async ({ request, params }) => {
         heading,
         metafields,
       });
+    }
+  }
+
+  // Verifică limita înainte de a crea un template nou
+  if (id === "new") {
+    // Obține planul curent
+    let currentPlan = null;
+    try {
+      const currentSubscription = await getCurrentSubscription(admin);
+      if (currentSubscription?.name) {
+        currentPlan = currentSubscription.name.toLowerCase();
+      } else {
+        // Fallback: verifică în DB pentru backward compatibility
+        const shop = await prisma.shop.findUnique({
+          where: { shopDomain: session.shop },
+          select: { id: true },
+        });
+        if (shop) {
+          const planRows = await prisma.$queryRaw`
+            SELECT "planKey" FROM "ShopPlan" WHERE "shopId" = ${shop.id} LIMIT 1
+          `;
+          if (Array.isArray(planRows) && planRows.length > 0) {
+            currentPlan = planRows[0].planKey;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("[app.templates.$id] Could not fetch current plan:", error.message);
+    }
+
+    // Obține numărul de template-uri existente
+    const templates = await getTemplates(session.shop);
+    const currentTemplatesCount = templates.length;
+    const planKeyForLimit = currentPlan || "starter"; // Temporar pentru testare
+    const maxTemplates = getMaxTemplatesForPlan(planKeyForLimit);
+    const isTemplateLimitReached = currentTemplatesCount >= maxTemplates;
+
+    // Dacă limita este atinsă, returnează eroare
+    if (isTemplateLimitReached) {
+      return { 
+        success: false, 
+        error: `You have reached the maximum number of templates (${currentTemplatesCount}/${maxTemplates}) for your ${currentPlan ? currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1) : 'current'} plan. Please upgrade your plan to create more templates.` 
+      };
     }
   }
 

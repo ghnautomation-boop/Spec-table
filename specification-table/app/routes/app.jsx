@@ -59,7 +59,6 @@ export default function App() {
             <s-link href="/app/templates">Templates</s-link>
             <s-link href="/app/sync">Data Sync</s-link>
             <s-link href="/app/plans">Plans</s-link>
-            <s-link href="/app/additional">Additional page</s-link>
           </>
         ) : (
           <s-link href="/app/plans">Plans</s-link>

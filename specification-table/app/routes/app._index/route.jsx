@@ -3,6 +3,8 @@ import { useFetcher, useLoaderData, useNavigate, useRevalidator } from "react-ro
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
+import { getCurrentSubscription } from "../../models/billing.server.js";
+import { getMaxTemplatesForPlan } from "../../models/plans.server.js";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -98,11 +100,36 @@ export const loader = async ({ request }) => {
     step5_assignmentConfigured: hasAssignments || progress?.step5_assignmentConfigured || false,
   };
 
+  // Calculează template limits pentru a bloca crearea de template-uri noi
+  let currentPlan = null;
+  try {
+    const currentSubscription = await getCurrentSubscription(admin);
+    if (currentSubscription?.name) {
+      currentPlan = currentSubscription.name.toLowerCase();
+    } else {
+      // Fallback: verifică în DB pentru backward compatibility
+      if (Array.isArray(planRows) && planRows.length > 0) {
+        currentPlan = planRows[0].planKey;
+      }
+    }
+  } catch (error) {
+    console.warn("[app._index] Could not fetch current plan:", error.message);
+  }
+
+  const currentTemplatesCount = templates.length;
+  const planKeyForLimit = currentPlan || "starter"; // Temporar pentru testare
+  const maxTemplates = getMaxTemplatesForPlan(planKeyForLimit);
+  const isTemplateLimitReached = currentTemplatesCount >= maxTemplates;
+
   return {
     themes,
     progress: updatedProgress,
     templates,
     shopDomain,
+    isTemplateLimitReached,
+    maxTemplates,
+    currentTemplatesCount,
+    currentPlan,
     stats: shopWithStats
       ? {
           products: productsCount, // Din Shopify GraphQL API
@@ -177,7 +204,7 @@ export const action = async ({ request }) => {
 };
 
 export default function Index() {
-  const { themes, progress, templates, shopDomain, stats } = useLoaderData();
+  const { themes, progress, templates, shopDomain, stats, isTemplateLimitReached, maxTemplates, currentTemplatesCount, currentPlan } = useLoaderData();
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const revalidator = useRevalidator();

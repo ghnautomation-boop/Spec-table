@@ -195,6 +195,7 @@ const PLANS = [
     quantities: ["Up to 300 products", "20 templates"],
     features: ["Dynamic metafields", "Template assignments", "Custom tooltips", "Custom names","Suffix & Preffix"],
     maxProducts: 300,
+    maxTemplates: 2,
   },
   {
     key: "growth",
@@ -211,6 +212,7 @@ const PLANS = [
        "Custom tooltips", "Custom names","Suffix & Preffix",
     ],
     maxProducts: 1000,
+    maxTemplates: 75,
   },
   {
     key: "scale",
@@ -227,6 +229,7 @@ const PLANS = [
       "Custom tooltips", "Custom names","Suffix & Preffix",    
     ],
     maxProducts: 10000,
+    maxTemplates: 250,
   },
   {
     key: "scaleplus",
@@ -243,6 +246,7 @@ const PLANS = [
        "Custom tooltips", "Custom names","Suffix & Preffix","Advanced Support"
     ],
     maxProducts: Infinity,
+    maxTemplates: Infinity,
   },
 ];
 

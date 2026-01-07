@@ -6,6 +6,8 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
 import prisma from "../../db.server.js";
 import { getTemplates, deleteTemplate, getProducts, getCollections, saveTemplateAssignment, getAllAssignments, duplicateTemplate, toggleTemplateActive } from "../../models/template.server.js";
+import { getCurrentSubscription } from "../../models/billing.server.js";
+import { getMaxTemplatesForPlan } from "../../models/plans.server.js";
 import styles from "./styles.module.css";
 
 // Helper functions pentru conversie ID-uri
@@ -27,7 +29,7 @@ function graphQLToShopifyId(graphQLId) {
 
 export const loader = async ({ request }) => {
   const perfStart = performance.now();
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const authTime = performance.now() - perfStart;
   
   
@@ -59,6 +61,34 @@ export const loader = async ({ request }) => {
     return { result, time: performance.now() - start };
   })();
   
+  // Obține planul curent pentru a calcula template limits
+  let currentPlan = null;
+  try {
+    const currentSubscription = await getCurrentSubscription(admin);
+    console.log("[app.templates] Current subscription:", currentSubscription);
+    if (currentSubscription?.name) {
+      currentPlan = currentSubscription.name.toLowerCase();
+      console.log("[app.templates] Plan from subscription:", currentPlan);
+    } else {
+      // Fallback: verifică în DB pentru backward compatibility
+      const shop = await prisma.shop.findUnique({
+        where: { shopDomain: session.shop },
+        select: { id: true },
+      });
+      if (shop) {
+        const planRows = await prisma.$queryRaw`
+          SELECT "planKey" FROM "ShopPlan" WHERE "shopId" = ${shop.id} LIMIT 1
+        `;
+        if (Array.isArray(planRows) && planRows.length > 0) {
+          currentPlan = planRows[0].planKey;
+          console.log("[app.templates] Plan from DB:", currentPlan);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("[app.templates] Could not fetch current plan:", error.message);
+  }
+  
   // Așteaptă toate query-urile în paralel
   const [templatesData, productsData, collectionsData, assignmentsData] = await Promise.all([
     templatesPromise,
@@ -83,6 +113,22 @@ export const loader = async ({ request }) => {
   
   const totalTime = performance.now() - perfStart;
   
+  // Calculează template limits
+  const currentTemplatesCount = templates.length;
+  // Dacă nu avem plan, folosim "starter" ca default pentru testare
+  // În producție, ar trebui să fie Infinity sau să forțăm utilizatorul să selecteze un plan
+  const planKeyForLimit = currentPlan || "starter"; // Temporar pentru testare
+  const maxTemplates = getMaxTemplatesForPlan(planKeyForLimit);
+  const isTemplateLimitReached = currentTemplatesCount >= maxTemplates;
+  
+  // Debug logging
+  console.log("[app.templates] Template limit check:", {
+    currentPlan,
+    planKeyForLimit,
+    currentTemplatesCount,
+    maxTemplates,
+    isTemplateLimitReached
+  });
 
   // Creează map-uri pentru a verifica rapid ce este deja assignat
   const assignedCollections = new Set();
@@ -113,6 +159,10 @@ export const loader = async ({ request }) => {
     assignedProducts: Array.from(assignedProducts),
     hasGlobalAssignment,
     globalAssignmentTemplateId,
+    currentPlan,
+    maxTemplates,
+    currentTemplatesCount,
+    isTemplateLimitReached,
     // Performance metrics pentru debugging (doar în development)
     ...(process.env.NODE_ENV === "development" && {
       _perf: {
@@ -215,6 +265,46 @@ export const action = async ({ request }) => {
 
   if (actionType === "duplicate" && templateId) {
     try {
+      // Verifică limita înainte de a duplica
+      let currentPlan = null;
+      try {
+        const currentSubscription = await getCurrentSubscription(admin);
+        if (currentSubscription?.name) {
+          currentPlan = currentSubscription.name.toLowerCase();
+        } else {
+          // Fallback: verifică în DB pentru backward compatibility
+          const shop = await prisma.shop.findUnique({
+            where: { shopDomain: session.shop },
+            select: { id: true },
+          });
+          if (shop) {
+            const planRows = await prisma.$queryRaw`
+              SELECT "planKey" FROM "ShopPlan" WHERE "shopId" = ${shop.id} LIMIT 1
+            `;
+            if (Array.isArray(planRows) && planRows.length > 0) {
+              currentPlan = planRows[0].planKey;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("[app.templates] Could not fetch current plan:", error.message);
+      }
+
+      // Obține numărul de template-uri existente
+      const templates = await getTemplates(session.shop);
+      const currentTemplatesCount = templates.length;
+      const planKeyForLimit = currentPlan || "starter"; // Temporar pentru testare
+      const maxTemplates = getMaxTemplatesForPlan(planKeyForLimit);
+      const isTemplateLimitReached = currentTemplatesCount >= maxTemplates;
+
+      // Dacă limita este atinsă, returnează eroare
+      if (isTemplateLimitReached) {
+        return { 
+          success: false, 
+          error: `You have reached the maximum number of templates (${currentTemplatesCount}/${maxTemplates}) for your ${currentPlan ? currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1) : 'current'} plan. Please upgrade your plan to create more templates.` 
+        };
+      }
+
       await duplicateTemplate(templateId, session.shop);
       return { success: true };
     } catch (error) {
@@ -937,7 +1027,18 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
 
 export default function TemplatesPage() {
   const loaderData = useLoaderData();
-  const { templates, products, collections, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId, _perf } = loaderData;
+  const { templates, products, collections, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId, isTemplateLimitReached, maxTemplates, currentTemplatesCount, currentPlan, _perf } = loaderData;
+  
+  // Debug logging
+  useEffect(() => {
+    console.log("[app.templates] Component render with:", {
+      isTemplateLimitReached,
+      maxTemplates,
+      currentTemplatesCount,
+      currentPlan,
+      templatesCount: templates.length
+    });
+  }, [isTemplateLimitReached, maxTemplates, currentTemplatesCount, currentPlan, templates.length]);
   const fetcher = useFetcher();
   const shopify = useAppBridge();
   const location = useLocation();
@@ -1118,6 +1219,15 @@ export default function TemplatesPage() {
   };
 
   const handleDuplicate = (templateId) => {
+    // Verifică limita înainte de a trimite request-ul
+    if (isTemplateLimitReached) {
+      shopify.toast.show(
+        `You have reached the maximum number of templates (${currentTemplatesCount}/${maxTemplates === Infinity ? 'Unlimited' : maxTemplates}) for your ${currentPlan ? currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1) : 'current'} plan. Please upgrade your plan to create more templates.`,
+        { isError: true }
+      );
+      return;
+    }
+    
     fetcher.submit(
       { templateId, action: "duplicate" },
       { method: "POST" }
@@ -1245,15 +1355,40 @@ export default function TemplatesPage() {
           variant="primary" 
           size="large"
           ref={createButtonRef}
+          disabled={isTemplateLimitReached}
           onclick="window.handleCreateNewTemplate && window.handleCreateNewTemplate(); return false;"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            navigate("/app/templates/new");
+            if (!isTemplateLimitReached) {
+              navigate("/app/templates/new");
+            }
           }}
         >
           + Create New Template
         </s-button>
+
+        {isTemplateLimitReached && (
+          <s-section>
+            <s-banner tone="warning">
+              <s-stack direction="block" gap="tight">
+                <s-text emphasis="strong">Template limit reached</s-text>
+                <s-paragraph>
+                  You have reached the maximum number of templates ({currentTemplatesCount}/{maxTemplates === Infinity ? 'Unlimited' : maxTemplates}) for your {currentPlan ? currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1) : 'current'} plan.
+                  {maxTemplates !== Infinity && (
+                    <> To create more templates, please upgrade your plan.</>
+                  )}
+                </s-paragraph>
+                <s-button
+                  variant="primary"
+                  onClick={() => navigate("/app/plans")}
+                >
+                  Upgrade Plan
+                </s-button>
+              </s-stack>
+            </s-banner>
+          </s-section>
+        )}
 
         {templates.length === 0 ? (
           <s-section suppressHydrationWarning>
@@ -1269,9 +1404,40 @@ export default function TemplatesPage() {
                   Create your first template to start organizing your product metafields in a structured and professional way.
                 </s-paragraph>
               </div>
-              <s-button href="/app/templates/new" variant="primary" size="large">
+              <s-button 
+                href="/app/templates/new" 
+                variant="primary" 
+                size="large"
+                disabled={isTemplateLimitReached}
+                onClick={(e) => {
+                  if (isTemplateLimitReached) {
+                    e.preventDefault();
+                  }
+                }}
+              >
                 + Create Your First Template
               </s-button>
+              {isTemplateLimitReached && (
+                <div style={{ marginTop: "1rem" }}>
+                  <s-banner tone="warning">
+                    <s-stack direction="block" gap="tight">
+                      <s-text emphasis="strong">Template limit reached</s-text>
+                      <s-paragraph>
+                        You have reached the maximum number of templates ({currentTemplatesCount}/{maxTemplates === Infinity ? 'Unlimited' : maxTemplates}) for your {currentPlan ? currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1) : 'current'} plan.
+                        {maxTemplates !== Infinity && (
+                          <> To create more templates, please upgrade your plan.</>
+                        )}
+                      </s-paragraph>
+                      <s-button
+                        variant="primary"
+                        onClick={() => navigate("/app/plans")}
+                      >
+                        Upgrade Plan
+                      </s-button>
+                    </s-stack>
+                  </s-banner>
+                </div>
+              )}
             </div>
           </s-section>
         ) : (
