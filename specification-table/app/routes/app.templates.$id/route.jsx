@@ -2193,41 +2193,53 @@ export default function TemplateEditorPage() {
             const showAccordion = isAccordion;
 
             // Render conținutul secțiunii (tabelul)
-            const renderSectionContent = () => (
-              splitViewPerMetafield ? (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
-                  <div>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <tbody>
-                        {metafieldsToShow.filter((_, mfIdx) => mfIdx % 2 === 0).map((metafield, idx) => {
-                          const globalIndex = allMetafieldsWithSection.indexOf(metafield);
-                          return renderMetafieldRow(metafield, globalIndex);
-                        })}
-                      </tbody>
-                    </table>
+            const renderSectionContent = () => {
+              // Pentru splitViewPerMetafield, calculăm odd/even separat pentru fiecare coloană
+              if (splitViewPerMetafield) {
+                const leftColumnMetafields = metafieldsToShow.filter((_, mfIdx) => mfIdx % 2 === 0);
+                const rightColumnMetafields = metafieldsToShow.filter((_, mfIdx) => mfIdx % 2 === 1);
+                
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "10px" }}>
+                    <div>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <tbody>
+                          {leftColumnMetafields.map((metafield, idx) => {
+                            // Calculează odd/even bazat pe index-ul din array-ul filtrat (doar metafields-urile afișate)
+                            const visibleIndex = idx;
+                            return renderMetafieldRow(metafield, visibleIndex);
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <tbody>
+                          {rightColumnMetafields.map((metafield, idx) => {
+                            // Calculează odd/even bazat pe index-ul din array-ul filtrat (doar metafields-urile afișate)
+                            const visibleIndex = idx;
+                            return renderMetafieldRow(metafield, visibleIndex);
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                  <div>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <tbody>
-                        {metafieldsToShow.filter((_, mfIdx) => mfIdx % 2 === 1).map((metafield, idx) => {
-                          const globalIndex = allMetafieldsWithSection.indexOf(metafield);
-                          return renderMetafieldRow(metafield, globalIndex);
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
-                  <tbody>
-                    {metafieldsToShow.map((metafield, idx) => {
-                      const globalIndex = allMetafieldsWithSection.indexOf(metafield);
-                      return renderMetafieldRow(metafield, globalIndex);
-                    })}
-                  </tbody>
-                </table>
-              )
-            );
+                );
+              } else {
+                // Pentru cazul normal, calculăm odd/even bazat pe index-ul din metafieldsToShow
+                return (
+                  <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "10px" }}>
+                    <tbody>
+                      {metafieldsToShow.map((metafield, idx) => {
+                        // Calculează odd/even bazat pe index-ul din array-ul de metafields afișate
+                        const visibleIndex = idx;
+                        return renderMetafieldRow(metafield, visibleIndex);
+                      })}
+                    </tbody>
+                  </table>
+                );
+              }
+            };
 
             return (
               <div key={sectionIdx} style={{ marginBottom: "20px" }}>

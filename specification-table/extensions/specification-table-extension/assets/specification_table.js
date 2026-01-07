@@ -2106,6 +2106,10 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     }))
   });
 
+  // Contor pentru metafields-urile care sunt efectiv afișate (care au valoare)
+  // Acest contor este folosit pentru calculul odd/even
+  let visibleRowIndex = 0;
+
   metafields.forEach((metafield, index) => {
     console.log('[renderMetafieldsRows] Processing metafield:', {
       namespace: metafield.namespace,
@@ -2252,8 +2256,9 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
       });
     }
 
-    const globalIndex = allMetafieldsWithSection.indexOf(metafield);
-    const isOdd = globalIndex !== -1 && globalIndex % 2 === 0;
+    // Calculează odd/even bazat pe metafields-urile care sunt efectiv afișate (care au valoare)
+    // Nu pe toate metafields-urile, pentru a evita problemele când unele metafields nu au valoare
+    const isOdd = visibleRowIndex % 2 === 0;
 
     // Folosește CSS variables pentru background colors (sunt setate în media queries)
     // CSS variables pentru background sunt deja setate pe container prin media queries
@@ -2317,6 +2322,9 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     
     if (!hasValue) {
       rowClasses += ' dc_hidden';
+    } else {
+      // Incrementează contorul doar pentru metafields-urile care au valoare și sunt afișate
+      visibleRowIndex++;
     }
 
     // Aplică specSpacing (row padding) - folosește CSS variable pentru device-specific styling
