@@ -1373,8 +1373,30 @@ function renderTemplate(container, template) {
 
     if (section.metafields && section.metafields.length > 0) {
       section.metafields.forEach((metafield, mfIndex) => {
-        // Dacă este product spec, folosește structura pentru product spec
-        if (metafield.type === 'product_spec') {
+        // Dacă este custom_spec, folosește structura pentru custom spec
+        if (metafield.type === 'custom_spec') {
+          allMetafieldsWithSection.push({
+            type: 'custom_spec',
+            customName: metafield.customName,
+            customValue: metafield.customValue,
+            productSpecType: null,
+            namespace: null,
+            key: null,
+            ownerType: null,
+            name: null,
+            metafieldType: null,
+            tooltipEnabled: metafield.tooltipEnabled,
+            tooltipText: metafield.tooltipText,
+            hideFromPC: metafield.hideFromPC !== undefined ? metafield.hideFromPC : false,
+            hideFromMobile: metafield.hideFromMobile !== undefined ? metafield.hideFromMobile : false,
+            prefix: metafield.prefix || null,
+            suffix: metafield.suffix || null,
+            sectionIndex: sectionIndex,
+            sectionHeading: section.heading,
+            mfIndex: mfIndex
+          });
+        } else if (metafield.type === 'product_spec') {
+          // Dacă este product spec, folosește structura pentru product spec
           allMetafieldsWithSection.push({
             type: 'product_spec',
             productSpecType: metafield.productSpecType,
@@ -1436,6 +1458,18 @@ function renderTemplate(container, template) {
   const variantMetafields = window.variantMetafieldsData || {};
 
   function metafieldHasValue(metafield) {
+    // Dacă este custom_spec, verifică dacă are customValue
+    if (metafield.type === 'custom_spec') {
+      return metafield.customValue !== null &&
+             metafield.customValue !== undefined &&
+             metafield.customValue !== '' &&
+             (typeof metafield.customValue !== 'string' || metafield.customValue.trim() !== '') &&
+             metafield.customName !== null &&
+             metafield.customName !== undefined &&
+             metafield.customName !== '' &&
+             (typeof metafield.customName !== 'string' || metafield.customName.trim() !== '');
+    }
+    
     // Dacă este product spec, verifică în productSpecsFromLiquid
     if (metafield.type === 'product_spec') {
       const productSpecs = window.productSpecsFromLiquid || {};
@@ -2177,8 +2211,19 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     let hasValue = false;
     let value = null;
 
-    // Dacă este product spec, verifică în productSpecsFromLiquid
-    if (metafield.type === 'product_spec') {
+    // Dacă este custom_spec, folosește customValue direct
+    if (metafield.type === 'custom_spec') {
+      value = metafield.customValue;
+      hasValue = value !== null &&
+                 value !== undefined &&
+                 value !== '' &&
+                 (typeof value !== 'string' || value.trim() !== '') &&
+                 metafield.customName !== null &&
+                 metafield.customName !== undefined &&
+                 metafield.customName !== '' &&
+                 (typeof metafield.customName !== 'string' || metafield.customName.trim() !== '');
+    } else if (metafield.type === 'product_spec') {
+      // Dacă este product spec, verifică în productSpecsFromLiquid
       const productSpecs = window.productSpecsFromLiquid || {};
       if (productSpecs[metafield.productSpecType] !== undefined) {
         value = productSpecs[metafield.productSpecType];
@@ -2388,9 +2433,11 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
 
     rowsHtml += '<tr class="' + rowClasses + '">';
     rowsHtml += '<td class="dc_table_td_label" style="' + specSpacingStyle + (specBackgroundStyle ? ' ' + specBackgroundStyle : '') + '">';
-    // Dacă este product spec, folosește numele corespunzător
+    // Dacă este custom_spec, product spec sau metafield normal, folosește numele corespunzător
     let displayName;
-    if (metafield.type === 'product_spec') {
+    if (metafield.type === 'custom_spec') {
+      displayName = metafield.customName || 'Custom Specification';
+    } else if (metafield.type === 'product_spec') {
       const productSpecLabels = {
         'vendor': 'Vendor',
         'inventory_quantity': 'Stock quantity',
@@ -2414,10 +2461,23 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     rowsHtml += '</td>';
     const prefixValue = (metafield.prefix !== null && metafield.prefix !== undefined) ? String(metafield.prefix) : '';
     const suffixValue = (metafield.suffix !== null && metafield.suffix !== undefined) ? String(metafield.suffix) : '';
-    // Dacă este product spec, folosește data-product-spec-type
+    // Dacă este custom_spec, product spec sau metafield normal, folosește structura corespunzătoare
     // Aplică specSpacing și pe celula de valoare
     const valueSpacingStyle = 'padding-top: ' + (styling.specSpacing || '10') + 'px; padding-bottom: ' + (styling.specSpacing || '10') + 'px; ';
-    if (metafield.type === 'product_spec') {
+    if (metafield.type === 'custom_spec') {
+      // Pentru custom_spec, afișează direct valoarea cu prefix și suffix
+      let formattedValue = metafield.customValue || '';
+      if (prefixValue) {
+        formattedValue = prefixValue + ' ' + formattedValue;
+      }
+      if (suffixValue) {
+        formattedValue = formattedValue + ' ' + suffixValue;
+      }
+      rowsHtml += '<td class="dc_table_td_value" style="' + valueSpacingStyle + (valueBackgroundStyle ? ' ' + valueBackgroundStyle : '') + '" data-custom-spec="true">';
+      rowsHtml += '<span>' + escapeHtml(formattedValue) + '</span>';
+      rowsHtml += '</td>';
+      rowsHtml += '</tr>';
+    } else if (metafield.type === 'product_spec') {
       rowsHtml += '<td class="dc_table_td_value" style="' + valueSpacingStyle + (valueBackgroundStyle ? ' ' + valueBackgroundStyle : '') + '" data-product-spec-type="' + escapeHtml(metafield.productSpecType) + '">';
       rowsHtml += '<span data-product-spec-value data-product-spec-type="' + escapeHtml(metafield.productSpecType) + '" data-prefix="' + escapeHtml(prefixValue) + '" data-suffix="' + escapeHtml(suffixValue) + '">Loading...</span>';
       rowsHtml += '</td>';

@@ -220,6 +220,7 @@ export async function createTemplate(data, shopDomain, admin = null) {
               const tooltipText = metafield.tooltipText && metafield.tooltipText.trim() !== "" ? metafield.tooltipText.trim() : null;
               const prefix = metafield.prefix && metafield.prefix.trim() !== "" ? metafield.prefix.trim() : null;
               const suffix = metafield.suffix && metafield.suffix.trim() !== "" ? metafield.suffix.trim() : null;
+              const customValue = metafield.customValue && metafield.customValue.trim() !== "" ? metafield.customValue.trim() : null;
               
               const type = metafield.type || 'metafield';
               const productSpecType = metafield.productSpecType && metafield.productSpecType.trim() !== "" ? metafield.productSpecType.trim() : null;
@@ -228,6 +229,7 @@ export async function createTemplate(data, shopDomain, admin = null) {
                 metafieldDefinitionId: type === 'metafield' ? metafield.metafieldDefinitionId : null,
                 type: type,
                 productSpecType: productSpecType,
+                customValue: customValue,
                 order: metafieldIndex,
                 customName,
                 tooltipEnabled: metafield.tooltipEnabled || false,
@@ -633,6 +635,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
               const tooltipText = metafield.tooltipText && metafield.tooltipText.trim() !== "" ? metafield.tooltipText.trim() : null;
               const prefix = metafield.prefix && metafield.prefix.trim() !== "" ? metafield.prefix.trim() : null;
               const suffix = metafield.suffix && metafield.suffix.trim() !== "" ? metafield.suffix.trim() : null;
+              const customValue = metafield.customValue && metafield.customValue.trim() !== "" ? metafield.customValue.trim() : null;
               
               const type = metafield.type || 'metafield';
               const productSpecType = metafield.productSpecType && metafield.productSpecType.trim() !== "" ? metafield.productSpecType.trim() : null;
@@ -641,6 +644,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
                 metafieldDefinitionId: type === 'metafield' ? metafield.metafieldDefinitionId : null,
                 type: type,
                 productSpecType: productSpecType,
+                customValue: customValue,
                 order: metafieldIndex,
                 customName,
                 tooltipEnabled: metafield.tooltipEnabled || false,

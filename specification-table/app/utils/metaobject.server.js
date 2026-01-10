@@ -41,6 +41,21 @@ export async function createOrUpdateMetaobject(admin, template) {
     sections: template.sections?.map(section => ({
       heading: section.heading,
       metafields: section.metafields?.map(mf => {
+        // Dacă este custom_spec, returnează structura pentru custom spec
+        if (mf.type === 'custom_spec') {
+          return {
+            type: 'custom_spec',
+            customName: mf.customName || null,
+            customValue: mf.customValue || null,
+            tooltipEnabled: mf.tooltipEnabled === true,
+            tooltipText: mf.tooltipText || null,
+            hideFromPC: mf.hideFromPC === true,
+            hideFromMobile: mf.hideFromMobile === true,
+            prefix: mf.prefix || null,
+            suffix: mf.suffix || null,
+            order: mf.order,
+          };
+        }
         // Dacă este product spec, returnează structura pentru product spec
         if (mf.type === 'product_spec') {
           return {

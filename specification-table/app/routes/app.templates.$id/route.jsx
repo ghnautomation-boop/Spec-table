@@ -383,29 +383,46 @@ export const action = async ({ request, params }) => {
       const metafieldId = formData.get(`section_${i}_metafield_${j}`);
       const metafieldType = formData.get(`section_${i}_metafield_${j}_type`) || 'metafield';
       const productSpecType = formData.get(`section_${i}_metafield_${j}_productSpecType`);
+      const customValueRaw = formData.get(`section_${i}_metafield_${j}_customValue`);
+      const customValue = customValueRaw && customValueRaw.trim() !== "" ? customValueRaw.trim() : null;
       
-      // Verifică dacă este product spec sau metafield
-      if (metafieldType === 'product_spec' && productSpecType) {
-        const customNameRaw = formData.get(`section_${i}_metafield_${j}_customName`);
-        const customName = customNameRaw && customNameRaw.trim() !== "" ? customNameRaw.trim() : null;
-        const tooltipEnabledRaw = formData.get(`section_${i}_metafield_${j}_tooltipEnabled`);
-        const tooltipEnabled = tooltipEnabledRaw === "true";
-        const tooltipTextRaw = formData.get(`section_${i}_metafield_${j}_tooltipText`);
-        const tooltipText = tooltipTextRaw && tooltipTextRaw.trim() !== "" ? tooltipTextRaw.trim() : null;
-        const hideFromPCRaw = formData.get(`section_${i}_metafield_${j}_hideFromPC`);
-        const hideFromPC = hideFromPCRaw === "true";
-        const hideFromMobileRaw = formData.get(`section_${i}_metafield_${j}_hideFromMobile`);
-        const hideFromMobile = hideFromMobileRaw === "true";
-        const prefixRaw = formData.get(`section_${i}_metafield_${j}_prefix`);
-        const prefix = prefixRaw && prefixRaw.trim() !== "" ? prefixRaw.trim() : null;
-        const suffixRaw = formData.get(`section_${i}_metafield_${j}_suffix`);
-        const suffix = suffixRaw && suffixRaw.trim() !== "" ? suffixRaw.trim() : null;
-        
-        
+      // Extrage proprietățile comune
+      const customNameRaw = formData.get(`section_${i}_metafield_${j}_customName`);
+      const customName = customNameRaw && customNameRaw.trim() !== "" ? customNameRaw.trim() : null;
+      const tooltipEnabledRaw = formData.get(`section_${i}_metafield_${j}_tooltipEnabled`);
+      const tooltipEnabled = tooltipEnabledRaw === "true";
+      const tooltipTextRaw = formData.get(`section_${i}_metafield_${j}_tooltipText`);
+      const tooltipText = tooltipTextRaw && tooltipTextRaw.trim() !== "" ? tooltipTextRaw.trim() : null;
+      const hideFromPCRaw = formData.get(`section_${i}_metafield_${j}_hideFromPC`);
+      const hideFromPC = hideFromPCRaw === "true";
+      const hideFromMobileRaw = formData.get(`section_${i}_metafield_${j}_hideFromMobile`);
+      const hideFromMobile = hideFromMobileRaw === "true";
+      const prefixRaw = formData.get(`section_${i}_metafield_${j}_prefix`);
+      const prefix = prefixRaw && prefixRaw.trim() !== "" ? prefixRaw.trim() : null;
+      const suffixRaw = formData.get(`section_${i}_metafield_${j}_suffix`);
+      const suffix = suffixRaw && suffixRaw.trim() !== "" ? suffixRaw.trim() : null;
+      
+      // Verifică dacă este custom_spec
+      if (metafieldType === 'custom_spec' && customName && customValue) {
+        metafields.push({
+          type: 'custom_spec',
+          metafieldDefinitionId: null,
+          productSpecType: null,
+          customValue: customValue,
+          customName,
+          tooltipEnabled,
+          tooltipText,
+          hideFromPC,
+          hideFromMobile,
+          prefix,
+          suffix,
+        });
+      } else if (metafieldType === 'product_spec' && productSpecType) {
         metafields.push({
           type: 'product_spec',
           metafieldDefinitionId: null,
           productSpecType: productSpecType,
+          customValue: null,
           customName,
           tooltipEnabled,
           tooltipText,
@@ -415,26 +432,11 @@ export const action = async ({ request, params }) => {
           suffix,
         });
       } else if (metafieldId) {
-        const customNameRaw = formData.get(`section_${i}_metafield_${j}_customName`);
-        const customName = customNameRaw && customNameRaw.trim() !== "" ? customNameRaw.trim() : null;
-        const tooltipEnabledRaw = formData.get(`section_${i}_metafield_${j}_tooltipEnabled`);
-        const tooltipEnabled = tooltipEnabledRaw === "true";
-        const tooltipTextRaw = formData.get(`section_${i}_metafield_${j}_tooltipText`);
-        const tooltipText = tooltipTextRaw && tooltipTextRaw.trim() !== "" ? tooltipTextRaw.trim() : null;
-        const hideFromPCRaw = formData.get(`section_${i}_metafield_${j}_hideFromPC`);
-        const hideFromPC = hideFromPCRaw === "true";
-        const hideFromMobileRaw = formData.get(`section_${i}_metafield_${j}_hideFromMobile`);
-        const hideFromMobile = hideFromMobileRaw === "true";
-        const prefixRaw = formData.get(`section_${i}_metafield_${j}_prefix`);
-        const prefix = prefixRaw && prefixRaw.trim() !== "" ? prefixRaw.trim() : null;
-        const suffixRaw = formData.get(`section_${i}_metafield_${j}_suffix`);
-        const suffix = suffixRaw && suffixRaw.trim() !== "" ? suffixRaw.trim() : null;
-        
-        
         metafields.push({
           type: 'metafield',
           metafieldDefinitionId: metafieldId,
           productSpecType: null,
+          customValue: null,
           customName,
           tooltipEnabled,
           tooltipText,
@@ -750,6 +752,9 @@ export default function TemplateEditorPage() {
   const [openSelectIndex, setOpenSelectIndex] = useState(null);
   const [selectedMetafieldsForSection, setSelectedMetafieldsForSection] = useState({});
   const [openProductSpecIndex, setOpenProductSpecIndex] = useState(null);
+  const [openCustomSpecIndex, setOpenCustomSpecIndex] = useState(null);
+  const [customSpecName, setCustomSpecName] = useState("");
+  const [customSpecValue, setCustomSpecValue] = useState("");
   
   // Tipurile disponibile de product specifications
   const productSpecTypes = [
@@ -768,6 +773,7 @@ export default function TemplateEditorPage() {
   const [editingMetafield, setEditingMetafield] = useState(null); // { sectionIndex, metafieldIndex }
   const [metafieldEditData, setMetafieldEditData] = useState({ 
     customName: "", 
+    customValue: "",
     tooltipEnabled: false, 
     tooltipText: "",
     hideFromPC: false,
@@ -1613,6 +1619,42 @@ export default function TemplateEditorPage() {
     setOpenProductSpecIndex(null);
   };
 
+  const addCustomSpecToSection = (sectionIndex) => {
+    if (!customSpecName || !customSpecValue) {
+      shopify.toast.show("Please enter both name and value for the custom specification", { isError: true });
+      return;
+    }
+    const newSections = [...sections];
+    if (!newSections[sectionIndex].metafields) {
+      newSections[sectionIndex].metafields = [];
+    }
+    // Verifică dacă custom spec-ul cu același nume există deja în secțiune
+    const alreadyExists = newSections[sectionIndex].metafields.some(
+      mf => mf.type === 'custom_spec' && mf.customName === customSpecName.trim()
+    );
+    if (alreadyExists) {
+      shopify.toast.show(`Custom specification "${customSpecName.trim()}" already exists in this section`, { isError: true });
+      return;
+    }
+    newSections[sectionIndex].metafields.push({
+      type: 'custom_spec',
+      metafieldDefinitionId: null,
+      productSpecType: null,
+      customValue: customSpecValue.trim(),
+      customName: customSpecName.trim(),
+      tooltipEnabled: false,
+      tooltipText: null,
+      hideFromPC: false,
+      hideFromMobile: false,
+      prefix: null,
+      suffix: null,
+    });
+    setSections(newSections);
+    setOpenCustomSpecIndex(null);
+    setCustomSpecName("");
+    setCustomSpecValue("");
+  };
+
   const toggleMetafieldSelection = (sectionIndex, metafieldId) => {
     const key = `${sectionIndex}_${metafieldId}`;
     setSelectedMetafieldsForSection((prev) => ({
@@ -1702,6 +1744,7 @@ export default function TemplateEditorPage() {
     
     // Tratează valorile goale corect
     const customName = data.customName && data.customName.trim() !== "" ? data.customName.trim() : null;
+    const customValue = data.customValue && data.customValue.trim() !== "" ? data.customValue.trim() : null;
     const tooltipText = data.tooltipText && data.tooltipText.trim() !== "" ? data.tooltipText.trim() : null;
     const prefix = data.prefix && data.prefix.trim() !== "" ? data.prefix.trim() : null;
     const suffix = data.suffix && data.suffix.trim() !== "" ? data.suffix.trim() : null;
@@ -1722,6 +1765,7 @@ export default function TemplateEditorPage() {
     newSections[sectionIndex].metafields[metafieldIndex] = {
       ...newSections[sectionIndex].metafields[metafieldIndex],
       customName,
+      customValue: newSections[sectionIndex].metafields[metafieldIndex].type === 'custom_spec' ? customValue : null,
       tooltipEnabled: data.tooltipEnabled || false,
       tooltipText,
       hideFromPC,
@@ -1733,7 +1777,7 @@ export default function TemplateEditorPage() {
     // Incrementează formKey pentru a forța re-renderizarea formularului și hidden inputs-urilor
     setFormKey(prev => prev + 1);
     setEditingMetafield(null);
-    setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false, prefix: "", suffix: "" });
+    setMetafieldEditData({ customName: "", customValue: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false, prefix: "", suffix: "" });
   };
 
   const getAvailableMetafields = (sectionIndex) => {
@@ -1962,13 +2006,16 @@ export default function TemplateEditorPage() {
 
     const renderMetafieldRow = (metafield, globalIndex) => {
       const isProductSpec = metafield.type === 'product_spec';
-      const mfDef = !isProductSpec ? metafieldDefinitions?.find(
+      const isCustomSpec = metafield.type === 'custom_spec';
+      const mfDef = !isProductSpec && !isCustomSpec ? metafieldDefinitions?.find(
         (mf) => mf.id === metafield.metafieldDefinitionId
       ) : null;
       
-      // Dacă este product spec, folosește numele corespunzător
+      // Dacă este product spec sau custom spec, folosește numele corespunzător
       let metafieldName;
-      if (isProductSpec) {
+      if (isCustomSpec) {
+        metafieldName = metafield.customName || "Custom Specification";
+      } else if (isProductSpec) {
         const productSpecLabels = {
           'vendor': 'Vendor',
           'inventory_quantity': 'Stock Quantity',
@@ -2070,7 +2117,9 @@ export default function TemplateEditorPage() {
               paddingBottom: (currentStyling.specSpacing || '10') + 'px',
             }}
           >
-            {isProductSpec ? (
+            {isCustomSpec ? (
+              metafield.customValue || 'Example value'
+            ) : isProductSpec ? (
               (() => {
                 const exampleValues = {
                   'vendor': 'Example Vendor',
@@ -2954,6 +3003,11 @@ export default function TemplateEditorPage() {
                         name={`section_${sectionIndex}_metafield_${mfIndex}_suffix`}
                         value={mf.suffix || ""}
                         />
+                        <input
+                        type="hidden"
+                        name={`section_${sectionIndex}_metafield_${mfIndex}_customValue`}
+                        value={mf.customValue || ""}
+                        />
                     </div>
                     ))}
                 </div>
@@ -3349,14 +3403,15 @@ export default function TemplateEditorPage() {
                           <tbody>
                             {section.metafields.map((metafield, mfIndex) => {
                               const isProductSpec = metafield.type === 'product_spec';
-                              const mfDef = !isProductSpec ? metafieldDefinitions.find(
+                              const isCustomSpec = metafield.type === 'custom_spec';
+                              const mfDef = !isProductSpec && !isCustomSpec ? metafieldDefinitions.find(
                                 (mf) => mf.id === metafield.metafieldDefinitionId
                               ) : null;
                               const productSpecLabel = isProductSpec 
                                 ? productSpecTypes.find(ps => ps.value === metafield.productSpecType)?.label || metafield.productSpecType
                                 : null;
                               // Forțează re-renderizarea când se schimbă valorile
-                              const metafieldKey = `${sectionIndex}-${mfIndex}-${metafield.type || 'metafield'}-${metafield.customName || ""}-${metafield.tooltipEnabled}-${metafield.tooltipText || ""}-${metafield.prefix || ""}-${metafield.suffix || ""}`;
+                              const metafieldKey = `${sectionIndex}-${mfIndex}-${metafield.type || 'metafield'}-${metafield.customName || ""}-${metafield.customValue || ""}-${metafield.tooltipEnabled}-${metafield.tooltipText || ""}-${metafield.prefix || ""}-${metafield.suffix || ""}`;
                               return (
                                 <tr 
                                   key={metafieldKey}
@@ -3462,7 +3517,9 @@ export default function TemplateEditorPage() {
                                   </td>
                                   <td style={{ padding: "8px 12px", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis" }}>
                                     <s-text style={{ fontSize: "13px" }}>
-                                      {isProductSpec
+                                      {isCustomSpec
+                                        ? (metafield.customName || "Custom Specification")
+                                        : isProductSpec
                                         ? (metafield.customName || productSpecLabel || "Product Specification")
                                         : (mfDef
                                           ? (metafield.customName || mfDef.name || `${mfDef.namespace}.${mfDef.key}`)
@@ -3494,7 +3551,9 @@ export default function TemplateEditorPage() {
                                   </td>
                                   <td style={{ padding: "8px 12px", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis" }}>
                                     <s-text style={{ color: "#6d7175", fontSize: "12px" }}>
-                                      {isProductSpec
+                                      {isCustomSpec
+                                        ? (metafield.customValue || "N/A")
+                                        : isProductSpec
                                         ? "Product Specification"
                                         : (mfDef
                                           ? `${mfDef.namespace}.${mfDef.key} (${mfDef.ownerType})`
@@ -3597,6 +3656,7 @@ export default function TemplateEditorPage() {
                                           setEditingMetafield({ sectionIndex, metafieldIndex: mfIndex });
                                           setMetafieldEditData({
                                             customName: metafield.customName || "",
+                                            customValue: metafield.customValue || "",
                                             tooltipEnabled: metafield.tooltipEnabled || false,
                                             tooltipText: metafield.tooltipText || "",
                                             hideFromPC: metafield.hideFromPC || false,
@@ -3949,7 +4009,93 @@ export default function TemplateEditorPage() {
                                 )}
                               </div>
                             </div>
-                            <p><span style={{ fontWeight: "bold",color:"red" }}>! </span>If any other custom specification wants to be added please contact us via Chat or Email.</p>
+                                                        
+                            {/* Buton pentru Custom Specification */}
+                            <div style={{ position: "relative", flex: 1, marginTop: "20px" }}>
+                              <s-button
+                                type="button"
+                                variant="secondary"
+                                icon="add"
+                                onClick={() =>
+                                  setOpenCustomSpecIndex(
+                                    openCustomSpecIndex === sectionIndex ? null : sectionIndex
+                                  )
+                                }
+                              >
+                                {openCustomSpecIndex === sectionIndex
+                                  ? "Close"
+                                  : "+ Add Custom Specification"}
+                              </s-button>
+                              {openCustomSpecIndex === sectionIndex && (
+                                <s-box
+                                  padding="base"
+                                  borderWidth="base"
+                                  borderRadius="base"
+                                  background="base"
+                                  style={{
+                                    position: "absolute",
+                                    top: "100%",
+                                    left: 0,
+                                    right: 0,
+                                    zIndex: 1000,
+                                    marginTop: "8px",
+                                    maxHeight: "400px",
+                                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                                    border: "1px solid #e1e3e5",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                  }}
+                                >
+                                  <s-stack direction="block" gap="base" style={{ flexShrink: 0 }}>
+                                    <s-text emphasis="strong">
+                                      Add Custom Specification:
+                                    </s-text>
+                                    <s-text-field
+                                      label="Specification Name"
+                                      value={customSpecName}
+                                      onChange={(e) => {
+                                        const value = e.currentTarget?.value ?? e.target?.value ?? "";
+                                        setCustomSpecName(value);
+                                      }}
+                                      placeholder="e.g., Length"
+                                      autoComplete="off"
+                                    />
+                                    <s-text-field
+                                      label="Specification Value"
+                                      value={customSpecValue}
+                                      onChange={(e) => {
+                                        const value = e.currentTarget?.value ?? e.target?.value ?? "";
+                                        setCustomSpecValue(value);
+                                      }}
+                                      placeholder="e.g., 20 cm"
+                                      autoComplete="off"
+                                    />
+                                  </s-stack>
+                                  <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                                    <s-button
+                                      type="button"
+                                      variant="primary"
+                                      onClick={() => addCustomSpecToSection(sectionIndex)}
+                                      style={{ flex: 1 }}
+                                    >
+                                      Add
+                                    </s-button>
+                                    <s-button
+                                      type="button"
+                                      variant="tertiary"
+                                      onClick={() => {
+                                        setOpenCustomSpecIndex(null);
+                                        setCustomSpecName("");
+                                        setCustomSpecValue("");
+                                      }}
+                                      style={{ flex: 1 }}
+                                    >
+                                      Cancel
+                                    </s-button>
+                                  </div>
+                                </s-box>
+                              )}
+                            </div>
                         </s-stack>
                       </s-stack>
                     );
@@ -5461,9 +5607,14 @@ export default function TemplateEditorPage() {
       {editingMetafield && (() => {
         const section = sections[editingMetafield.sectionIndex];
         const metafield = section?.metafields?.[editingMetafield.metafieldIndex];
-        const mfDef = metafieldDefinitions?.find(
+        const isCustomSpec = metafield?.type === 'custom_spec';
+        const isProductSpec = metafield?.type === 'product_spec';
+        const mfDef = !isCustomSpec && !isProductSpec ? metafieldDefinitions?.find(
           (mf) => mf.id === metafield?.metafieldDefinitionId
-        );
+        ) : null;
+        const productSpecLabel = isProductSpec 
+          ? productSpecTypes.find(ps => ps.value === metafield?.productSpecType)?.label || metafield?.productSpecType
+          : null;
         return (
           <div
             style={{
@@ -5481,7 +5632,7 @@ export default function TemplateEditorPage() {
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setEditingMetafield(null);
-                setMetafieldEditData({ customName: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false, prefix: "", suffix: "" });
+                setMetafieldEditData({ customName: "", customValue: "", tooltipEnabled: false, tooltipText: "", hideFromPC: false, hideFromMobile: false, prefix: "", suffix: "" });
               }
             }}
           >
@@ -5501,21 +5652,54 @@ export default function TemplateEditorPage() {
             >
               <s-stack direction="block" gap="base">
                 <s-heading level="3">
-                  Edit Metafield: {mfDef ? `${mfDef.namespace}.${mfDef.key}` : "Unknown"}
+                  {isCustomSpec 
+                    ? "Edit Custom Specification"
+                    : isProductSpec
+                    ? `Edit Product Specification: ${productSpecLabel || "Unknown"}`
+                    : `Edit Metafield: ${mfDef ? `${mfDef.namespace}.${mfDef.key}` : "Unknown"}`}
                 </s-heading>
                 
-                <s-text-field
-                  label="Custom name (only for this template)"
-                  value={metafieldEditData.customName}
-                  onChange={(e) =>
-                    setMetafieldEditData({
-                      ...metafieldEditData,
-                      customName: e.target.value,
-                    })
-                  }
-                  placeholder={mfDef?.name || `${mfDef?.namespace}.${mfDef?.key}`}
-                  helpText="If left blank, the default name of the metafield will be used"
-                />
+                {isCustomSpec ? (
+                  <>
+                    <s-text-field
+                      label="Specification Name"
+                      value={metafieldEditData.customName}
+                      onChange={(e) =>
+                        setMetafieldEditData({
+                          ...metafieldEditData,
+                          customName: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Marime"
+                      required
+                    />
+                    <s-text-field
+                      label="Specification Value"
+                      value={metafieldEditData.customValue}
+                      onChange={(e) =>
+                        setMetafieldEditData({
+                          ...metafieldEditData,
+                          customValue: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., 20"
+                      required
+                    />
+                  </>
+                ) : (
+                  <s-text-field
+                    label="Custom name (only for this template)"
+                    value={metafieldEditData.customName}
+                    onChange={(e) =>
+                      setMetafieldEditData({
+                        ...metafieldEditData,
+                        customName: e.target.value,
+                      })
+                    }
+                    placeholder={isProductSpec ? (productSpecLabel || "Product Specification") : (mfDef?.name || `${mfDef?.namespace}.${mfDef?.key}`)}
+                    helpText={isProductSpec ? "If left blank, the default product specification name will be used" : "If left blank, the default name of the metafield will be used"}
+                  />
+                )}
 
                 <s-checkbox
                   checked={metafieldEditData.tooltipEnabled}

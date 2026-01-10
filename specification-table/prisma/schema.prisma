@@ -148,9 +148,10 @@ model TemplateSection {
 model TemplateSectionMetafield {
   id                    String   @id @default(uuid())
   sectionId             String
-  metafieldDefinitionId String? // Nullable pentru product specifications
-  type                  String   @default("metafield") // "metafield" sau "product_spec"
+  metafieldDefinitionId String? // Nullable pentru product specifications și custom specs
+  type                  String   @default("metafield") // "metafield", "product_spec" sau "custom_spec"
   productSpecType       String? // Tipul product specification: "vendor", "inventory_quantity", "weight", "sku", "barcode", "variant_sku", "compare_at_price", "product_type", "collection_names"
+  customValue           String? // Valoare fixă pentru custom_spec
   order                 Int      @default(0)
   customName            String? // Nume personalizat pentru acest template
   tooltipEnabled        Boolean  @default(false) // Dacă tooltip-ul este activat
