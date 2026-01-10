@@ -1874,6 +1874,150 @@ export default function TemplateEditorPage() {
     });
   }, [metafieldSearchTerm, sections, metafieldDefinitions]);
 
+  // Component pentru modal-ul de selectare metafields (pentru a permite re-renderizare live)
+  const MetafieldSelectorModal = ({ 
+    sectionIndex, 
+    openSelectIndex, 
+    setOpenSelectIndex, 
+    metafieldSearchTerm, 
+    setMetafieldSearchTerm,
+    getAvailableMetafields,
+    getFilteredMetafields,
+    selectedMetafieldsForSection,
+    toggleMetafieldSelection,
+    addSelectedMetafieldsToSection,
+    setSelectedMetafieldsForSection,
+    navigate
+  }) => {
+    // Memoizează lista filtrată pentru a re-renderiza automat când se schimbă searchTerm
+    const searchValue = metafieldSearchTerm[sectionIndex] || "";
+    const filteredList = useMemo(() => {
+      return getFilteredMetafields(sectionIndex);
+    }, [getFilteredMetafields, sectionIndex, metafieldSearchTerm[sectionIndex]]);
+    
+    return (
+      <Modal
+        id={`metafield-selector-modal-${sectionIndex}`}
+        open={openSelectIndex === sectionIndex}
+        variant="large"
+        onClose={() => {
+          setOpenSelectIndex(null);
+          // Resetează selecțiile pentru această secțiune
+          const newSelected = { ...selectedMetafieldsForSection };
+          getAvailableMetafields(sectionIndex).forEach((mf) => {
+            delete newSelected[`${sectionIndex}_${mf.id}`];
+          });
+          setSelectedMetafieldsForSection(newSelected);
+        }}
+      >
+        <div style={{ padding: "20px", height: "100%", maxHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ marginBottom: "16px", flexShrink: 0 }}>
+            <h2 style={{ margin: "0 0 12px 0", fontSize: "18px", fontWeight: "600" }}>
+              Select metafields ({getAvailableMetafields(sectionIndex).length} available)
+            </h2>
+            <s-text-field
+              label="Search metafields"
+              value={searchValue}
+              onChange={(e) => {
+                // Pentru Polaris Web Components, folosim currentTarget.value
+                const value = e.currentTarget?.value ?? e.target?.value ?? "";
+                setMetafieldSearchTerm((prev) => ({
+                  ...prev,
+                  [sectionIndex]: value,
+                }));
+              }}
+              placeholder="Search by name, namespace, key..."
+              autoComplete="off"
+            />
+          </div>
+          <div
+            style={{ 
+              flex: "1 1 auto",
+              minHeight: 0,
+              overflowY: "auto",
+              overflowX: "hidden",
+              border: "1px solid #e1e3e5",
+              borderRadius: "4px",
+              padding: "12px",
+            }}
+          >
+            {filteredList.length === 0 ? (
+              <div style={{ padding: "16px", textAlign: "center", color: "#6d7175" }}>
+                {searchValue 
+                  ? "No metafields found that match the search"
+                  : "No metafields available"}
+              </div>
+            ) : (
+              <div 
+                key={`metafield-list-container-${sectionIndex}-${searchValue}`}
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
+                {filteredList.map((mf) => {
+                  const isSelected =
+                    selectedMetafieldsForSection[
+                      `${sectionIndex}_${mf.id}`
+                    ];
+                  const metafieldLabel = `${mf.namespace}.${mf.key} (${mf.ownerType})${mf.name ? ` - ${mf.name}` : ""}`;
+                  return (
+                    <s-checkbox
+                      key={`${sectionIndex}-${mf.id}`}
+                      checked={isSelected || false}
+                      onChange={() =>
+                        toggleMetafieldSelection(
+                          sectionIndex,
+                          mf.id
+                        )
+                      }
+                      label={metafieldLabel}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop: "16px", padding: "12px", backgroundColor: "#f6f6f7", borderRadius: "4px", fontSize: "13px", color: "#6d7175", flexShrink: 0 }}>
+            If you are not able to see a specific metafield already created in the store in this list, please{" "}
+            <a 
+              href="/app/sync" 
+              style={{ color: "#008060", textDecoration: "underline", cursor: "pointer" }}
+              onClick={(e) => {
+                e.preventDefault();
+                setOpenSelectIndex(null);
+                navigate("/app/sync");
+              }}
+            >
+              Sync metafields from this page → Data Sync
+            </a>
+          </div>
+        </div>
+        <TitleBar title="Select Metafields">
+          <button
+            variant="primary"
+            onClick={() => {
+              addSelectedMetafieldsToSection(sectionIndex);
+              setOpenSelectIndex(null);
+            }}
+          >
+            Add Selected
+          </button>
+          <button
+            onClick={() => {
+              setOpenSelectIndex(null);
+              // Resetează selecțiile pentru această secțiune
+              const newSelected = { ...selectedMetafieldsForSection };
+              getAvailableMetafields(sectionIndex).forEach((mf) => {
+                delete newSelected[`${sectionIndex}_${mf.id}`];
+              });
+              setSelectedMetafieldsForSection(newSelected);
+            }}
+          >
+            Cancel
+          </button>
+        </TitleBar>
+      </Modal>
+    );
+  };
+
   // Debug pentru metafield-uri
 
   // Component pentru secțiune accordion
@@ -3827,134 +3971,20 @@ export default function TemplateEditorPage() {
                               
                               {/* Modal pentru selectarea metafield-urilor */}
                               {openSelectIndex === sectionIndex && getAvailableMetafields(sectionIndex).length > 0 && (
-                                <Modal
-                                  id={`metafield-selector-modal-${sectionIndex}`}
-                                  open={openSelectIndex === sectionIndex}
-                                  variant="large"
-                                  onClose={() => {
-                                    setOpenSelectIndex(null);
-                                    // Resetează selecțiile pentru această secțiune
-                                    const newSelected = { ...selectedMetafieldsForSection };
-                                    getAvailableMetafields(sectionIndex).forEach((mf) => {
-                                      delete newSelected[`${sectionIndex}_${mf.id}`];
-                                    });
-                                    setSelectedMetafieldsForSection(newSelected);
-                                  }}
-                                >
-                                  <div style={{ padding: "20px", height: "100%", maxHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                                    <div style={{ marginBottom: "16px", flexShrink: 0 }}>
-                                      <h2 style={{ margin: "0 0 12px 0", fontSize: "18px", fontWeight: "600" }}>
-                                        Select metafields ({getAvailableMetafields(sectionIndex).length} available)
-                                      </h2>
-                                      <s-text-field
-                                        label="Search metafields"
-                                        value={metafieldSearchTerm[sectionIndex] || ""}
-                                        onChange={(e) => {
-                                          // Pentru Polaris Web Components, folosim currentTarget.value
-                                          const value = e.currentTarget?.value ?? e.target?.value ?? "";
-                                          setMetafieldSearchTerm((prev) => ({
-                                            ...prev,
-                                            [sectionIndex]: value,
-                                          }));
-                                        }}
-                                        placeholder="Search by name, namespace, key..."
-                                        autoComplete="off"
-                                      />
-                                    </div>
-                                    <div
-                                      style={{ 
-                                        flex: "1 1 auto",
-                                        minHeight: 0,
-                                        overflowY: "auto",
-                                        overflowX: "hidden",
-                                        border: "1px solid #e1e3e5",
-                                        borderRadius: "4px",
-                                        padding: "12px",
-                                      }}
-                                    >
-                                      {(() => {
-                                        const filteredList = getFilteredMetafields(sectionIndex);
-                                        const searchValue = metafieldSearchTerm[sectionIndex] || "";
-                                        
-                                        if (filteredList.length === 0) {
-                                          return (
-                                            <div style={{ padding: "16px", textAlign: "center", color: "#6d7175" }}>
-                                              {searchValue 
-                                                ? "No metafields found that match the search"
-                                                : "No metafields available"}
-                                            </div>
-                                          );
-                                        }
-                                        
-                                        return (
-                                          <div 
-                                            key={`metafield-list-container-${sectionIndex}-${searchValue}`}
-                                            style={{ display: "flex", flexDirection: "column", gap: "8px" }}
-                                          >
-                                            {filteredList.map((mf) => {
-                                              const isSelected =
-                                                selectedMetafieldsForSection[
-                                                  `${sectionIndex}_${mf.id}`
-                                                ];
-                                              const metafieldLabel = `${mf.namespace}.${mf.key} (${mf.ownerType})${mf.name ? ` - ${mf.name}` : ""}`;
-                                              return (
-                                                <s-checkbox
-                                                  key={`${sectionIndex}-${mf.id}`}
-                                                  checked={isSelected || false}
-                                                  onChange={() =>
-                                                    toggleMetafieldSelection(
-                                                      sectionIndex,
-                                                      mf.id
-                                                    )
-                                                  }
-                                                  label={metafieldLabel}
-                                                />
-                                              );
-                                            })}
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-                                    <div style={{ marginTop: "16px", padding: "12px", backgroundColor: "#f6f6f7", borderRadius: "4px", fontSize: "13px", color: "#6d7175", flexShrink: 0 }}>
-                                      If you are not able to see a specific metafield already created in the store in this list, please{" "}
-                                      <a 
-                                        href="/app/sync" 
-                                        style={{ color: "#008060", textDecoration: "underline", cursor: "pointer" }}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          setOpenSelectIndex(null);
-                                          navigate("/app/sync");
-                                        }}
-                                      >
-                                        Sync metafields from this page → Data Sync
-                                      </a>
-                                    </div>
-                                  </div>
-                                  <TitleBar title="Select Metafields">
-                                    <button
-                                      variant="primary"
-                                      onClick={() => {
-                                        addSelectedMetafieldsToSection(sectionIndex);
-                                        setOpenSelectIndex(null);
-                                      }}
-                                    >
-                                      Add Selected
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setOpenSelectIndex(null);
-                                        // Resetează selecțiile pentru această secțiune
-                                        const newSelected = { ...selectedMetafieldsForSection };
-                                        getAvailableMetafields(sectionIndex).forEach((mf) => {
-                                          delete newSelected[`${sectionIndex}_${mf.id}`];
-                                        });
-                                        setSelectedMetafieldsForSection(newSelected);
-                                      }}
-                                    >
-                                      Cancel
-                                    </button>
-                                  </TitleBar>
-                                </Modal>
+                                <MetafieldSelectorModal
+                                  sectionIndex={sectionIndex}
+                                  openSelectIndex={openSelectIndex}
+                                  setOpenSelectIndex={setOpenSelectIndex}
+                                  metafieldSearchTerm={metafieldSearchTerm}
+                                  setMetafieldSearchTerm={setMetafieldSearchTerm}
+                                  getAvailableMetafields={getAvailableMetafields}
+                                  getFilteredMetafields={getFilteredMetafields}
+                                  selectedMetafieldsForSection={selectedMetafieldsForSection}
+                                  toggleMetafieldSelection={toggleMetafieldSelection}
+                                  addSelectedMetafieldsToSection={addSelectedMetafieldsToSection}
+                                  setSelectedMetafieldsForSection={setSelectedMetafieldsForSection}
+                                  navigate={navigate}
+                                />
                               )}
                               </div>
                               
