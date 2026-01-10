@@ -25,12 +25,25 @@ export const loader = async ({ request }) => {
     select: { id: true },
   });
 
+  // Verifică subscription-ul activ din Shopify Billing API (prioritar)
+  let hasActiveSubscription = false;
+  try {
+    const currentSubscription = await getCurrentSubscription(admin);
+    if (currentSubscription && currentSubscription.status === "ACTIVE") {
+      hasActiveSubscription = true;
+    }
+  } catch (error) {
+    console.warn("[app._index] Could not fetch current subscription:", error.message);
+  }
+
+  // Verifică și în DB pentru backward compatibility
   const planRows = await prisma.$queryRaw`
     SELECT "planKey" FROM "ShopPlan" WHERE "shopId" = ${shop.id} LIMIT 1
   `;
-  const hasPlan = Array.isArray(planRows) && planRows.length > 0;
+  const hasPlanInDB = Array.isArray(planRows) && planRows.length > 0;
 
-  if (!hasPlan) {
+  // Dacă nu există nici subscription activ, nici plan în DB, redirect la plans
+  if (!hasActiveSubscription && !hasPlanInDB) {
     const url = new URL(request.url);
     throw new Response("", {
       status: 302,
@@ -297,9 +310,12 @@ export default function Index() {
       shopify.toast.show("Progress updated successfully!");
       
       // Revalidăm datele doar o dată, folosind setTimeout pentru a preveni loop-uri
-      setTimeout(() => {
+      const revalidateTimeout = setTimeout(() => {
         revalidator.revalidate();
       }, 100);
+      
+      // Cleanup pentru timeout
+      return () => clearTimeout(revalidateTimeout);
     }
     
     // Resetează ref-ul când fetcher.state devine "idle" și nu mai există date
@@ -508,8 +524,7 @@ export default function Index() {
             height: 0, 
             overflow: "hidden",
             maxWidth: "100%",
-            borderRadius: "8px",
-            overflow: "hidden"
+            borderRadius: "8px"
           }}>
             <iframe
               style={{
@@ -697,7 +712,7 @@ export default function Index() {
             {/* Header */}
             <s-grid gap="small-200">
               <s-grid
-                gridTemplateColumns="1fr auto auto"
+                gridTemplateColumns="1fr auto"
                 gap="small-300"
                 alignItems="center"
               >
@@ -709,128 +724,157 @@ export default function Index() {
                   tone="neutral"
                   icon="x"
                 ></s-button>
+              </s-grid>
+              <s-paragraph>
+                Learn about metafields and how to use them effectively in your store.
+              </s-paragraph>
+            </s-grid>
+            {/* Content Container cu fog effect */}
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  borderRadius: "8px",
+                  border: "1px solid var(--p-border-base)",
+                  background: "var(--p-background-base)",
+                  maxHeight: expanded.niceToKnow ? "5000px" : "280px",
+                  overflow: "hidden",
+                  position: "relative",
+                  transition: "max-height 0.4s ease-out"
+                }}
+              >
+                <s-box padding="base">
+                  <s-stack direction="block" gap="base">
+                    <s-heading size="medium">Understanding Metafields</s-heading>
+                    
+                    <s-paragraph>
+                      <s-text emphasis="strong">What are Metafields?</s-text>
+                      <br />
+                      Metafields are custom fields that allow you to store additional information about your products, variants, collections, and other Shopify resources. They extend the default data structure and enable you to add specialized data that's specific to your business needs.
+                    </s-paragraph>
+
+                    <s-paragraph>
+                      <s-text emphasis="strong">Types of Metafields:</s-text>
+                      <br />
+                      Metafields support various data types including:
+                    </s-paragraph>
+                    
+                    <s-unordered-list>
+                      <s-list-item>
+                        <s-text emphasis="strong">Single line text:</s-text> Short text values (e.g., brand name, model number)
+                      </s-list-item>
+                      <s-list-item>
+                        <s-text emphasis="strong">Multi-line text:</s-text> Longer text content (e.g., detailed descriptions, notes)
+                      </s-list-item>
+                      <s-list-item>
+                        <s-text emphasis="strong">Number (integer/decimal):</s-text> Numeric values (e.g., weight, dimensions, ratings)
+                      </s-list-item>
+                      <s-list-item>
+                        <s-text emphasis="strong">Date:</s-text> Date and time values (e.g., release date, warranty expiration)
+                      </s-list-item>
+                      <s-list-item>
+                        <s-text emphasis="strong">URL:</s-text> Web links (e.g., product manuals, video tutorials)
+                      </s-list-item>
+                      <s-list-item>
+                        <s-text emphasis="strong">JSON:</s-text> Structured data (e.g., complex specifications, configurations)
+                      </s-list-item>
+                      <s-list-item>
+                        <s-text emphasis="strong">File reference:</s-text> Images, PDFs, and other files
+                      </s-list-item>
+                      <s-list-item>
+                        <s-text emphasis="strong">List:</s-text> Multiple values of the same type (e.g., color options, features)
+                      </s-list-item>
+                    </s-unordered-list>
+
+                    <s-paragraph>
+                      <s-text emphasis="strong">What are Metafields used for?</s-text>
+                      <br />
+                      Metafields are essential for creating rich product experiences. They enable you to:
+                    </s-paragraph>
+
+                    <s-unordered-list>
+                      <s-list-item>Display detailed product specifications and technical data</s-list-item>
+                      <s-list-item>Add custom attributes that aren't available in standard Shopify fields</s-list-item>
+                      <s-list-item>Organize and structure product information for better presentation</s-list-item>
+                      <s-list-item>Create dynamic content that adapts to your product catalog</s-list-item>
+                      <s-list-item>Enhance SEO with structured data and additional metadata</s-list-item>
+                    </s-unordered-list>
+
+                    <s-paragraph>
+                      <s-text emphasis="strong">Product vs Variant Metafields:</s-text>
+                      <br />
+                      You can create metafields at both the product level and variant level. Product metafields apply to the entire product, while variant metafields are specific to individual product variants (e.g., different sizes, colors, or configurations). This allows you to have both shared and unique specifications for different product options.
+                    </s-paragraph>
+
+                    <s-divider />
+
+                    <s-heading size="medium">Tutorial Video</s-heading>
+                    <s-paragraph>
+                      Watch this video tutorial to learn how to create and manage metafields in your Shopify store:
+                    </s-paragraph>
+                    
+                    <div style={{ 
+                      position: "relative", 
+                      paddingBottom: "56.25%", 
+                      height: 0, 
+                      overflow: "hidden",
+                      maxWidth: "100%",
+                      borderRadius: "8px"
+                    }}>
+                      <iframe
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: "100%",
+                          border: "none",
+                          borderRadius: "8px"
+                        }}
+                        src="https://www.youtube.com/embed/GUGCpeMiSlE"
+                        title="Metafields Tutorial"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  </s-stack>
+                </s-box>
+              </div>
+              
+              {/* Fog effect overlay când este colapsată */}
+              {!expanded.niceToKnow && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: "120px",
+                    background: "linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 1) 100%)",
+                    pointerEvents: "none",
+                    borderRadius: "0 0 8px 8px"
+                  }}
+                />
+              )}
+              
+              {/* Buton Show More/Less */}
+              <div style={{ 
+                marginTop: "1rem", 
+                display: "flex", 
+                justifyContent: "center" 
+              }}>
                 <s-button
-                  accessibilityLabel="Toggle nice to know section"
+                  variant="secondary"
                   onClick={() =>
                     setExpanded({
                       ...expanded,
                       niceToKnow: !expanded.niceToKnow,
                     })
                   }
-                  variant="tertiary"
-                  tone="neutral"
-                  icon={expanded.niceToKnow ? "chevron-up" : "chevron-down"}
-                ></s-button>
-              </s-grid>
-              <s-paragraph>
-                Learn about metafields and how to use them effectively in your store.
-              </s-paragraph>
-            </s-grid>
-            {/* Content Container */}
-            <s-box
-              borderRadius="base"
-              border="base"
-              background="base"
-              display={expanded.niceToKnow ? "auto" : "none"}
-            >
-              <s-box padding="base">
-                <s-stack direction="block" gap="base">
-                  <s-heading size="medium">Understanding Metafields</s-heading>
-                  
-                  <s-paragraph>
-                    <s-text emphasis="strong">What are Metafields?</s-text>
-                    <br />
-                    Metafields are custom fields that allow you to store additional information about your products, variants, collections, and other Shopify resources. They extend the default data structure and enable you to add specialized data that's specific to your business needs.
-                  </s-paragraph>
-
-                  <s-paragraph>
-                    <s-text emphasis="strong">Types of Metafields:</s-text>
-                    <br />
-                    Metafields support various data types including:
-                  </s-paragraph>
-                  
-                  <s-unordered-list>
-                    <s-list-item>
-                      <s-text emphasis="strong">Single line text:</s-text> Short text values (e.g., brand name, model number)
-                    </s-list-item>
-                    <s-list-item>
-                      <s-text emphasis="strong">Multi-line text:</s-text> Longer text content (e.g., detailed descriptions, notes)
-                    </s-list-item>
-                    <s-list-item>
-                      <s-text emphasis="strong">Number (integer/decimal):</s-text> Numeric values (e.g., weight, dimensions, ratings)
-                    </s-list-item>
-                    <s-list-item>
-                      <s-text emphasis="strong">Date:</s-text> Date and time values (e.g., release date, warranty expiration)
-                    </s-list-item>
-                    <s-list-item>
-                      <s-text emphasis="strong">URL:</s-text> Web links (e.g., product manuals, video tutorials)
-                    </s-list-item>
-                    <s-list-item>
-                      <s-text emphasis="strong">JSON:</s-text> Structured data (e.g., complex specifications, configurations)
-                    </s-list-item>
-                    <s-list-item>
-                      <s-text emphasis="strong">File reference:</s-text> Images, PDFs, and other files
-                    </s-list-item>
-                    <s-list-item>
-                      <s-text emphasis="strong">List:</s-text> Multiple values of the same type (e.g., color options, features)
-                    </s-list-item>
-                  </s-unordered-list>
-
-                  <s-paragraph>
-                    <s-text emphasis="strong">What are Metafields used for?</s-text>
-                    <br />
-                    Metafields are essential for creating rich product experiences. They enable you to:
-                  </s-paragraph>
-
-                  <s-unordered-list>
-                    <s-list-item>Display detailed product specifications and technical data</s-list-item>
-                    <s-list-item>Add custom attributes that aren't available in standard Shopify fields</s-list-item>
-                    <s-list-item>Organize and structure product information for better presentation</s-list-item>
-                    <s-list-item>Create dynamic content that adapts to your product catalog</s-list-item>
-                    <s-list-item>Enhance SEO with structured data and additional metadata</s-list-item>
-                  </s-unordered-list>
-
-                  <s-paragraph>
-                    <s-text emphasis="strong">Product vs Variant Metafields:</s-text>
-                    <br />
-                    You can create metafields at both the product level and variant level. Product metafields apply to the entire product, while variant metafields are specific to individual product variants (e.g., different sizes, colors, or configurations). This allows you to have both shared and unique specifications for different product options.
-                  </s-paragraph>
-
-                  <s-divider />
-
-                  <s-heading size="medium">Tutorial Video</s-heading>
-                  <s-paragraph>
-                    Watch this video tutorial to learn how to create and manage metafields in your Shopify store:
-                  </s-paragraph>
-                  
-                  <div style={{ 
-                    position: "relative", 
-                    paddingBottom: "56.25%", 
-                    height: 0, 
-                    overflow: "hidden",
-                    maxWidth: "100%",
-                    borderRadius: "8px",
-                    overflow: "hidden"
-                  }}>
-                    <iframe
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        height: "100%",
-                        border: "none",
-                        borderRadius: "8px"
-                      }}
-                      src="https://www.youtube.com/embed/GUGCpeMiSlE"
-                      title="Metafields Tutorial"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                </s-stack>
-              </s-box>
-            </s-box>
+                >
+                  {expanded.niceToKnow ? "Show Less" : "Show More"}
+                </s-button>
+              </div>
+            </div>
           </s-grid>
         </s-section>
       )}
@@ -1168,8 +1212,8 @@ export default function Index() {
                     <s-text emphasis="strong">Email Support</s-text>
                     <s-paragraph tone="subdued">
                       Send us an email at{" "}
-                      <s-link href="mailto:email@yahoo.com" external>
-                        email@yahoo.com
+                      <s-link href="mailto:ghnautomation@gmail.com" external>
+                        ghnautomation@gmail.com
                       </s-link>
                       {" "}and we'll get back to you as soon as possible.
                     </s-paragraph>

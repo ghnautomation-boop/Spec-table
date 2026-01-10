@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "Smart Specs"
-application_url = "https://liquid-titles-routes-frontpage.trycloudflare.com"
+application_url = "https://alter-chief-beings-fisher.trycloudflare.com"
 embedded = true
 
 [build]
@@ -50,9 +50,9 @@ scopes = "read_products,write_products,read_collection_listings,read_themes,read
 
 [auth]
 redirect_urls = [
-  "https://liquid-titles-routes-frontpage.trycloudflare.com/auth/callback",
-  "https://liquid-titles-routes-frontpage.trycloudflare.com/auth/shopify/callback",
-  "https://liquid-titles-routes-frontpage.trycloudflare.com/api/auth/callback"
+  "https://alter-chief-beings-fisher.trycloudflare.com/auth/callback",
+  "https://alter-chief-beings-fisher.trycloudflare.com/auth/shopify/callback",
+  "https://alter-chief-beings-fisher.trycloudflare.com/api/auth/callback"
 ]
 
 

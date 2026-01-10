@@ -271,25 +271,24 @@
 {% endif %}
 
 {% comment %} Container pentru template {% endcomment %}
-{% assign max_width = block.settings.max_width | default: 1200 %}
-{% assign alignment = block.settings.alignment | default: 'left' %}
-{% assign margin_top = block.settings.margin_top | default: 0 %}
-{% assign margin_left = block.settings.margin_left | default: 0 %}
 {% comment %} first_column_width a fost mutat în Column Ratio din admin UI {% endcomment %}
 {% assign first_column_width = 40 %}
 {% assign image_height = block.settings.image_height | default: 100 %}
+{% assign max_width = block.settings.max_width | default: 0 %}
+{% assign alignment = block.settings.alignment | default: 'left' %}
+{% assign margin_top = block.settings.margin_top | default: 0 %}
+{% assign margin_left = block.settings.margin_left | default: 0 %}
 
 <div id="specification-table-container-{{ block.id }}" 
      data-product-id="{{ product_id }}" 
      {% if collection_id != blank %}data-collection-id="{{ collection_id }}"{% endif %}
      data-shop="{{ shop_domain }}"
+     data-first-column-width="{{ first_column_width }}"
+     data-image-height="{{ image_height }}"
      data-max-width="{{ max_width }}"
      data-alignment="{{ alignment }}"
      data-margin-top="{{ margin_top }}"
-     data-margin-left="{{ margin_left }}"
-     data-first-column-width="{{ first_column_width }}"
-     data-image-height="{{ image_height }}"
-     style="max-width: {{ max_width }}px; margin-top: {{ margin_top }}px; {% if alignment == 'center' %}margin-left: auto; margin-right: auto;{% elsif alignment == 'right' %}margin-left: auto; margin-right: {{ margin_left }}px;{% else %}margin-left: {{ margin_left }}px;{% endif %}">
+     data-margin-left="{{ margin_left }}">
   <div class="spec-loading" style="text-align: center; padding: 20px;">
     Loading specifications...
   </div>
@@ -962,21 +961,21 @@
   "name": "SmartSpecs Table",
   "target": "section",
   "settings": [
-
     {
       "type": "range",
       "id": "max_width",
       "label": "Max Width",
-      "min": 100,
+      "min": 0,
       "max": 2000,
       "step": 100,
       "unit": "px",
-      "default": 1200
+      "default": 0,
+      "info": "0 = no limit (uses template width). Set a value to override template max-width."
     },
     {
       "type": "select",
       "id": "alignment",
-      "label": "Align",
+      "label": "Table Alignment",
       "options": [
         {
           "value": "left",
@@ -991,7 +990,8 @@
           "label": "Right"
         }
       ],
-      "default": "left"
+      "default": "left",
+      "info": "Aligns the table container. Can be overridden by template alignment setting."
     },
     {
       "type": "range",
@@ -1001,7 +1001,8 @@
       "max": 200,
       "step": 10,
       "unit": "px",
-      "default": 0
+      "default": 0,
+      "info": "Additional top margin. Adds to template margin-top setting."
     },
     {
       "type": "range",
@@ -1011,7 +1012,8 @@
       "max": 200,
       "step": 10,
       "unit": "px",
-      "default": 0
+      "default": 0,
+      "info": "Additional left margin. Adds to template margin-left setting."
     },
     {
       "type": "range",

@@ -863,9 +863,12 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
           // Resetează starea inițială și reîncarcă datele
           handleReset();
           // Reîncarcă datele fără să navigăm (suntem deja pe pagina corectă)
-          setTimeout(() => {
+          const revalidateTimeout = setTimeout(() => {
             revalidator.revalidate();
           }, 500);
+          
+          // Cleanup pentru timeout
+          return () => clearTimeout(revalidateTimeout);
         } else {
           // Marchează că am procesat acest răspuns (chiar dacă e eroare)
           processedAssignmentRef.current = responseId;
@@ -1127,12 +1130,16 @@ export default function TemplatesPage() {
     });
 
     // Încearcă imediat să atașeze listener-ul
-    setTimeout(attachListenerToClonedButton, 100);
-    setTimeout(attachListenerToClonedButton, 500);
-    setTimeout(attachListenerToClonedButton, 1000);
+    const timeout1 = setTimeout(attachListenerToClonedButton, 100);
+    const timeout2 = setTimeout(attachListenerToClonedButton, 500);
+    const timeout3 = setTimeout(attachListenerToClonedButton, 1000);
 
     return () => {
       observer.disconnect();
+      // Cleanup pentru toate timeout-urile
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
     };
   }, [isMounted, navigate]);
 
@@ -1175,18 +1182,27 @@ export default function TemplatesPage() {
         // Folosim navigate() pentru navigare SPA (fără reload complet) pentru a păstra contextul App Bridge
         // Verifică dacă suntem deja pe pagina corectă pentru a preveni loop-uri
         const currentPath = window.location.pathname;
+        let navigationTimeout = null;
+        
         if (currentPath === location.pathname) {
           // Suntem deja pe pagina corectă, doar revalidăm datele
-          setTimeout(() => {
+          navigationTimeout = setTimeout(() => {
             revalidator.revalidate();
           }, 500);
         } else {
           // Navigăm la pagina corectă
-          setTimeout(() => {
+          navigationTimeout = setTimeout(() => {
             navigate(location.pathname, { replace: true });
             revalidator.revalidate();
           }, 500);
         }
+        
+        // Cleanup pentru timeout
+        return () => {
+          if (navigationTimeout) {
+            clearTimeout(navigationTimeout);
+          }
+        };
       }
     }
     

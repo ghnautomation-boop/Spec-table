@@ -1,0 +1,243 @@
+# Quality Improvements - Ghid de Utilizare
+
+## 1. Sistem de Logging
+
+### Înlocuire console.log
+
+**Înainte:**
+```javascript
+console.log("[app.templates] Loader called");
+console.warn("[app.templates] Could not fetch plan");
+console.error("[app.templates] Error:", error);
+```
+
+**După:**
+```javascript
+import { logInfo, logWarn, logError, logDebug, logPerformance } from "~/utils/logger.server.js";
+
+logInfo("Loader called", { shop: session.shop });
+logWarn("Could not fetch plan", { shop: session.shop, error: error.message });
+logError("Error in loader", error, { shop: session.shop });
+logDebug("Template data", { templateId, templateName });
+logPerformance("Template query", queryTime, { templateId });
+```
+
+### Configurare
+
+Adaugă în `.env`:
+```env
+LOG_LEVEL=INFO  # ERROR, WARN, INFO, DEBUG
+```
+
+În production, setăm `LOG_LEVEL=WARN` pentru a afișa doar warnings și errors.
+
+---
+
+## 2. Error Handling Standardizat
+
+### Înainte:
+```javascript
+export const action = async ({ request }) => {
+  try {
+    const formData = await request.formData();
+    const name = formData.get("name");
+    
+    if (!name) {
+      return { success: false, error: "Name is required" };
+    }
+    
+    // ... logic
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+```
+
+### După:
+```javascript
+import { 
+  handleError, 
+  validateRequired, 
+  ValidationError,
+  NotFoundError 
+} from "~/utils/error-handler.server.js";
+
+export const action = async ({ request }) => {
+  try {
+    const formData = await request.formData();
+    const name = formData.get("name");
+    
+    // Validare automată
+    validateRequired({ name }, ['name']);
+    
+    // ... logic
+    
+    return { success: true };
+  } catch (error) {
+    return handleError(error, request);
+  }
+};
+```
+
+### Tipuri de erori:
+```javascript
+// Validation error (400)
+throw new ValidationError("Template name cannot be empty", "name");
+
+// Not found error (404)
+throw new NotFoundError("Template", { templateId });
+
+// Unauthorized (401)
+throw new UnauthorizedError("You must be logged in");
+
+// Forbidden (403)
+throw new ForbiddenError("You don't have permission");
+```
+
+---
+
+## 3. Timers cu Cleanup Automat
+
+### Înainte (problema memory leak):
+```javascript
+useEffect(() => {
+  setTimeout(() => {
+    revalidator.revalidate();
+  }, 500);
+  // ❌ Nu se face cleanup!
+}, []);
+```
+
+### După (cu cleanup automat):
+```javascript
+import { useTimeout, useInterval } from "~/utils/timers.js";
+
+// Timeout simplu
+useTimeout(() => {
+  revalidator.revalidate();
+}, 500);
+
+// Interval simplu
+useInterval(() => {
+  checkStatus();
+}, 1000);
+
+// Multiple timers
+useTimers([
+  { type: 'timeout', callback: () => doSomething(), delay: 1000 },
+  { type: 'interval', callback: () => checkStatus(), delay: 5000 },
+]);
+```
+
+### Server-side (pentru workers):
+```javascript
+import { createServerTimeout, createServerInterval } from "~/utils/timers.js";
+
+// În worker
+const cleanup = createServerInterval(() => {
+  runReconciliation();
+}, 300000); // 5 minute
+
+// Când vrei să oprești
+process.on('SIGTERM', () => {
+  cleanup();
+});
+```
+
+---
+
+## 4. Migrare Graduală
+
+### Prioritate 1: Error Handling
+1. Începe cu `error-handler.server.js` în action handlers
+2. Înlocuiește manual error handling cu `handleError()`
+3. Adaugă validări cu `validateRequired()`
+
+### Prioritate 2: Logging
+1. Înlocuiește `console.log` cu `logInfo` în loaders
+2. Înlocuiește `console.warn` cu `logWarn`
+3. Înlocuiește `console.error` cu `logError`
+4. Adaugă `logPerformance` pentru query-uri lente
+
+### Prioritate 3: Timers
+1. Identifică toate `setTimeout`/`setInterval` în componente React
+2. Înlocuiește cu `useTimeout`/`useInterval`
+3. Verifică workers pentru cleanup manual
+
+---
+
+## 5. Exemple Complete
+
+### Loader cu logging și error handling:
+```javascript
+import { logInfo, logError, logPerformance } from "~/utils/logger.server.js";
+import { handleError, NotFoundError } from "~/utils/error-handler.server.js";
+
+export const loader = async ({ request, params }) => {
+  const perfStart = performance.now();
+  
+  try {
+    const { admin, session } = await authenticate.admin(request);
+    const { id } = params;
+    
+    logInfo("Template loader called", { templateId: id, shop: session.shop });
+    
+    const queryStart = performance.now();
+    const template = await getTemplate(id, session.shop);
+    logPerformance("Template query", performance.now() - queryStart, { templateId: id });
+    
+    if (!template) {
+      throw new NotFoundError("Template", { templateId: id });
+    }
+    
+    return { template };
+  } catch (error) {
+    logError("Error in template loader", error, { templateId: params.id });
+    throw handleError(error, request);
+  }
+};
+```
+
+### Component cu timers:
+```javascript
+import { useTimeout, useInterval } from "~/utils/timers.js";
+
+export default function MyComponent() {
+  const revalidator = useRevalidator();
+  
+  // Timeout cu cleanup automat
+  useTimeout(() => {
+    revalidator.revalidate();
+  }, 500);
+  
+  // Interval cu cleanup automat
+  useInterval(() => {
+    checkStatus();
+  }, 1000);
+  
+  return <div>...</div>;
+}
+```
+
+---
+
+## 6. Checklist Migrare
+
+- [ ] Instalează utilitățile (deja create)
+- [ ] Configurează `LOG_LEVEL` în `.env`
+- [ ] Migrează error handling în action handlers
+- [ ] Migrează logging în loaders
+- [ ] Migrează timers în componente React
+- [ ] Testează că totul funcționează
+- [ ] Elimină console.log-urile vechi
+
+---
+
+## 7. Beneficii
+
+✅ **Logging structurat**: Log-uri consistente, ușor de căutat  
+✅ **Error handling standardizat**: Mesaje clare pentru utilizatori  
+✅ **Fără memory leaks**: Timers se curăță automat  
+✅ **Mai ușor de debugat**: Context în toate log-urile  
+✅ **Production-ready**: Log-uri doar când e necesar
+

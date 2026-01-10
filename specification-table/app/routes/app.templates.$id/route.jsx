@@ -347,6 +347,7 @@ export const action = async ({ request, params }) => {
     tableWidth: formData.get("tableWidth") || "100",
     tableMarginTop: formData.get("tableMarginTop") || "0",
     tableMarginBottom: formData.get("tableMarginBottom") || "0",
+    tableAlignment: formData.get("tableAlignment") || "left",
     headerTextAlign: formData.get("headerTextAlign") || "left",
     headerBottomBorderEnabled: formData.get("headerBottomBorderEnabled") === "true",
     headerBottomBorderColor: formData.get("headerBottomBorderColor") || "#000000",
@@ -608,6 +609,7 @@ function migrateStylingToDeviceSpecific(oldStyling) {
     tableWidth: "100",
     tableMarginTop: "0",
     tableMarginBottom: "0",
+    tableAlignment: "left",
     headerTextAlign: "left",
     headerBottomBorderEnabled: false,
     headerBottomBorderColor: "#000000",
@@ -643,6 +645,7 @@ function migrateStylingToDeviceSpecific(oldStyling) {
   if (!migratedStyling.tableWidth) migratedStyling.tableWidth = "100";
   if (!migratedStyling.tableMarginTop) migratedStyling.tableMarginTop = "0";
   if (!migratedStyling.tableMarginBottom) migratedStyling.tableMarginBottom = "0";
+  if (!migratedStyling.tableAlignment) migratedStyling.tableAlignment = "left";
   if (!migratedStyling.headerTextAlign) migratedStyling.headerTextAlign = "left";
   if (migratedStyling.headerBottomBorderEnabled === undefined) migratedStyling.headerBottomBorderEnabled = false;
   if (!migratedStyling.headerBottomBorderColor) migratedStyling.headerBottomBorderColor = "#000000";
@@ -1815,14 +1818,14 @@ export default function TemplateEditorPage() {
         <div
           onClick={() => setIsOpen(!isOpen)}
           style={{
-            color: styling.headingColor,
-            fontSize: styling.headingFontSize,
-            fontWeight: styling.headingFontWeight,
-            fontFamily: styling.headingFontFamily,
+            color: currentStyling.headingColor,
+            fontSize: currentStyling.headingFontSize,
+            fontWeight: currentStyling.headingFontWeight,
+            fontFamily: currentStyling.headingFontFamily,
             cursor: "pointer",
             padding: "10px",
-            backgroundColor: styling.backgroundColor,
-            borderBottom: `1px solid ${styling.specificationTextColor || styling.valueTextColor || "#000000"}`,
+            backgroundColor: currentStyling.backgroundColor,
+            borderBottom: `1px solid ${currentStyling.specificationTextColor || currentStyling.valueTextColor || "#000000"}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1927,31 +1930,33 @@ export default function TemplateEditorPage() {
       });
     }
     
+    const currentStyling = getCurrentDeviceStyling();
+    
     const containerStyle = {
-      backgroundColor: styling.backgroundColor,
-      color: styling.specificationTextColor || styling.valueTextColor || "#000000", // Fallback pentru backward compatibility
-      borderWidth: styling.borderWidth,
-      borderColor: styling.sectionBorderEnabled ? styling.sectionBorderColor : "transparent",
-      borderStyle: styling.sectionBorderEnabled ? styling.sectionBorderStyle : "none",
-      borderRadius: styling.borderRadius,
-      padding: styling.padding,
-      fontFamily: styling.textFontFamily,
-      fontSize: styling.textFontSize,
+      backgroundColor: currentStyling.backgroundColor,
+      color: currentStyling.specificationTextColor || currentStyling.valueTextColor || "#000000", // Fallback pentru backward compatibility
+      borderWidth: currentStyling.borderWidth,
+      borderColor: currentStyling.sectionBorderEnabled ? currentStyling.sectionBorderColor : "transparent",
+      borderStyle: currentStyling.sectionBorderEnabled ? currentStyling.sectionBorderStyle : "none",
+      borderRadius: currentStyling.borderRadius,
+      padding: currentStyling.padding,
+      fontFamily: currentStyling.textFontFamily,
+      fontSize: currentStyling.textFontSize,
       // New styling features
-      width: (styling.tableWidth || '100') + '%',
-      marginTop: (styling.tableMarginTop || '0') + 'px',
-      marginBottom: (styling.tableMarginBottom || '0') + 'px',
+      width: (currentStyling.tableWidth || '100') + '%',
+      marginTop: (currentStyling.tableMarginTop || '0') + 'px',
+      marginBottom: (currentStyling.tableMarginBottom || '0') + 'px',
     };
 
     const headingStyle = {
-      color: styling.headingColor,
-      fontSize: styling.headingFontSize,
-      fontWeight: styling.headingFontWeight,
-      fontFamily: styling.headingFontFamily,
+      color: currentStyling.headingColor,
+      fontSize: currentStyling.headingFontSize,
+      fontWeight: currentStyling.headingFontWeight,
+      fontFamily: currentStyling.headingFontFamily,
       // New styling features
-      textAlign: styling.headerTextAlign || 'left',
-      ...(styling.headerBottomBorderEnabled ? {
-        borderBottom: (styling.headerBottomBorderWidth || '1px') + ' ' + (styling.headerBottomBorderStyle || 'solid') + ' ' + (styling.headerBottomBorderColor || '#000000'),
+      textAlign: currentStyling.headerTextAlign || 'left',
+      ...(currentStyling.headerBottomBorderEnabled ? {
+        borderBottom: (currentStyling.headerBottomBorderWidth || '1px') + ' ' + (currentStyling.headerBottomBorderStyle || 'solid') + ' ' + (currentStyling.headerBottomBorderColor || '#000000'),
       } : {}),
     };
 
@@ -2056,13 +2061,13 @@ export default function TemplateEditorPage() {
           <td
             style={{
               padding: "8px",
-              color: styling.valueTextColor || "#000000",
-              fontFamily: styling.textFontFamily,
-              fontSize: styling.textFontSize,
+              color: currentStyling.valueTextColor || "#000000",
+              fontFamily: currentStyling.textFontFamily,
+              fontSize: currentStyling.textFontSize,
               backgroundColor: valueBackground,
-              textTransform: styling.textTransform,
-              paddingTop: (styling.specSpacing || '10') + 'px',
-              paddingBottom: (styling.specSpacing || '10') + 'px',
+              textTransform: currentStyling.textTransform,
+              paddingTop: (currentStyling.specSpacing || '10') + 'px',
+              paddingBottom: (currentStyling.specSpacing || '10') + 'px',
             }}
           >
             {isProductSpec ? (
@@ -2362,7 +2367,7 @@ export default function TemplateEditorPage() {
                         e.currentTarget.style.backgroundColor = "#f6f6f7";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = styling.backgroundColor || "#ffffff";
+                        e.currentTarget.style.backgroundColor = currentStyling.backgroundColor || "#ffffff";
                       }}
                     >
                       <span>{sectionData.heading}</span>
@@ -2873,6 +2878,7 @@ export default function TemplateEditorPage() {
             <input type="hidden" name="tableWidth" value={styling.tableWidth || "100"} />
             <input type="hidden" name="tableMarginTop" value={styling.tableMarginTop || "0"} />
             <input type="hidden" name="tableMarginBottom" value={styling.tableMarginBottom || "0"} />
+            <input type="hidden" name="tableAlignment" value={styling.tableAlignment || "left"} />
             <input type="hidden" name="headerTextAlign" value={styling.headerTextAlign || "left"} />
             <input type="hidden" name="headerBottomBorderEnabled" value={styling.headerBottomBorderEnabled ? "true" : "false"} />
             <input type="hidden" name="headerBottomBorderColor" value={styling.headerBottomBorderColor || "#000000"} />
@@ -3943,6 +3949,7 @@ export default function TemplateEditorPage() {
                                 )}
                               </div>
                             </div>
+                            <p><span style={{ fontWeight: "bold",color:"red" }}>! </span>If any other custom specification wants to be added please contact us via Chat or Email.</p>
                         </s-stack>
                       </s-stack>
                     );
@@ -4630,6 +4637,36 @@ export default function TemplateEditorPage() {
                     />
                   </div>
                   
+                  {/* Table Alignment */}
+                  <s-stack direction="block" gap="tight">
+                    <s-text style={{ fontSize: "14px", fontWeight: "500", color: "#202223" }}>Table Alignment</s-text>
+                    <s-stack direction="inline" gap="base">
+                      <s-button
+                        variant={getCurrentDeviceStyling().tableAlignment === "left" ? "primary" : "secondary"}
+                        onClick={() => updateCurrentDeviceStyling({ tableAlignment: "left" })}
+                      >
+                        Left
+                      </s-button>
+                      <s-button
+                        variant={getCurrentDeviceStyling().tableAlignment === "center" ? "primary" : "secondary"}
+                        onClick={() => updateCurrentDeviceStyling({ tableAlignment: "center" })}
+                      >
+                        Center
+                      </s-button>
+                      <s-button
+                        variant={getCurrentDeviceStyling().tableAlignment === "right" ? "primary" : "secondary"}
+                        onClick={() => updateCurrentDeviceStyling({ tableAlignment: "right" })}
+                      >
+                        Right
+                      </s-button>
+                    </s-stack>
+                    <input
+                      type="hidden"
+                      name={`tableAlignment_${selectedDevice}`}
+                      value={getCurrentDeviceStyling().tableAlignment || "left"}
+                    />
+                  </s-stack>
+                  
                   {/* Section Border */}
                   <s-stack direction="block" gap="tight">
                     <s-switch
@@ -4804,29 +4841,24 @@ export default function TemplateEditorPage() {
               <s-text style={{ fontSize: "14px", fontWeight: "500", color: "#202223" }}>Text Align</s-text>
               <s-stack direction="inline" gap="base">
                 <s-button
-                  variant={styling.headerTextAlign === "left" ? "primary" : "secondary"}
-                  onClick={() => setStyling((prev) => ({ ...prev, headerTextAlign: "left" }))}
+                  variant={getCurrentDeviceStyling().headerTextAlign === "left" ? "primary" : "secondary"}
+                  onClick={() => updateCurrentDeviceStyling({ headerTextAlign: "left" })}
                 >
                   Left
                 </s-button>
                 <s-button
-                  variant={styling.headerTextAlign === "center" ? "primary" : "secondary"}
-                  onClick={() => setStyling((prev) => ({ ...prev, headerTextAlign: "center" }))}
+                  variant={getCurrentDeviceStyling().headerTextAlign === "center" ? "primary" : "secondary"}
+                  onClick={() => updateCurrentDeviceStyling({ headerTextAlign: "center" })}
                 >
                   Center
                 </s-button>
                 <s-button
-                  variant={styling.headerTextAlign === "right" ? "primary" : "secondary"}
-                  onClick={() => setStyling((prev) => ({ ...prev, headerTextAlign: "right" }))}
+                  variant={getCurrentDeviceStyling().headerTextAlign === "right" ? "primary" : "secondary"}
+                  onClick={() => updateCurrentDeviceStyling({ headerTextAlign: "right" })}
                 >
                   Right
                 </s-button>
               </s-stack>
-              <input
-                type="hidden"
-                name="headerTextAlign"
-                value={styling.headerTextAlign || "left"}
-              />
             </s-stack>
             
             {/* New: Header Bottom Border */}

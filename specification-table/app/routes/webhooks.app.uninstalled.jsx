@@ -1,3 +1,4 @@
+import "@shopify/shopify-api/adapters/node";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import prisma from "../db.server";
@@ -24,7 +25,17 @@ export const action = async ({ request }) => {
       try {
         // Creează manual un admin client folosind session-ul din DB
         // Folosim aceeași metodă ca în worker
-        const { shopifyApi } = await import("@shopify/shopify-api");
+        const { shopifyApi, ApiVersion } = await import("@shopify/shopify-api");
+        
+        // Inițializează shopifyApi similar cu worker-ul
+        const shopify = shopifyApi({
+          apiKey: process.env.SHOPIFY_API_KEY,
+          apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+          apiVersion: ApiVersion.October25,
+          scopes: process.env.SCOPES?.split(",") || [],
+          hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, "") || "",
+          isEmbeddedApp: true,
+        });
         
         // Creează session object pentru admin client (format simplificat)
         const sessionForAdmin = {
@@ -32,9 +43,25 @@ export const action = async ({ request }) => {
           accessToken: dbSession.accessToken,
         };
         
-        // Creează admin client folosind shopify API
-        const client = new shopifyApi.clients.Graphql({ session: sessionForAdmin });
-        admin = client;
+        // Verifică dacă există clients.Graphql
+        if (!shopify.clients || !shopify.clients.Graphql) {
+          throw new Error(`shopify.clients.Graphql is not available. shopify.clients: ${Object.keys(shopify.clients || {}).join(", ")}`);
+        }
+        
+        // Creează admin client folosind shopify API (similar cu worker-ul)
+        const graphqlClient = new shopify.clients.Graphql({ session: sessionForAdmin });
+        
+        // Creează wrapper pentru compatibilitate cu funcțiile existente
+        admin = {
+          graphql: async (query, options = {}) => {
+            const { variables } = options;
+            const response = await graphqlClient.request(query, { variables });
+            return {
+              json: async () => response,
+            };
+          },
+        };
+        
         console.log(`[app/uninstalled] Created admin client from DB session for cleanup`);
       } catch (error) {
         console.warn(`[app/uninstalled] Failed to create admin client from DB session:`, error.message);

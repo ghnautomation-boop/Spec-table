@@ -1208,6 +1208,12 @@ function renderTemplate(container, template) {
     }
   }
   
+  // Citește setările din schema (data-attributes)
+  const schemaMaxWidth = parseInt(container.getAttribute('data-max-width')) || 0;
+  const schemaAlignment = container.getAttribute('data-alignment') || 'left';
+  const schemaMarginTop = parseInt(container.getAttribute('data-margin-top')) || 0;
+  const schemaMarginLeft = parseInt(container.getAttribute('data-margin-left')) || 0;
+  
   // Verifică dacă are structura nouă (mobile, tablet, desktop)
   const hasDeviceSpecificStyling = styling && (styling.mobile || styling.tablet || styling.desktop);
   
@@ -1247,22 +1253,70 @@ function renderTemplate(container, template) {
     // Nu setăm nimic în inline style pentru width/margin când avem device-specific styling
     containerInlineStyle = ''; // Nu setăm width/margin în inline style
     
+    // Helper function pentru a construi stilurile combinate
+    const buildCombinedStyles = (deviceStyling) => {
+      const templateWidth = deviceStyling.tableWidth || '100';
+      const templateMarginTop = parseInt(deviceStyling.tableMarginTop || '0');
+      const templateAlignment = deviceStyling.tableAlignment || schemaAlignment;
+      
+      let widthStyle = '';
+      if (schemaMaxWidth > 0) {
+        widthStyle = 'max-width: ' + schemaMaxWidth + 'px !important; width: ' + templateWidth + '% !important; ';
+      } else {
+        widthStyle = 'width: ' + templateWidth + '% !important; ';
+      }
+      
+      const combinedMarginTop = (templateMarginTop + schemaMarginTop) + 'px';
+      let alignmentStyle = '';
+      if (templateAlignment === 'center') {
+        alignmentStyle = 'margin-left: auto !important; margin-right: auto !important; ';
+      } else if (templateAlignment === 'right') {
+        alignmentStyle = 'margin-left: auto !important; margin-right: ' + schemaMarginLeft + 'px !important; ';
+      } else {
+        alignmentStyle = 'margin-left: ' + schemaMarginLeft + 'px !important; ';
+      }
+      
+      return widthStyle + 'margin-top: ' + combinedMarginTop + ' !important; margin-bottom: ' + (deviceStyling.tableMarginBottom || '0') + 'px !important; ' + alignmentStyle;
+    };
+    
     // Mobile styles (< 768px) - setăm toate CSS variables-urile + width/margin
     const mobileVars = buildCSSVarsForDevice(mobileStyling, mobileStyling.columnRatio || columnRatio);
-    mediaQueriesCSS += '@media (max-width: 767px) { #specification-table-' + escapedTemplateId + ' { ' + mobileVars + 'width: ' + (mobileStyling.tableWidth || '100') + '% !important; margin-top: ' + (mobileStyling.tableMarginTop || '0') + 'px !important; margin-bottom: ' + (mobileStyling.tableMarginBottom || '0') + 'px !important; } } ';
+    mediaQueriesCSS += '@media (max-width: 767px) { #specification-table-' + escapedTemplateId + ' { ' + mobileVars + buildCombinedStyles(mobileStyling) + '} } ';
     
     // Tablet styles (768px - 1023px) - setăm toate CSS variables-urile + width/margin
     const tabletVars = buildCSSVarsForDevice(tabletStyling, tabletStyling.columnRatio || columnRatio);
-    mediaQueriesCSS += '@media (min-width: 768px) and (max-width: 1023px) { #specification-table-' + escapedTemplateId + ' { ' + tabletVars + 'width: ' + (tabletStyling.tableWidth || '100') + '% !important; margin-top: ' + (tabletStyling.tableMarginTop || '0') + 'px !important; margin-bottom: ' + (tabletStyling.tableMarginBottom || '0') + 'px !important; } } ';
+    mediaQueriesCSS += '@media (min-width: 768px) and (max-width: 1023px) { #specification-table-' + escapedTemplateId + ' { ' + tabletVars + buildCombinedStyles(tabletStyling) + '} } ';
     
     // Desktop styles (>= 1024px) - setăm toate CSS variables-urile + width/margin
     const desktopVars = buildCSSVarsForDevice(desktopStyling, desktopStyling.columnRatio || columnRatio);
-    mediaQueriesCSS += '@media (min-width: 1024px) { #specification-table-' + escapedTemplateId + ' { ' + desktopVars + 'width: ' + (desktopStyling.tableWidth || '100') + '% !important; margin-top: ' + (desktopStyling.tableMarginTop || '0') + 'px !important; margin-bottom: ' + (desktopStyling.tableMarginBottom || '0') + 'px !important; } } ';
+    mediaQueriesCSS += '@media (min-width: 1024px) { #specification-table-' + escapedTemplateId + ' { ' + desktopVars + buildCombinedStyles(desktopStyling) + '} } ';
   } else {
     // Backward compatibility: folosim styling-ul direct în inline style
     console.log('[renderTemplate] No device-specific styling, using backward compatibility');
     cssVars = buildCSSVarsForDevice(styling, columnRatio);
-    containerInlineStyle = 'width: ' + (styling.tableWidth || '100') + '%; margin-top: ' + (styling.tableMarginTop || '0') + 'px; margin-bottom: ' + (styling.tableMarginBottom || '0') + 'px; ';
+    
+    const templateWidth = styling.tableWidth || '100';
+    const templateMarginTop = parseInt(styling.tableMarginTop || '0');
+    const templateAlignment = styling.tableAlignment || schemaAlignment;
+    
+    let widthStyle = '';
+    if (schemaMaxWidth > 0) {
+      widthStyle = 'max-width: ' + schemaMaxWidth + 'px; width: ' + templateWidth + '%; ';
+    } else {
+      widthStyle = 'width: ' + templateWidth + '%; ';
+    }
+    
+    const combinedMarginTop = (templateMarginTop + schemaMarginTop) + 'px';
+    let alignmentStyle = '';
+    if (templateAlignment === 'center') {
+      alignmentStyle = 'margin-left: auto; margin-right: auto; ';
+    } else if (templateAlignment === 'right') {
+      alignmentStyle = 'margin-left: auto; margin-right: ' + schemaMarginLeft + 'px; ';
+    } else {
+      alignmentStyle = 'margin-left: ' + schemaMarginLeft + 'px; ';
+    }
+    
+    containerInlineStyle = widthStyle + 'margin-top: ' + combinedMarginTop + '; margin-bottom: ' + (styling.tableMarginBottom || '0') + 'px; ' + alignmentStyle;
   }
   
   // Adaugă style tag cu media queries dacă există
@@ -1305,8 +1359,9 @@ function renderTemplate(container, template) {
     html += '<div id="spec-table-content-' + escapedTemplateId + '" class="dc_collapsible_content dc_collapsible_collapsed">';
   } else {
     // Dacă nu este collapsible, afișează doar numele tabelului
+    const tableNameHeaderTextAlignStyle = 'text-align: var(--dc-header-text-align, left); ';
     html += '<div class="dc_table_name_header">';
-    html += '<h2 class="dc_table_name">' + escapeHtml(tableName) + '</h2>';
+    html += '<h2 class="dc_table_name" style="' + tableNameHeaderTextAlignStyle + '">' + escapeHtml(tableName) + '</h2>';
     html += '</div>';
   }
 
