@@ -25,10 +25,8 @@
 {% comment %} Pentru metafield-uri de tip metaobject_reference, .value returnează direct obiectul metaobject {% endcomment %}
 {% comment %} Verifică dacă produsul are un template assignat {% endcomment %}
 {% assign product_template_ref = blank %}
-{% assign product_metafield_exists = false %}
 {% assign product_metafield_has_value = false %}
 {% if product.metafields.custom.dc_specification_template %}
-  {% assign product_metafield_exists = true %}
   {% comment %} Pentru metaobject_reference, .value returnează direct obiectul metaobject {% endcomment %}
   {% comment %} IMPORTANT: Verificăm dacă .value există ȘI nu este blank {% endcomment %}
   {% assign product_metafield_value = product.metafields.custom.dc_specification_template.value %}
@@ -41,12 +39,10 @@
 
 {% comment %} Verifică dacă colecția are un template assignat {% endcomment %}
 {% assign collection_template_ref = blank %}
-{% assign collection_metafield_exists = false %}
 {% assign collection_metafield_has_value = false %}
 {% if product.collections.size > 0 %}
   {% for collection_item in product.collections %}
     {% if collection_item.metafields.custom.dc_specification_template %}
-      {% assign collection_metafield_exists = true %}
       {% comment %} Pentru metaobject_reference, .value returnează direct obiectul metaobject {% endcomment %}
       {% comment %} IMPORTANT: Verificăm dacă .value există ȘI nu este blank {% endcomment %}
       {% assign collection_metafield_value = collection_item.metafields.custom.dc_specification_template.value %}
@@ -60,53 +56,6 @@
   {% endfor %}
 {% endif %}
 
-{% comment %} Debug: Afișează starea metafield-urilor {% endcomment %}
-{% assign debug_product_template_ref_exists = false %}
-{% if product_template_ref != blank %}{% assign debug_product_template_ref_exists = true %}{% endif %}
-{% assign debug_collection_template_ref_exists = false %}
-{% if collection_template_ref != blank %}{% assign debug_collection_template_ref_exists = true %}{% endif %}
-{% comment %} Debug: Verifică tipul metafield-ului și valoarea sa {% endcomment %}
-{% assign debug_product_metafield_type = 'unknown' %}
-{% assign debug_product_metafield_value_type = 'unknown' %}
-{% if product.metafields.custom.dc_specification_template %}
-  {% assign debug_product_metafield_type = product.metafields.custom.dc_specification_template.type %}
-  {% if product.metafields.custom.dc_specification_template.value %}
-    {% assign debug_product_metafield_value_type = 'has_value' %}
-  {% else %}
-    {% assign debug_product_metafield_value_type = 'no_value' %}
-  {% endif %}
-{% endif %}
-{% comment %} Debug: Verifică valoarea metafield-ului pentru produs {% endcomment %}
-{% assign debug_product_metafield_value_blank = false %}
-{% if product.metafields.custom.dc_specification_template %}
-  {% assign debug_product_metafield_value_check = product.metafields.custom.dc_specification_template.value %}
-  {% if debug_product_metafield_value_check == blank %}{% assign debug_product_metafield_value_blank = true %}{% endif %}
-{% endif %}
-{% comment %} Debug: Verifică structura metaobject-ului pentru produs {% endcomment %}
-{% assign debug_product_has_system = false %}
-{% assign debug_product_has_template_id = false %}
-{% assign debug_product_has_template_structure = false %}
-{% if product_template_ref != blank %}
-  {% if product_template_ref.system %}{% assign debug_product_has_system = true %}{% endif %}
-  {% if product_template_ref.template_id %}{% assign debug_product_has_template_id = true %}{% endif %}
-  {% if product_template_ref.template_structure %}{% assign debug_product_has_template_structure = true %}{% endif %}
-{% endif %}
-<script>
-  console.log('[SpecificationTable Liquid] Metafield check:', {
-    productMetafieldExists: {{ product_metafield_exists | json }},
-    productMetafieldType: {{ debug_product_metafield_type | json }},
-    productMetafieldValueType: {{ debug_product_metafield_value_type | json }},
-    productMetafieldValueIsBlank: {{ debug_product_metafield_value_blank | json }},
-    productTemplateRefExists: {{ debug_product_template_ref_exists | json }},
-    productHasSystem: {{ debug_product_has_system | json }},
-    productHasTemplateId: {{ debug_product_has_template_id | json }},
-    productHasTemplateStructure: {{ debug_product_has_template_structure | json }},
-    productMetafieldHasValue: {{ product_metafield_has_value | json }},
-    collectionMetafieldExists: {{ collection_metafield_exists | json }},
-    collectionMetafieldHasValue: {{ collection_metafield_has_value | json }},
-    collectionTemplateRefExists: {{ debug_collection_template_ref_exists | json }}
-  });
-</script>
 
 {% assign template_metaobject = blank %}
 {% assign template_source = 'none' %}
@@ -124,50 +73,14 @@
   {% assign global_template_handle = 'specification_template_global' %}
   {% assign metaobject_type = 'specification_template' %}
   
-  {% comment %} Debug: Verifică dacă metaobjects este disponibil {% endcomment %}
-  {% assign has_metaobjects = false %}
-  {% if metaobjects %}{% assign has_metaobjects = true %}{% endif %}
-  
   {% comment %} Încearcă să acceseze metaobject-ul global {% endcomment %}
   {% assign template_metaobject = metaobjects[metaobject_type][global_template_handle] %}
-  
-  {% comment %} Debug logging pentru template-ul global {% endcomment %}
-  {% assign debug_found_direct = false %}
-  {% if template_metaobject != blank %}{% assign debug_found_direct = true %}{% endif %}
-  {% assign debug_metaobjects_spec_exists = false %}
-  {% if metaobjects.specification_template != blank %}{% assign debug_metaobjects_spec_exists = true %}{% endif %}
-  <script>
-    console.log('[SpecificationTable Liquid] Global template search:', {
-      hasMetaobjects: {{ has_metaobjects | json }},
-      metaobjectType: {{ metaobject_type | json }},
-      globalHandle: {{ global_template_handle | json }},
-      foundDirect: {{ debug_found_direct | json }},
-      metaobjectsSpecificationTemplateExists: {{ debug_metaobjects_spec_exists | json }},
-      metaobjectsType: typeof {{ metaobjects[metaobject_type] | json }}
-    });
-  </script>
   
   {% if template_metaobject %}
     {% assign template_source = 'global' %}
   {% endif %}
 {% endif %}
 
-{% comment %} Debug: Afișează sursa template-ului {% endcomment %}
-{% assign debug_has_template_metaobject = false %}
-{% if template_metaobject != blank %}{% assign debug_has_template_metaobject = true %}{% endif %}
-{% assign debug_has_product_ref = false %}
-{% if product_template_ref != blank %}{% assign debug_has_product_ref = true %}{% endif %}
-{% assign debug_has_collection_ref = false %}
-{% if collection_template_ref != blank %}{% assign debug_has_collection_ref = true %}{% endif %}
-<script>
-  console.log('[SpecificationTable Liquid] Template priority check:', {
-    source: {{ template_source | json }},
-    hasProductTemplate: {{ debug_has_product_ref | json }},
-    hasCollectionTemplate: {{ debug_has_collection_ref | json }},
-    hasTemplateMetaobject: {{ debug_has_template_metaobject | json }},
-    priority: '1. Product → 2. Collection → 3. Global'
-  });
-</script>
 
 {% if template_metaobject %}
   {% comment %} Accesează valorile din metaobject {% endcomment %}
@@ -188,85 +101,9 @@
     {% assign template_id_value = template_metaobject.template_id.value %}
   {% endif %}
   
-  {% comment %} Debug: Afișează structura metaobject-ului pentru debugging {% endcomment %}
-  {% assign debug_has_structure_direct = false %}
-  {% assign debug_has_structure_value = false %}
-  {% assign debug_has_styling_direct = false %}
-  {% assign debug_has_styling_value = false %}
-  {% assign debug_has_settings_direct = false %}
-  {% assign debug_has_settings_value = false %}
-  {% assign debug_has_id_direct = false %}
-  {% assign debug_has_id_value = false %}
-  {% if template_metaobject.template_structure != blank %}{% assign debug_has_structure_direct = true %}{% endif %}
-  {% if template_metaobject.template_structure.value != blank %}{% assign debug_has_structure_value = true %}{% endif %}
-  {% if template_metaobject.template_styling != blank %}{% assign debug_has_styling_direct = true %}{% endif %}
-  {% if template_metaobject.template_styling.value != blank %}{% assign debug_has_styling_value = true %}{% endif %}
-  {% if template_metaobject.template_settings != blank %}{% assign debug_has_settings_direct = true %}{% endif %}
-  {% if template_metaobject.template_settings.value != blank %}{% assign debug_has_settings_value = true %}{% endif %}
-  {% if template_metaobject.template_id != blank %}{% assign debug_has_id_direct = true %}{% endif %}
-  {% if template_metaobject.template_id.value != blank %}{% assign debug_has_id_value = true %}{% endif %}
   
-  {% comment %} Debug specific pentru template_id {% endcomment %}
-  {% assign debug_template_id_raw = template_metaobject.template_id %}
-  {% assign debug_template_id_value = template_metaobject.template_id.value %}
-  {% assign debug_template_id_final = template_id_value %}
   
-  <script>
-    console.log('[SpecificationTable Liquid] Template ID Debug:', {
-      source: {{ template_source | json }},
-      templateIdRaw: {{ debug_template_id_raw | json }},
-      templateIdValue: {{ debug_template_id_value | json }},
-      templateIdFinal: {{ debug_template_id_final | json }},
-      hasIdDirect: {{ debug_has_id_direct | json }},
-      hasIdValue: {{ debug_has_id_value | json }}
-    });
-    console.log('[SpecificationTable Liquid] Metaobject structure debug:', {
-      structureDirect: {{ debug_has_structure_direct | json }},
-      structureValue: {{ debug_has_structure_value | json }},
-      stylingDirect: {{ debug_has_styling_direct | json }},
-      stylingValue: {{ debug_has_styling_value | json }},
-      settingsDirect: {{ debug_has_settings_direct | json }},
-      settingsValue: {{ debug_has_settings_value | json }},
-      idDirect: {{ debug_has_id_direct | json }},
-      idValue: {{ debug_has_id_value | json }},
-      {% comment %} Pentru debugging, verificăm tipul valorilor fără a folosi | json pe obiecte {% endcomment %}
-      {% assign debug_structure_type = 'unknown' %}
-      {% if template_structure_json == blank %}{% assign debug_structure_type = 'blank' %}
-      {% elsif template_source == 'global' %}{% assign debug_structure_type = 'global-object' %}
-      {% else %}{% assign debug_structure_type = 'string' %}{% endif %}
-      {% assign debug_structure_exists = false %}
-      {% if template_structure_json != blank %}{% assign debug_structure_exists = true %}{% endif %}
-      {% assign debug_styling_exists = false %}
-      {% if template_styling_json != blank %}{% assign debug_styling_exists = true %}{% endif %}
-      {% assign debug_settings_exists = false %}
-      {% if template_settings_json != blank %}{% assign debug_settings_exists = true %}{% endif %}
-      finalStructureType: {{ debug_structure_type | json }},
-      {% comment %} Nu folosim | json pe obiecte pentru a evita eroarea "json not allowed" {% endcomment %}
-      finalStructureExists: {{ debug_structure_exists | json }},
-      finalStylingExists: {{ debug_styling_exists | json }},
-      finalSettingsExists: {{ debug_settings_exists | json }},
-      finalId: {{ template_id_value | json }}
-    });
-  </script>
-  
-  {% comment %} Debug: Verifică dacă valorile există {% endcomment %}
   {% if template_structure_json == blank or template_styling_json == blank or template_settings_json == blank %}
-    {% assign has_structure = false %}
-    {% assign has_styling = false %}
-    {% assign has_settings = false %}
-    {% assign has_id = false %}
-    {% if template_structure_json != blank %}{% assign has_structure = true %}{% endif %}
-    {% if template_styling_json != blank %}{% assign has_styling = true %}{% endif %}
-    {% if template_settings_json != blank %}{% assign has_settings = true %}{% endif %}
-    {% if template_id_value != blank %}{% assign has_id = true %}{% endif %}
-    <script>
-      console.error('[SpecificationTable Liquid] Template metaobject found but values are missing:', {
-        hasStructure: {{ has_structure | json }},
-        hasStyling: {{ has_styling | json }},
-        hasSettings: {{ has_settings | json }},
-        hasId: {{ has_id | json }}
-      });
-    </script>
   {% endif %}
 {% endif %}
 
@@ -294,47 +131,6 @@
   </div>
 </div>
 
-{% comment %} Debug: Afișează informații despre metafield-uri - rulează întotdeauna {% endcomment %}
-{% assign debug_has_product_template = false %}
-{% assign debug_has_collection_template = false %}
-{% assign debug_has_template_metaobject = false %}
-{% assign debug_template_structure_exists = false %}
-{% assign debug_template_styling_exists = false %}
-{% assign debug_template_settings_exists = false %}
-{% assign debug_template_id_exists = false %}
-{% if product_template_ref != blank %}{% assign debug_has_product_template = true %}{% endif %}
-{% if collection_template_ref != blank %}{% assign debug_has_collection_template = true %}{% endif %}
-{% if template_metaobject != blank %}{% assign debug_has_template_metaobject = true %}{% endif %}
-{% if template_structure_json != blank %}{% assign debug_template_structure_exists = true %}{% endif %}
-{% if template_styling_json != blank %}{% assign debug_template_styling_exists = true %}{% endif %}
-{% if template_settings_json != blank %}{% assign debug_template_settings_exists = true %}{% endif %}
-{% if template_id_value != blank %}{% assign debug_template_id_exists = true %}{% endif %}
-<script>
-  console.log('[SpecificationTable Liquid Debug]', {
-    hasProductTemplate: {{ debug_has_product_template | json }},
-    hasCollectionTemplate: {{ debug_has_collection_template | json }},
-    hasTemplateMetaobject: {{ debug_has_template_metaobject | json }},
-    collectionsCount: {{ product.collections.size | json }},
-    templateStructureExists: {{ debug_template_structure_exists | json }},
-    templateStylingExists: {{ debug_template_styling_exists | json }},
-    templateSettingsExists: {{ debug_template_settings_exists | json }},
-    templateIdExists: {{ debug_template_id_exists | json }}
-  });
-  
-  {% if product.collections.size > 0 %}
-    console.log('[SpecificationTable Liquid Debug] Collections:', [
-      {% for collection_item in product.collections %}
-        {% assign collection_has_metafield = false %}
-        {% if collection_item.metafields.custom.dc_specification_template != blank %}{% assign collection_has_metafield = true %}{% endif %}
-        {
-          id: {{ collection_item.id | json }},
-          title: {{ collection_item.title | json }},
-          hasMetafield: {{ collection_has_metafield | json }}
-        }{% unless forloop.last %},{% endunless %}
-      {% endfor %}
-    ]);
-  {% endif %}
-</script>
 
 {% if template_metaobject and template_structure_json != blank and template_styling_json != blank and template_settings_json != blank %}
 <script>
@@ -357,21 +153,18 @@
       try {
         window.templateData_{{ block.id }}.structure = JSON.parse(window.templateData_{{ block.id }}.structure);
       } catch(e) {
-        console.error('[SpecificationTable] Error parsing structure JSON:', e, 'Raw value:', window.templateData_{{ block.id }}.structure);
       }
     }
     if (typeof window.templateData_{{ block.id }}.styling === 'string') {
       try {
         window.templateData_{{ block.id }}.styling = JSON.parse(window.templateData_{{ block.id }}.styling);
       } catch(e) {
-        console.error('[SpecificationTable] Error parsing styling JSON:', e, 'Raw value:', window.templateData_{{ block.id }}.styling);
       }
     }
     if (typeof window.templateData_{{ block.id }}.settings === 'string') {
       try {
         window.templateData_{{ block.id }}.settings = JSON.parse(window.templateData_{{ block.id }}.settings);
       } catch(e) {
-        console.error('[SpecificationTable] Error parsing settings JSON:', e, 'Raw value:', window.templateData_{{ block.id }}.settings);
       }
     }
   {% else %}
@@ -384,16 +177,6 @@
     };
   {% endif %}
   
-  // Debug: Log template source
-  {% assign debug_using_global = false %}
-  {% if product_template_ref == blank and collection_template_ref == blank %}{% assign debug_using_global = true %}{% endif %}
-  console.log('[SpecificationTable Debug] Template source:', {
-    hasProductTemplate: {{ debug_has_product_template | json }},
-    hasCollectionTemplate: {{ debug_has_collection_template | json }},
-    usingGlobal: {{ debug_using_global | json }},
-    templateId: {{ template_id_value | json }},
-    collectionsCount: {{ product.collections.size | json }}
-  });
 </script>
 {% endif %}
 
@@ -499,7 +282,6 @@
   // ConstruieÈ™te obiectul JavaScript cu TOATE metafield-urile disponibile din Liquid
   // Acest obiect este construit direct Ã®n Liquid folosind toate metafield-urile disponibile
   // Pentru file_reference, folosim image_url filter pentru a obÈ›ine URL-ul imaginii
-  console.log('[Liquid] Building allProductMetafieldsFromLiquid...');
   window.allProductMetafieldsFromLiquid = {
     {% comment %} ConstruieÈ™te pentru namespace-ul 'custom' {% endcomment %}
     {% if product.metafields.custom %}

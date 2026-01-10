@@ -9,17 +9,16 @@
  * @returns {Promise<Object>} Metaobject-ul creat/actualizat
  */
 export async function createOrUpdateMetaobject(admin, template) {
-  console.log('[createOrUpdateMetaobject] START - Template ID:', template.id);
-  console.log('[createOrUpdateMetaobject] Template assignments:', template.assignments);
+
   
   // PAS 1: Asigură-te că metaobject definition-ul există înainte de a crea metaobject-ul
-  console.log('[createOrUpdateMetaobject] Ensuring metaobject definition exists...');
+
   const metaobjectDefinitionId = await getMetaobjectDefinitionId(admin);
   if (!metaobjectDefinitionId) {
     console.error('[createOrUpdateMetaobject] Cannot create metaobject without metaobject definition');
     throw new Error('Metaobject definition does not exist and could not be created');
   }
-  console.log('[createOrUpdateMetaobject] Metaobject definition exists:', metaobjectDefinitionId);
+
   
   // Verifică dacă template-ul este global (are assignment de tip DEFAULT)
   // Pentru template-ul global, folosim handle-ul fix "specification_template_global"
@@ -27,15 +26,14 @@ export async function createOrUpdateMetaobject(admin, template) {
   let handle;
   if (template.assignments && template.assignments.some(a => a.assignmentType === 'DEFAULT')) {
     handle = 'specification_template_global';
-    console.log('[createOrUpdateMetaobject] Template is GLOBAL, using handle:', handle);
+
   } else {
     handle = `specification_template_${template.id}`;
-    console.log('[createOrUpdateMetaobject] Template is NOT global, using handle:', handle);
+
   }
   
   // Pregătește datele pentru metaobject
-  console.log('[createOrUpdateMetaobject] Preparing template structure...');
-  console.log('[createOrUpdateMetaobject] Template sections count:', template.sections?.length || 0);
+
   
   const templateStructure = {
     sections: template.sections?.map(section => ({
@@ -116,7 +114,7 @@ export async function createOrUpdateMetaobject(admin, template) {
   };
 
   // Verifică dacă metaobject-ul există deja
-  console.log('[createOrUpdateMetaobject] Checking if metaobject exists with handle:', handle);
+
   // Folosim metaobjectByHandle query pentru a găsi metaobject-ul după handle
   const checkQuery = `
     query getMetaobjectByHandle($handle: MetaobjectHandleInput!) {
@@ -135,10 +133,10 @@ export async function createOrUpdateMetaobject(admin, template) {
   };
 
   try {
-    console.log('[createOrUpdateMetaobject] Executing GraphQL query to check metaobject...');
+
     const checkResponse = await admin.graphql(checkQuery, { variables: checkVariables });
     const checkData = await checkResponse.json();
-    console.log('[createOrUpdateMetaobject] GraphQL response:', JSON.stringify(checkData, null, 2));
+
 
     if (checkData.errors) {
       console.error("[createOrUpdateMetaobject] Error checking metaobject:", checkData.errors);
@@ -147,15 +145,11 @@ export async function createOrUpdateMetaobject(admin, template) {
 
     // Extrage metaobject-ul direct din răspuns
     const existingMetaobject = checkData.data?.metaobjectByHandle || null;
-    console.log('[createOrUpdateMetaobject] Existing metaobject found:', !!existingMetaobject);
-    if (existingMetaobject) {
-      console.log('[createOrUpdateMetaobject] Existing metaobject ID:', existingMetaobject.id);
-      console.log('[createOrUpdateMetaobject] Existing metaobject handle:', existingMetaobject.handle);
-    }
+
+
 
     if (existingMetaobject) {
       // Actualizează metaobject-ul existent
-      console.log('[createOrUpdateMetaobject] Updating existing metaobject...');
       const updateMutation = `
         mutation metaobjectUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {
           metaobjectUpdate(id: $id, metaobject: $metaobject) {
@@ -200,10 +194,9 @@ export async function createOrUpdateMetaobject(admin, template) {
         },
       };
 
-      console.log('[createOrUpdateMetaobject] Executing update mutation...');
+
       const updateResponse = await admin.graphql(updateMutation, { variables: updateVariables });
       const updateData = await updateResponse.json();
-      console.log('[createOrUpdateMetaobject] Update mutation response:', JSON.stringify(updateData, null, 2));
 
       if (updateData.errors) {
         console.error("[createOrUpdateMetaobject] Error updating metaobject:", updateData.errors);
@@ -215,15 +208,10 @@ export async function createOrUpdateMetaobject(admin, template) {
         throw new Error(`User errors: ${JSON.stringify(updateData.data.metaobjectUpdate.userErrors)}`);
       }
 
-      console.log('[createOrUpdateMetaobject] Metaobject updated successfully:', updateData.data.metaobjectUpdate.metaobject);
+    
       return updateData.data.metaobjectUpdate.metaobject;
     } else {
-      // Creează metaobject-ul nou
-      console.log('[createOrUpdateMetaobject] Creating new metaobject...');
-      console.log('[createOrUpdateMetaobject] Template structure JSON length:', JSON.stringify(templateStructure).length);
-      console.log('[createOrUpdateMetaobject] Template styling JSON length:', JSON.stringify(templateStyling).length);
-      console.log('[createOrUpdateMetaobject] Template settings JSON length:', JSON.stringify(templateSettings).length);
-      
+
       const createMutation = `
         mutation metaobjectCreate($metaobject: MetaobjectCreateInput!) {
           metaobjectCreate(metaobject: $metaobject) {
@@ -269,11 +257,9 @@ export async function createOrUpdateMetaobject(admin, template) {
         },
       };
 
-      console.log('[createOrUpdateMetaobject] Executing create mutation...');
-      console.log('[createOrUpdateMetaobject] Create variables:', JSON.stringify(createVariables, null, 2));
+
       const createResponse = await admin.graphql(createMutation, { variables: createVariables });
       const createData = await createResponse.json();
-      console.log('[createOrUpdateMetaobject] Create mutation response:', JSON.stringify(createData, null, 2));
 
       if (createData.errors) {
         console.error("[createOrUpdateMetaobject] Error creating metaobject:", createData.errors);
@@ -285,7 +271,7 @@ export async function createOrUpdateMetaobject(admin, template) {
         throw new Error(`User errors: ${JSON.stringify(createData.data.metaobjectCreate.userErrors)}`);
       }
 
-      console.log('[createOrUpdateMetaobject] Metaobject created successfully:', createData.data.metaobjectCreate.metaobject);
+    
       return createData.data.metaobjectCreate.metaobject;
     }
   } catch (error) {
@@ -296,7 +282,6 @@ export async function createOrUpdateMetaobject(admin, template) {
     return null;
   }
   
-  console.log('[createOrUpdateMetaobject] END');
 }
 
 /**
@@ -464,7 +449,7 @@ async function getMetaobjectDefinitionId(admin) {
 
   try {
     // Verifică dacă definition-ul există deja (doar dacă avem permisiunea)
-    console.log('[getMetaobjectDefinitionId] Checking for metaobject definition with type: specification_template');
+    
     try {
       const response = await admin.graphql(query, {
         variables: {
@@ -473,7 +458,7 @@ async function getMetaobjectDefinitionId(admin) {
       });
       const data = await response.json();
 
-      console.log('[getMetaobjectDefinitionId] Query response:', JSON.stringify(data, null, 2));
+      
 
       if (data.errors) {
         console.warn("[getMetaobjectDefinitionId] Error fetching metaobject definition (may not have read permission):", data.errors);
@@ -481,10 +466,10 @@ async function getMetaobjectDefinitionId(admin) {
       } else {
         const definition = data.data?.metaobjectDefinitionByType;
         if (definition) {
-          console.log('[getMetaobjectDefinitionId] Found existing metaobject definition:', definition.id);
+         
           return definition.id;
         } else {
-          console.log('[getMetaobjectDefinitionId] No existing metaobject definition found for type: specification_template');
+         
         }
       }
     } catch (queryError) {
@@ -493,7 +478,7 @@ async function getMetaobjectDefinitionId(admin) {
     }
 
     // Dacă nu există, încearcă să-l creeze
-    console.log('[getMetaobjectDefinitionId] Metaobject definition not found - creating it...');
+   
     const createMutation = `
       mutation metaobjectDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
         metaobjectDefinitionCreate(definition: $definition) {
@@ -551,11 +536,11 @@ async function getMetaobjectDefinitionId(admin) {
       },
     };
 
-    console.log('[getMetaobjectDefinitionId] Creating metaobject definition with variables:', JSON.stringify(createVariables, null, 2));
+   
     const createResponse = await admin.graphql(createMutation, { variables: createVariables });
     const createData = await createResponse.json();
 
-    console.log('[getMetaobjectDefinitionId] Create mutation response:', JSON.stringify(createData, null, 2));
+   
 
     if (createData.errors) {
       console.error("[getMetaobjectDefinitionId] GraphQL errors creating definition:", createData.errors);
@@ -569,7 +554,7 @@ async function getMetaobjectDefinitionId(admin) {
 
     const createdDefinition = createData.data.metaobjectDefinitionCreate.metaobjectDefinition;
     if (createdDefinition) {
-      console.log('[getMetaobjectDefinitionId] Metaobject definition created successfully:', createdDefinition.id);
+     
       return createdDefinition.id;
     }
 
@@ -621,7 +606,7 @@ async function ensureCollectionMetafieldDefinition(admin) {
 
     const existingDefinition = checkData.data?.metafieldDefinitions?.nodes?.[0];
     if (existingDefinition) {
-      console.log('[ensureCollectionMetafieldDefinition] Definition already exists for COLLECTION');
+   
       return true;
     }
 
@@ -633,7 +618,7 @@ async function ensureCollectionMetafieldDefinition(admin) {
     }
 
     // Creează definition-ul explicit
-    console.log('[ensureCollectionMetafieldDefinition] Definition does not exist - creating it...');
+    
     const createMutation = `
       mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
         metafieldDefinitionCreate(definition: $definition) {
@@ -681,7 +666,7 @@ async function ensureCollectionMetafieldDefinition(admin) {
       return false;
     }
 
-    console.log('[ensureCollectionMetafieldDefinition] Definition created successfully for COLLECTION');
+   
     return true;
   } catch (error) {
     console.error("[ensureCollectionMetafieldDefinition] Error:", error);
@@ -729,7 +714,7 @@ async function ensureProductMetafieldDefinition(admin) {
 
     const existingDefinition = checkData.data?.metafieldDefinitions?.nodes?.[0];
     if (existingDefinition) {
-      console.log('[ensureProductMetafieldDefinition] Definition already exists for PRODUCT');
+    
       return true;
     }
 
@@ -741,7 +726,7 @@ async function ensureProductMetafieldDefinition(admin) {
     }
 
     // Creează definition-ul explicit
-    console.log('[ensureProductMetafieldDefinition] Definition does not exist - creating it...');
+   
     const createMutation = `
       mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
         metafieldDefinitionCreate(definition: $definition) {
@@ -789,7 +774,7 @@ async function ensureProductMetafieldDefinition(admin) {
       return false;
     }
 
-    console.log('[ensureProductMetafieldDefinition] Definition created successfully for PRODUCT');
+   
     return true;
   } catch (error) {
     console.error("[ensureProductMetafieldDefinition] Error:", error);
@@ -847,8 +832,7 @@ export async function setCollectionMetafield(admin, collectionId, metaobjectId) 
       return false;
     }
     
-    console.log('[setCollectionMetafield] Setting metafield for collection:', collectionGid);
-    console.log('[setCollectionMetafield] Metaobject ID:', metaobjectId);
+    
     
     const response = await admin.graphql(mutation, { variables });
     const data = await response.json();
@@ -863,7 +847,7 @@ export async function setCollectionMetafield(admin, collectionId, metaobjectId) 
       return false;
     }
 
-    console.log('[setCollectionMetafield] Metafield set successfully for collection:', collectionGid);
+
     return true;
   } catch (error) {
     console.error("[setCollectionMetafield] Error setting metafield:", error);
@@ -921,8 +905,7 @@ export async function setProductMetafield(admin, productId, metaobjectId) {
       return false;
     }
     
-    console.log('[setProductMetafield] Setting metafield for product:', productGid);
-    console.log('[setProductMetafield] Metaobject ID:', metaobjectId);
+
     
     const response = await admin.graphql(mutation, { variables });
     const data = await response.json();
@@ -937,7 +920,7 @@ export async function setProductMetafield(admin, productId, metaobjectId) {
       return false;
     }
 
-    console.log('[setProductMetafield] Metafield set successfully for product:', productGid);
+    
     return true;
   } catch (error) {
     console.error("[setProductMetafield] Error setting metafield:", error);
@@ -985,7 +968,7 @@ export async function deleteCollectionMetafield(admin, collectionId) {
   };
 
   try {
-    console.log('[deleteCollectionMetafield] Deleting metafield for collection:', collectionGid);
+
     
     const response = await admin.graphql(mutation, { variables });
     const data = await response.json();
@@ -1000,7 +983,7 @@ export async function deleteCollectionMetafield(admin, collectionId) {
       return false;
     }
 
-    console.log('[deleteCollectionMetafield] Metafield deleted successfully for collection:', collectionGid);
+
     return true;
   } catch (error) {
     console.error("[deleteCollectionMetafield] Error deleting metafield:", error);
@@ -1048,7 +1031,7 @@ export async function deleteProductMetafield(admin, productId) {
   };
 
   try {
-    console.log('[deleteProductMetafield] Deleting metafield for product:', productGid);
+
     
     const response = await admin.graphql(mutation, { variables });
     const data = await response.json();
@@ -1063,7 +1046,7 @@ export async function deleteProductMetafield(admin, productId) {
       return false;
     }
 
-    console.log('[deleteProductMetafield] Metafield deleted successfully for product:', productGid);
+
     return true;
   } catch (error) {
     console.error("[deleteProductMetafield] Error deleting metafield:", error);
@@ -1077,7 +1060,7 @@ export async function deleteProductMetafield(admin, productId) {
  * @returns {Promise<boolean>} True dacă a fost șters cu succes
  */
 export async function deleteAllMetaobjects(admin) {
-  console.log('[deleteAllMetaobjects] Deleting all metaobjects of type specification_template...');
+
   
   const mutation = `
     mutation metaobjectBulkDelete($where: MetaobjectBulkDeleteWhereCondition!) {
@@ -1116,7 +1099,7 @@ export async function deleteAllMetaobjects(admin) {
     }
 
     const job = data.data.metaobjectBulkDelete.job;
-    console.log('[deleteAllMetaobjects] Bulk delete job created:', job.id, 'Done:', job.done);
+
     
     // Job-ul este asincron, dar returnăm true pentru că operația a fost inițiată cu succes
     return true;
@@ -1132,7 +1115,7 @@ export async function deleteAllMetaobjects(admin) {
  * @returns {Promise<{productsDeleted: number, collectionsDeleted: number}>} Numărul de metafield-uri șterse
  */
 export async function deleteAllMetafields(admin) {
-  console.log('[deleteAllMetafields] Starting to delete all dc_specification_template metafields...');
+
   
   let productsDeleted = 0;
   let collectionsDeleted = 0;
@@ -1141,7 +1124,7 @@ export async function deleteAllMetafields(admin) {
   const batchSize = 25; // Maximum pentru metafieldsDelete
 
   // Șterge metafield-urile de pe produse
-  console.log('[deleteAllMetafields] Deleting metafields from products...');
+
   try {
     while (hasNextPage) {
       const productsQuery = `
@@ -1218,7 +1201,7 @@ export async function deleteAllMetafields(admin) {
           } else {
             const deletedCount = deleteData.data.metafieldsDelete.deletedMetafields?.length || 0;
             productsDeleted += deletedCount;
-            console.log(`[deleteAllMetafields] Deleted ${deletedCount} product metafields (batch ${Math.floor(i / batchSize) + 1})`);
+            
           }
         }
       }
@@ -1235,7 +1218,7 @@ export async function deleteAllMetafields(admin) {
   cursor = null;
 
   // Șterge metafield-urile de pe colecții
-  console.log('[deleteAllMetafields] Deleting metafields from collections...');
+
   try {
     while (hasNextPage) {
       const collectionsQuery = `
@@ -1312,7 +1295,7 @@ export async function deleteAllMetafields(admin) {
           } else {
             const deletedCount = deleteData.data.metafieldsDelete.deletedMetafields?.length || 0;
             collectionsDeleted += deletedCount;
-            console.log(`[deleteAllMetafields] Deleted ${deletedCount} collection metafields (batch ${Math.floor(i / batchSize) + 1})`);
+            
           }
         }
       }
@@ -1324,7 +1307,7 @@ export async function deleteAllMetafields(admin) {
     console.error("[deleteAllMetafields] Error processing collections:", error);
   }
 
-  console.log(`[deleteAllMetafields] Completed. Deleted ${productsDeleted} product metafields and ${collectionsDeleted} collection metafields.`);
+  
   return { productsDeleted, collectionsDeleted };
 }
 

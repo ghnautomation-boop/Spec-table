@@ -2,7 +2,6 @@
 window.initSpecificationTable = function(containerId, templateData) {
   const container = document.getElementById(containerId);
   if (!container) {
-    console.error('[SpecificationTable] Container not found:', containerId);
     return;
   }
 
@@ -38,12 +37,6 @@ window.initSpecificationTable = function(containerId, templateData) {
     let templateStyling = typeof templateStylingJson === 'string' ? JSON.parse(templateStylingJson) : templateStylingJson;
     const templateSettings = typeof templateSettingsJson === 'string' ? JSON.parse(templateSettingsJson) : templateSettingsJson;
     
-    // Debug: verifică dacă seeMoreButtonText există în styling
-    if (!templateStyling.seeMoreButtonText) {
-      console.warn('[initSpecificationTable] seeMoreButtonText not found in templateStyling. Available keys:', Object.keys(templateStyling));
-      console.warn('[initSpecificationTable] templateStylingJson:', templateStylingJson);
-      console.warn('[initSpecificationTable] Parsed templateStyling:', JSON.stringify(templateStyling, null, 2));
-    }
 
     // Construiește obiectul template
     const template = {
@@ -77,11 +70,6 @@ window.initSpecificationTable = function(containerId, templateData) {
       id: templateIdValue
     };
     
-    // Debug: verifică dacă seeLessButtonStyle și seeLessButtonText există în styling
-    console.log('[initSpecificationTable] Template styling keys:', Object.keys(templateStyling));
-    console.log('[initSpecificationTable] seeLessButtonStyle:', templateStyling.seeLessButtonStyle);
-    console.log('[initSpecificationTable] seeLessButtonText:', templateStyling.seeLessButtonText);
-    console.log('[initSpecificationTable] seeMoreButtonStyle:', templateStyling.seeMoreButtonStyle);
 
     // Construiește obiectul cu metafield-urile din Liquid folosind template-ul
     if (window.buildMetafieldsFromTemplate) {
@@ -92,7 +80,6 @@ window.initSpecificationTable = function(containerId, templateData) {
     try {
       renderTemplate(container, template);
     } catch (error) {
-      console.error('[SpecificationTable] Error rendering template:', error);
       container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff0000;">Error rendering template.</div>';
       return;
     }
@@ -103,7 +90,6 @@ window.initSpecificationTable = function(containerId, templateData) {
     // Adaugă listener pentru schimbarea variantei (pentru actualizare în timp real)
     setupVariantChangeListener(container, template);
   } catch (error) {
-    console.error('[SpecificationTable] Error parsing template:', error);
     container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff0000;">Error loading template.</div>';
   }
 };
@@ -126,10 +112,6 @@ function updateMetafieldValuesFromLiquid(container) {
   const variantMetafields = window.variantMetafieldsData || {};
   const productSpecs = window.productSpecsFromLiquid || {};
 
-  // DEBUG: Log all available metafields
-  console.log('[updateMetafieldValuesFromLiquid] All productMetafields:', productMetafields);
-  console.log('[updateMetafieldValuesFromLiquid] All variantMetafields:', variantMetafields);
-  console.log('[updateMetafieldValuesFromLiquid] Found metafieldCells:', metafieldCells.length);
 
   // Obține varianta curentă din URL
   function getCurrentVariantId() {
@@ -201,10 +183,6 @@ function updateMetafieldValuesFromLiquid(container) {
     renderMetafieldValue(valueElement, formattedValue, 'single_line_text_field', 'PRODUCT', null, null, container.getAttribute('data-image-height') || '100', prefix, suffix);
   });
 
-  // DEBUG: Log all available metafields
-  console.log('[updateMetafieldValuesFromLiquid] All productMetafields:', productMetafields);
-  console.log('[updateMetafieldValuesFromLiquid] All variantMetafields:', variantMetafields);
-  console.log('[updateMetafieldValuesFromLiquid] Found metafieldCells:', metafieldCells.length);
 
   // Procesează metafields normale
   metafieldCells.forEach(cell => {
@@ -215,16 +193,6 @@ function updateMetafieldValuesFromLiquid(container) {
     const valueElement = cell.querySelector('[data-metafield-value]');
     if (!valueElement) return;
 
-    // DEBUG: Log metafield cell info
-    console.log('[updateMetafieldValuesFromLiquid] Processing metafield cell:', {
-      namespace: namespace,
-      key: key,
-      ownerType: ownerType,
-      metafieldType: metafieldType,
-      dataType: cell.dataset.type,
-      hasNamespaceInData: productMetafields[namespace] !== undefined,
-      hasKeyInNamespace: productMetafields[namespace] && productMetafields[namespace][key] !== undefined
-    });
 
     // Extrage prefix și suffix din data-attributes
     const prefix = valueElement.getAttribute('data-prefix') || '';
@@ -238,12 +206,6 @@ function updateMetafieldValuesFromLiquid(container) {
           variantMetafields[currentVariantId][namespace] &&
           variantMetafields[currentVariantId][namespace][key] !== undefined) {
         value = variantMetafields[currentVariantId][namespace][key];
-        console.log('[updateMetafieldValuesFromLiquid] Found VARIANT metafield value:', {
-          namespace: namespace,
-          key: key,
-          value: value,
-          valueType: typeof value
-        });
       } else {
         const firstVariantId = Object.keys(variantMetafields)[0];
         if (firstVariantId && variantMetafields[firstVariantId] &&
@@ -257,38 +219,10 @@ function updateMetafieldValuesFromLiquid(container) {
     // Dacă nu am găsit valoarea pentru VARIANT, folosește PRODUCT metafield
     if (value === null && ownerType === 'PRODUCT' && productMetafields[namespace] && productMetafields[namespace][key] !== undefined) {
       value = productMetafields[namespace][key];
-      console.log('[updateMetafieldValuesFromLiquid] Found PRODUCT metafield value:', {
-        namespace: namespace,
-        key: key,
-        value: value,
-        valueType: typeof value,
-        isObject: typeof value === 'object',
-        hasUrl: value && typeof value === 'object' && value.url,
-        valueKeys: value && typeof value === 'object' ? Object.keys(value) : null
-      });
     } else if (value === null && productMetafields[namespace] && productMetafields[namespace][key] !== undefined) {
       value = productMetafields[namespace][key];
-      console.log('[updateMetafieldValuesFromLiquid] Found fallback PRODUCT metafield value:', {
-        namespace: namespace,
-        key: key,
-        value: value,
-        valueType: typeof value,
-        isObject: typeof value === 'object',
-        hasUrl: value && typeof value === 'object' && value.url,
-        valueKeys: value && typeof value === 'object' ? Object.keys(value) : null
-      });
     }
 
-    // DEBUG: Log before rendering
-    console.log('[updateMetafieldValuesFromLiquid] About to render:', {
-      namespace: namespace,
-      key: key,
-      metafieldType: metafieldType,
-      value: value,
-      valueType: typeof value,
-      isObject: typeof value === 'object',
-      hasUrl: value && typeof value === 'object' && value.url
-    });
 
     // Randare diferită în funcție de tipul metafield-ului
     renderMetafieldValue(valueElement, value, metafieldType, ownerType, namespace, key, container.getAttribute('data-image-height') || '100', prefix, suffix);
@@ -297,21 +231,6 @@ function updateMetafieldValuesFromLiquid(container) {
 
 // Funcție pentru a randa valoarea metafield-ului în funcție de tip
 function renderMetafieldValue(element, value, metafieldType, ownerType, namespace, key, imageHeight, prefix, suffix) {
-  // DEBUG: Log toate datele primite
-  console.log('[renderMetafieldValue] DEBUG:', {
-    metafieldType: metafieldType,
-    namespace: namespace,
-    key: key,
-    ownerType: ownerType,
-    valueType: typeof value,
-    value: value,
-    valueIsNull: value === null,
-    valueIsUndefined: value === undefined,
-    valueIsEmpty: value === '',
-    valueIsString: typeof value === 'string',
-    valueIsObject: typeof value === 'object',
-    valueHasUrl: value && typeof value === 'object' && value.url
-  });
 
   if (value === null || value === undefined || value === '') {
     element.innerHTML = 'N/A';
@@ -400,7 +319,6 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse text field value as JSON:', value);
       }
     }
     
@@ -433,22 +351,11 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse file_reference value as JSON:', value);
       }
     }
     
     const isList = Array.isArray(parsedValue);
     const files = isList ? parsedValue : (parsedValue ? [parsedValue] : []);
-    
-    console.log('[renderMetafieldValue] file_reference:', {
-      metafieldType: metafieldType,
-      ownerType: ownerType,
-      valueType: typeof value,
-      parsedValueType: typeof parsedValue,
-      isList: isList,
-      filesLength: files.length,
-      value: value
-    });
     
     if (files.length === 0) {
       element.innerHTML = 'N/A';
@@ -623,23 +530,11 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse product_reference value as JSON:', value);
       }
     }
     
     const isList = Array.isArray(parsedValue);
     const products = isList ? parsedValue : (parsedValue ? [parsedValue] : []);
-    
-    console.log('[renderMetafieldValue] product_reference:', {
-      metafieldType: metafieldType,
-      ownerType: ownerType,
-      valueType: typeof value,
-      parsedValueType: typeof parsedValue,
-      isList: isList,
-      productsLength: products.length,
-      value: value,
-      parsedValue: parsedValue
-    });
     
     if (products.length === 0) {
       element.innerHTML = 'N/A';
@@ -697,23 +592,11 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse collection_reference value as JSON:', value);
       }
     }
     
     const isList = Array.isArray(parsedValue);
     const collections = isList ? parsedValue : (parsedValue ? [parsedValue] : []);
-    
-    console.log('[renderMetafieldValue] collection_reference:', {
-      metafieldType: metafieldType,
-      ownerType: ownerType,
-      valueType: typeof value,
-      parsedValueType: typeof parsedValue,
-      isList: isList,
-      collectionsLength: collections.length,
-      value: value,
-      parsedValue: parsedValue
-    });
     
     if (collections.length === 0) {
       element.innerHTML = 'N/A';
@@ -770,7 +653,6 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse dimension value as JSON:', value);
       }
     }
     
@@ -812,7 +694,6 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse volume value as JSON:', value);
       }
     }
     
@@ -854,7 +735,6 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse url/link value as JSON:', value);
       }
     }
     
@@ -905,7 +785,6 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse boolean value as JSON:', value);
       }
     }
     
@@ -939,7 +818,6 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse color value as JSON:', value);
       }
     }
     
@@ -1007,7 +885,6 @@ function renderMetafieldValue(element, value, metafieldType, ownerType, namespac
       try {
         parsedValue = JSON.parse(value);
       } catch (e) {
-        console.warn('[renderMetafieldValue] Failed to parse rating value as JSON:', value);
       }
     }
     
@@ -1203,7 +1080,6 @@ function renderTemplate(container, template) {
     try {
       styling = JSON.parse(styling);
     } catch (e) {
-      console.error('[renderTemplate] Error parsing styling:', e);
       styling = {};
     }
   }
@@ -1227,10 +1103,6 @@ function renderTemplate(container, template) {
   const columnRatio = desktopStyling.columnRatio || styling.columnRatio || container.dataset.firstColumnWidth || '40';
   const escapedTemplateId = escapeHtml(template.id);
   
-  // Debug: verifică dacă seeMoreButtonText există în styling
-  if (!desktopStyling.seeMoreButtonText && !styling.seeMoreButtonText) {
-    console.warn('[renderTemplate] seeMoreButtonText not found in styling. Available keys:', Object.keys(styling));
-  }
 
   // Generează media queries pentru device-specific styling
   let mediaQueriesCSS = '';
@@ -1238,16 +1110,6 @@ function renderTemplate(container, template) {
   let containerInlineStyle = '';
   
   if (hasDeviceSpecificStyling) {
-    // Debug: log pentru a verifica structura
-    console.log('[renderTemplate] Device-specific styling detected:', {
-      hasMobile: !!styling.mobile,
-      hasTablet: !!styling.tablet,
-      hasDesktop: !!styling.desktop,
-      mobileBg: mobileStyling.backgroundColor,
-      tabletBg: tabletStyling.backgroundColor,
-      desktopBg: desktopStyling.backgroundColor
-    });
-    
     // Când avem device-specific styling, NU setăm width/margin în inline style
     // Le setăm DOAR în media queries pentru a permite suprascrierea corectă
     // Nu setăm nimic în inline style pentru width/margin când avem device-specific styling
@@ -1292,7 +1154,6 @@ function renderTemplate(container, template) {
     mediaQueriesCSS += '@media (min-width: 1024px) { #specification-table-' + escapedTemplateId + ' { ' + desktopVars + buildCombinedStyles(desktopStyling) + '} } ';
   } else {
     // Backward compatibility: folosim styling-ul direct în inline style
-    console.log('[renderTemplate] No device-specific styling, using backward compatibility');
     cssVars = buildCSSVarsForDevice(styling, columnRatio);
     
     const templateWidth = styling.tableWidth || '100';
@@ -1506,28 +1367,22 @@ function renderTemplate(container, template) {
           // Dacă are url, este file_reference - afișează-l întotdeauna
           if (value.url) {
             hasValue = true;
-            console.log('[metafieldHasValue] file_reference object has url:', metafield.namespace, metafield.key, value);
           } else if (value.value !== undefined && value.scale_max !== undefined) {
             // Pentru rating, verifică dacă value există și nu este null/0
             hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
-            console.log('[metafieldHasValue] rating object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else if (value.value !== undefined && value.unit !== undefined) {
             // Pentru volume, dimension sau weight, verifică dacă value există
             hasValue = value.value !== null && value.value !== undefined && value.value !== '';
-            console.log('[metafieldHasValue] volume/dimension/weight object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else if (value.amount !== undefined) {
             // Pentru money, verifică dacă amount există și nu este 0
             const amountValue = parseFloat(value.amount) || 0;
             hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
-            console.log('[metafieldHasValue] money object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else if (Array.isArray(value)) {
             // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
             hasValue = value.length > 0;
-            console.log('[metafieldHasValue] list.product_reference/list.collection_reference array:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else if (Array.isArray(value)) {
             // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
             hasValue = value.length > 0;
-            console.log('[renderMetafieldsRows] list.product_reference/list.collection_reference array:', value, 'hasValue:', hasValue);
           } else {
             // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
             hasValue = !!(value.title || value.featured_image || value.image);
@@ -1553,7 +1408,6 @@ function renderTemplate(container, template) {
           } else if (Array.isArray(value)) {
             // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
             hasValue = value.length > 0;
-            console.log('[metafieldHasValue] VARIANT list.product_reference/list.collection_reference array:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else if (typeof value === 'object') {
             // Pentru obiecte (file_reference, product_reference, collection_reference, rating, volume, dimension, weight)
             // Dacă are url, este file_reference (imagine, video sau fișier) - afișează-l întotdeauna
@@ -1562,16 +1416,13 @@ function renderTemplate(container, template) {
             } else if (value.value !== undefined && value.scale_max !== undefined) {
               // Pentru rating, verifică dacă value există și nu este null/0
               hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
-              console.log('[metafieldHasValue] VARIANT rating object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
             } else if (value.value !== undefined && value.unit !== undefined) {
               // Pentru volume, dimension sau weight, verifică dacă value există
               hasValue = value.value !== null && value.value !== undefined && value.value !== '';
-              console.log('[metafieldHasValue] VARIANT volume/dimension/weight object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
             } else if (value.amount !== undefined) {
               // Pentru money, verifică dacă amount există și nu este 0
               const amountValue = parseFloat(value.amount) || 0;
               hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
-              console.log('[metafieldHasValue] VARIANT money object:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
             } else {
               // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
               hasValue = !!(value.title || value.featured_image || value.image);
@@ -1587,29 +1438,12 @@ function renderTemplate(container, template) {
       });
     }
 
-    console.log('[metafieldHasValue] Result:', {
-      namespace: metafield.namespace,
-      key: metafield.key,
-      hasValue: hasValue,
-      value: value,
-      valueType: typeof value,
-      hasUrl: value && typeof value === 'object' && value.url
-    });
 
     return hasValue;
   }
 
   const visibleMetafields = allMetafieldsWithSection.filter(metafield => metafieldHasValue(metafield));
   
-  console.log('[renderTemplate] Visible metafields after filtering:', {
-    total: allMetafieldsWithSection.length,
-    visible: visibleMetafields.length,
-    visibleMetafields: visibleMetafields.map(mf => ({
-      namespace: mf.namespace,
-      key: mf.key,
-      type: mf.type
-    }))
-  });
   const totalVisibleRows = visibleMetafields.length;
 
   let displayRowsPC = visibleMetafields;
@@ -1654,36 +1488,16 @@ function renderTemplate(container, template) {
     allGroupedBySection[item.sectionIndex].allMetafields.push(item);
   });
 
-  // Debug: verifică displayRows
-  console.log('[renderTemplate] displayRowsPC count:', displayRowsPC.length);
-  console.log('[renderTemplate] displayRowsMobile count:', displayRowsMobile.length);
-  console.log('[renderTemplate] visibleMetafields count:', visibleMetafields.length);
-  console.log('[renderTemplate] allMetafieldsWithSection count:', allMetafieldsWithSection.length);
-  
   displayRowsPC.forEach(item => {
     if (allGroupedBySection[item.sectionIndex]) {
       allGroupedBySection[item.sectionIndex].displayMetafieldsPC.push(item);
-    } else {
-      console.warn('[renderTemplate] Section index not found in allGroupedBySection:', item.sectionIndex, 'Available keys:', Object.keys(allGroupedBySection));
     }
   });
   displayRowsMobile.forEach(item => {
     if (allGroupedBySection[item.sectionIndex]) {
       allGroupedBySection[item.sectionIndex].displayMetafieldsMobile.push(item);
-    } else {
-      console.warn('[renderTemplate] Section index not found in allGroupedBySection:', item.sectionIndex, 'Available keys:', Object.keys(allGroupedBySection));
     }
   });
-  
-  // Debug: verifică allGroupedBySection după populare
-  console.log('[renderTemplate] allGroupedBySection after populating displayMetafields:', 
-    Object.keys(allGroupedBySection).map(key => ({
-      sectionIndex: key,
-      heading: allGroupedBySection[key].heading,
-      displayMetafieldsPC: allGroupedBySection[key].displayMetafieldsPC.length,
-      displayMetafieldsMobile: allGroupedBySection[key].displayMetafieldsMobile.length
-    }))
-  );
 
   if (hasMorePC) {
     const hiddenRowsPC = visibleMetafields.slice(seeMoreLimit);
@@ -1988,17 +1802,6 @@ function renderTemplate(container, template) {
   const seeMoreButtonText = styling?.seeMoreButtonText || styling?.see_more_button_text || 'See More';
   const showArrow = seeMoreButtonStyle === 'arrow' || seeMoreButtonStyle === 'arrow+text';
   const showText = seeMoreButtonStyle === 'text' || seeMoreButtonStyle === 'arrow+text';
-  
-  // Debug logging pentru a vedea ce se întâmplă
-  console.log('[See More Button Debug]', {
-    seeMoreButtonStyle,
-    seeMoreButtonText,
-    showArrow,
-    showText,
-    stylingKeys: Object.keys(styling || {}),
-    hasSeeMoreButtonText: !!(styling?.seeMoreButtonText),
-    stylingSeeMoreButtonText: styling?.seeMoreButtonText
-  });
 
   if (hasMorePC || hasMoreMobile) {
     if (hasMorePC) {
@@ -2184,29 +1987,11 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
   let rowsHtml = '';
   const productMetafields = window.productMetafieldsData || {};
   const variantMetafields = window.variantMetafieldsData || {};
-
-  console.log('[renderMetafieldsRows] Rendering metafields:', {
-    count: metafields.length,
-    metafields: metafields.map(mf => ({
-      namespace: mf.namespace,
-      key: mf.key,
-      type: mf.type,
-      ownerType: mf.ownerType
-    }))
-  });
-
   // Contor pentru metafields-urile care sunt efectiv afișate (care au valoare)
   // Acest contor este folosit pentru calculul odd/even
   let visibleRowIndex = 0;
 
   metafields.forEach((metafield, index) => {
-    console.log('[renderMetafieldsRows] Processing metafield:', {
-      namespace: metafield.namespace,
-      key: metafield.key,
-      type: metafield.type,
-      ownerType: metafield.ownerType,
-      metafieldType: metafield.metafieldType
-    });
     
     let hasValue = false;
     let value = null;
@@ -2242,24 +2027,10 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
         }
       }
     } else if (metafield.ownerType === 'PRODUCT') {
-      console.log('[renderMetafieldsRows] Checking PRODUCT metafield:', {
-        namespace: metafield.namespace,
-        key: metafield.key,
-        hasNamespace: productMetafields[metafield.namespace] !== undefined,
-        hasKey: productMetafields[metafield.namespace] && productMetafields[metafield.namespace][metafield.key] !== undefined
-      });
       
       if (productMetafields[metafield.namespace] &&
           productMetafields[metafield.namespace][metafield.key] !== undefined) {
         value = productMetafields[metafield.namespace][metafield.key];
-        console.log('[renderMetafieldsRows] Found value for PRODUCT metafield:', {
-          namespace: metafield.namespace,
-          key: metafield.key,
-          value: value,
-          valueType: typeof value,
-          isObject: typeof value === 'object',
-          hasUrl: value && typeof value === 'object' && value.url
-        });
         
         // Verifică dacă valoarea există și nu este null/undefined
         if (value === null || value === undefined || value === '') {
@@ -2269,28 +2040,22 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
           // Dacă are url, este file_reference - afișează-l întotdeauna
           if (value.url) {
             hasValue = true;
-            console.log('[renderMetafieldsRows] file_reference object has url - will be displayed:', value);
           } else if (value.value !== undefined && value.scale_max !== undefined) {
             // Pentru rating, verifică dacă value există și nu este null/0
             hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
-            console.log('[renderMetafieldsRows] rating object:', value, 'hasValue:', hasValue);
           } else if (value.value !== undefined && value.unit !== undefined) {
             // Pentru volume, dimension sau weight, verifică dacă value există
             hasValue = value.value !== null && value.value !== undefined && value.value !== '';
-            console.log('[renderMetafieldsRows] volume/dimension/weight object:', value, 'hasValue:', hasValue);
           } else if (value.amount !== undefined) {
             // Pentru money, verifică dacă amount există și nu este 0
             const amountValue = parseFloat(value.amount) || 0;
             hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
-            console.log('[renderMetafieldsRows] money object:', value, 'hasValue:', hasValue);
           } else if (Array.isArray(value)) {
             // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
             hasValue = value.length > 0;
-            console.log('[metafieldHasValue] list.product_reference/list.collection_reference array:', metafield.namespace, metafield.key, value, 'hasValue:', hasValue);
           } else if (Array.isArray(value)) {
             // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
             hasValue = value.length > 0;
-            console.log('[renderMetafieldsRows] list.product_reference/list.collection_reference array:', value, 'hasValue:', hasValue);
           } else {
             // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
             hasValue = !!(value.title || value.featured_image || value.image);
@@ -2302,12 +2067,6 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
                     (typeof value !== 'string' || value.trim() !== '') &&
                     (typeof value !== 'string' || value.trim().toUpperCase() !== 'N/A');
         }
-        
-        console.log('[renderMetafieldsRows] Final hasValue for PRODUCT metafield:', {
-          namespace: metafield.namespace,
-          key: metafield.key,
-          hasValue: hasValue
-        });
       }
     } else if (metafield.ownerType === 'VARIANT') {
       Object.keys(variantMetafields).forEach(variantId => {
@@ -2322,7 +2081,6 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
           } else if (Array.isArray(value)) {
             // Pentru list.product_reference sau list.collection_reference, verifică dacă array-ul nu este gol
             hasValue = value.length > 0;
-            console.log('[renderMetafieldsRows] VARIANT list.product_reference/list.collection_reference array:', value, 'hasValue:', hasValue);
           } else if (typeof value === 'object') {
             // Pentru obiecte (file_reference, product_reference, collection_reference, rating, volume, dimension, weight)
             // Dacă are url, este file_reference (imagine, video sau fișier) - afișează-l întotdeauna
@@ -2331,16 +2089,13 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
             } else if (value.value !== undefined && value.scale_max !== undefined) {
               // Pentru rating, verifică dacă value există și nu este null/0
               hasValue = value.value !== null && value.value !== undefined && value.value !== '' && parseFloat(value.value) > 0;
-              console.log('[renderMetafieldsRows] VARIANT rating object:', value, 'hasValue:', hasValue);
             } else if (value.value !== undefined && value.unit !== undefined) {
               // Pentru volume, dimension sau weight, verifică dacă value există
               hasValue = value.value !== null && value.value !== undefined && value.value !== '';
-              console.log('[renderMetafieldsRows] VARIANT volume/dimension/weight object:', value, 'hasValue:', hasValue);
             } else if (value.amount !== undefined) {
               // Pentru money, verifică dacă amount există și nu este 0
               const amountValue = parseFloat(value.amount) || 0;
               hasValue = value.amount !== null && value.amount !== undefined && value.amount !== '' && amountValue > 0;
-              console.log('[renderMetafieldsRows] VARIANT money object:', value, 'hasValue:', hasValue);
             } else {
               // Pentru product_reference sau collection_reference, verifică title, featured_image sau image
               hasValue = !!(value.title || value.featured_image || value.image);
@@ -2412,13 +2167,6 @@ function renderMetafieldsRows(metafields, styling, allMetafieldsWithSection) {
     if (hideFromMobile) {
       rowClasses += ' dc_hide_from_mobile';
     }
-    console.log('[renderMetafieldsRows] Final check before rendering row:', {
-      namespace: metafield.namespace,
-      key: metafield.key,
-      hasValue: hasValue,
-      value: value,
-      willBeHidden: !hasValue
-    });
     
     if (!hasValue) {
       rowClasses += ' dc_hidden';
@@ -2516,7 +2264,6 @@ window.showAllTableRows = function(templateId, event, device) {
   // Găsește container-ul principal al tabelului o singură dată
   const mainContainer = document.getElementById('specification-table-' + templateId);
   if (!mainContainer) {
-    console.warn('[showAllTableRows] Main container not found for templateId:', templateId);
     return;
   }
 
@@ -2767,21 +2514,17 @@ window.showAllTableRows = function(templateId, event, device) {
 
     const tempTable = sectionContainer.querySelector('table');
     if (!tempTable) {
-      console.warn('[showAllTableRows] Temp table not found for section:', sectionIndex);
       return;
     }
 
     const tempTbody = tempTable.querySelector('tbody');
     if (!tempTbody) {
-      console.warn('[showAllTableRows] Temp tbody not found for section:', sectionIndex);
       return;
     }
 
     const rows = Array.from(tempTbody.querySelectorAll('tr'));
-    console.log('[showAllTableRows] Found', rows.length, 'rows for section', sectionIndex, 'tableId:', tableId);
 
     if (rows.length === 0) {
-      console.warn('[showAllTableRows] No rows found in tempTbody for section:', sectionIndex);
       return;
     }
 
@@ -2796,7 +2539,6 @@ window.showAllTableRows = function(templateId, event, device) {
           tbodyRight.appendChild(row);
         }
       });
-      console.log('[showAllTableRows] Added', rows.length, 'rows to split view tbody for section:', sectionIndex);
     } else if (tbody) {
       // Tabel normal: adaugă toate rândurile în tbody
       rows.forEach(row => {
@@ -2804,10 +2546,7 @@ window.showAllTableRows = function(templateId, event, device) {
         row.setAttribute('data-see-more-added', 'true');
         tbody.appendChild(row);
       });
-      console.log('[showAllTableRows] Added', rows.length, 'rows to normal tbody for section:', sectionIndex);
     } else {
-      console.warn('[showAllTableRows] No tbody found for tableId:', tableId, 'section:', sectionIndex);
-      console.warn('[showAllTableRows] tbodyLeft:', tbodyLeft, 'tbodyRight:', tbodyRight, 'tbody:', tbody);
       return;
     }
   });
@@ -2847,7 +2586,6 @@ window.showAllTableRows = function(templateId, event, device) {
     
     if (!shouldShowForPC && !shouldShowForMobile) {
       // Butonul trebuie să fie ascuns pentru acest device
-      console.log('[See Less Button] Hidden for device:', device, 'seeLessHideFromPC:', seeLessHideFromPC, 'seeLessHideFromMobile:', seeLessHideFromMobile);
       return;
     }
     
@@ -2999,7 +2737,6 @@ window.showLessTableRows = function(templateId, event, device) {
 
   const mainContainer = document.getElementById('specification-table-' + templateId);
   if (!mainContainer) {
-    console.warn('[showLessTableRows] Main container not found for templateId:', templateId);
     return;
   }
 

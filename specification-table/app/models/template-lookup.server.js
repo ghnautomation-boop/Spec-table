@@ -45,8 +45,7 @@ export async function rebuildTemplateLookup(shopId, shopDomain = null, admin = n
   const existingRebuild = rebuildDebounceMap.get(debounceKey);
   
   if (existingRebuild) {
-    console.log(`[rebuildTemplateLookup] Debounce: Found existing rebuild for shop ${shopId}, waiting 200ms...`);
-    // Așteaptă puțin pentru ca assignment-urile să fie salvate
+
     await new Promise(resolve => setTimeout(resolve, 200));
     // Reîncearcă rebuild-ul
     return rebuildTemplateLookup(shopId, shopDomain, admin);
@@ -92,20 +91,7 @@ async function _rebuildTemplateLookupInternal(shopId, shopDomain = null, admin =
     },
   });
   
-  console.log(`[rebuildTemplateLookup] Found ${assignments.length} active assignments for shop ${shopId}`);
-  assignments.forEach((assignment, index) => {
-    console.log(`[rebuildTemplateLookup] Assignment ${index + 1}:`, {
-      templateId: assignment.templateId,
-      assignmentType: assignment.assignmentType,
-      targetsCount: assignment.targets?.length || 0,
-      targets: assignment.targets?.map(t => ({
-        id: t.id,
-        targetShopifyId: t.targetShopifyId,
-        targetType: t.targetType,
-        isExcluded: t.isExcluded,
-      })) || [],
-    });
-  });
+
 
   if (assignments.length === 0) {
     return { rebuilt: 0 };
@@ -164,8 +150,7 @@ async function _rebuildTemplateLookupInternal(shopId, shopDomain = null, admin =
         }
       }
       
-      console.log(`[rebuildTemplateLookup] Processing ${uniqueTargets.length} unique collection targets (from ${targets.length} total)`);
-      
+
       for (const target of uniqueTargets) {
         const collectionId = normalizeShopifyId(target.targetShopifyId);
         
@@ -252,35 +237,12 @@ async function _rebuildTemplateLookupInternal(shopId, shopDomain = null, admin =
     const uniqueEntries = Array.from(uniqueEntriesMap.values());
     
     // Debug: afișează ce se va salva în DB
-    console.log(`[rebuildTemplateLookup] About to save ${uniqueEntries.length} unique lookup entries (from ${lookupEntries.length} total)`);
-    
+
     // Debug: afișează toate entry-urile pentru debugging
     const defaultEntries = uniqueEntries.filter(e => e.isDefault === true);
     const collectionEntries = uniqueEntries.filter(e => e.collectionId !== null && e.isDefault !== true);
     const productEntries = uniqueEntries.filter(e => e.productId !== null && e.isDefault !== true);
     
-    if (defaultEntries.length > 0) {
-      console.log(`[rebuildTemplateLookup] DEFAULT entries to save:`, defaultEntries.map(e => ({
-        templateId: e.templateId,
-        priority: e.priority,
-        isDefault: e.isDefault,
-      })));
-    }
-    if (collectionEntries.length > 0) {
-      console.log(`[rebuildTemplateLookup] Collection entries to save:`, collectionEntries.map(e => ({
-        collectionId: e.collectionId,
-        collectionIdType: typeof e.collectionId,
-        templateId: e.templateId,
-        priority: e.priority,
-      })));
-    }
-    if (productEntries.length > 0) {
-      console.log(`[rebuildTemplateLookup] Product entries to save:`, productEntries.map(e => ({
-        productId: e.productId,
-        templateId: e.templateId,
-        priority: e.priority,
-      })));
-    }
     
     // Folosim createMany pentru performanță
     // Nu mai avem nevoie de skipDuplicates pentru că am șters toate entry-urile vechi la începutul funcției
@@ -293,9 +255,7 @@ async function _rebuildTemplateLookupInternal(shopId, shopDomain = null, admin =
         skipDuplicates: false, // Nu mai avem nevoie de skipDuplicates
       });
       totalSaved += result.count;
-      console.log(`[rebuildTemplateLookup] Saved batch ${i / batchSize + 1}: ${result.count} entries`);
     }
-    console.log(`[rebuildTemplateLookup] Total saved: ${totalSaved} entries`);
   }
 
   return { rebuilt: lookupEntries.length };

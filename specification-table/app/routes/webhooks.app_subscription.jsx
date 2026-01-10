@@ -13,13 +13,12 @@ export const action = async ({ request }) => {
     const appSubscription = payload.app_subscription || payload;
 
     if (!appSubscription) {
-      console.warn("[webhooks.app_subscription] No app_subscription in payload");
-      console.log("[webhooks.app_subscription] Payload structure:", JSON.stringify(payload, null, 2));
+
       return new Response();
     }
 
     // Log payload pentru debugging
-    console.log("[webhooks.app_subscription] Full payload:", JSON.stringify(payload, null, 2));
+
 
     // Obține plan key din name sau id al subscription-ului
     // Planurile din Managed Pricing au nume precum "Starter", "Growth", "Scale", "Unlimited"
@@ -44,11 +43,11 @@ export const action = async ({ request }) => {
     const isActive = status === "ACTIVE" || status === "active";
 
     if (!isActive) {
-      console.log(`[webhooks.app_subscription] Subscription is not active (status: ${status}), skipping`);
+     
       return new Response();
     }
 
-    console.log(`[webhooks.app_subscription] Processing subscription: ${planName} (${planKey}) for shop ${shop}`);
+  
 
     // Găsește sau creează shop-ul
     const shopRecord = await prisma.shop.upsert({
@@ -90,12 +89,9 @@ export const action = async ({ request }) => {
     // Rulează syncAll pentru a popula metafield definitions în DB (fire-and-forget)
     // NOUA LOGICĂ: Doar metafield definitions (nu mai populăm products și collections la instalare)
     Promise.resolve().then(async () => {
-      try {
-        console.log(`[webhooks.app_subscription] Starting sync for shop ${shop} after subscription`);
+      try {    
         await syncAll(admin, shop);
-        console.log(`[webhooks.app_subscription] Successfully synced data for shop ${shop}`);
       } catch (error) {
-        console.error(`[webhooks.app_subscription] Error syncing data for shop ${shop}:`, error);
       }
     });
 

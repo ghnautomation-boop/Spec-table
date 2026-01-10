@@ -11,9 +11,6 @@ const shopIdCache = new Map();
  */
 export function invalidateShopIdCache(shopDomain) {
   shopIdCache.delete(shopDomain);
-  if (process.env.NODE_ENV === "development") {
-    console.log(`[invalidateShopIdCache] Cache invalidated for shop: ${shopDomain}`);
-  }
 }
 
 export async function getTemplates(shopDomain) {
@@ -30,7 +27,6 @@ export async function getTemplates(shopDomain) {
     
     if (!shopExists) {
       // Shop-ul nu mai există (probabil a fost șters la uninstall), invalidăm cache-ul
-      console.log(`[getTemplates] Cached shopId ${shopId} no longer exists, invalidating cache for ${shopDomain}`);
       shopIdCache.delete(shopDomain);
       shopId = null;
     }
@@ -123,13 +119,6 @@ export async function getTemplates(shopDomain) {
   });
   
   const queryTime = performance.now() - queryStart;
-  if (process.env.NODE_ENV === "development") {
-    console.log(`[PERF] getTemplates - Shop query: ${shopQueryTime.toFixed(2)}ms, Main query: ${queryTime.toFixed(2)}ms, Total: ${(performance.now() - perfStart).toFixed(2)}ms`);
-    console.log(`[getTemplates] Found ${result.length} templates for shop: ${shopDomain} (shopId: ${shopId})`);
-    if (result.length > 0) {
-      console.log(`[getTemplates] Template IDs:`, result.map(t => ({ id: t.id, name: t.name, createdAt: t.createdAt })));
-    }
-  }
   
   return result;
 }
@@ -267,24 +256,16 @@ export async function createTemplate(data, shopDomain, admin = null) {
 
   // Actualizează metaobject-ul în Shopify dacă admin este disponibil ȘI template-ul este activ
   if (admin && template.isActive) {
-    console.log('[createTemplate] Admin available and template is active, creating metaobject...');
-    console.log('[createTemplate] Template ID:', template.id);
-    console.log('[createTemplate] Template assignments:', template.assignments);
+
     try {
       const { createOrUpdateMetaobject } = await import("../utils/metaobject.server.js");
       const result = await createOrUpdateMetaobject(admin, template);
-      console.log('[createTemplate] Metaobject creation result:', result);
     } catch (error) {
       // Nu aruncăm eroarea - template-ul este deja creat în DB
       console.error("[createTemplate] Error creating metaobject for template:", error);
       console.error("[createTemplate] Error stack:", error.stack);
     }
   } else {
-    if (!admin) {
-      console.log('[createTemplate] Admin NOT available, skipping metaobject creation');
-    } else if (!template.isActive) {
-      console.log('[createTemplate] Template is inactive, skipping metaobject creation');
-    }
   }
 
   return template;
@@ -433,7 +414,7 @@ export async function toggleTemplateActive(templateId, shopDomain, admin = null,
   if (admin) {
     if (newActiveState) {
       // Template-ul devine activ - creează assignment-urile și metaobjects-urile
-      console.log('[toggleTemplateActive] Template became active, creating assignments and metaobjects...');
+  
       const { createOrUpdateMetaobject, setCollectionMetafield, setProductMetafield } = await import("../utils/metaobject.server.js");
       
       // Creează/actualizează metaobject-ul
@@ -446,7 +427,7 @@ export async function toggleTemplateActive(templateId, shopDomain, admin = null,
         for (const assignment of template.assignments) {
           if (assignment.assignmentType === "DEFAULT") {
             // Pentru DEFAULT, metaobject-ul este deja creat cu handle-ul global
-            console.log('[toggleTemplateActive] Global assignment - metaobject already created');
+          
           } else if (assignment.assignmentType === "COLLECTION") {
             for (const target of assignment.targets) {
               const collectionGid = target.targetShopifyId.startsWith('gid://') 
@@ -466,7 +447,7 @@ export async function toggleTemplateActive(templateId, shopDomain, admin = null,
       }
     } else {
       // Template-ul devine inactiv - șterge assignment-urile și metafield-urile
-      console.log('[toggleTemplateActive] Template became inactive, deleting assignments and metafields...');
+     
       const { deleteProductMetafield, deleteCollectionMetafield, deleteMetaobject, deleteMetaobjectByHandle } = await import("../utils/metaobject.server.js");
       const { normalizeShopifyId } = await import("./template-lookup.server.js");
       
@@ -583,24 +564,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
 
   const { name, styling, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, seeLessHideFromPC, seeLessHideFromMobile, splitViewPerSection, splitViewPerMetafield, tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections } = data;
 
-  // Debug: verifică datele primite
-  if (process.env.NODE_ENV === "development") {
-    console.log("updateTemplate - Data received:", JSON.stringify({
-      name,
-      seeMoreEnabled,
-      seeMoreHideFromPC,
-      seeMoreHideFromMobile,
-      sections: sections?.map(s => ({
-        heading: s.heading,
-        metafields: s.metafields?.map(mf => ({
-          metafieldDefinitionId: mf.metafieldDefinitionId,
-          customName: mf.customName,
-          tooltipEnabled: mf.tooltipEnabled,
-          tooltipText: mf.tooltipText,
-        }))
-      }))
-    }, null, 2));
-  }
+
 
   // Șterge secțiunile existente și creează-le din nou
   await prisma.templateSection.deleteMany({
@@ -707,7 +671,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
       if (templateWithAssignments) {
         if (isActive) {
           // Template-ul devine activ - creează assignment-urile și metaobjects-urile
-          console.log('[updateTemplate] Template became active, creating assignments and metaobjects...');
+        
           const { createOrUpdateMetaobject, setCollectionMetafield, setProductMetafield } = await import("../utils/metaobject.server.js");
           
           // Creează/actualizează metaobject-ul
@@ -720,7 +684,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
             for (const assignment of templateWithAssignments.assignments) {
               if (assignment.assignmentType === "DEFAULT") {
                 // Pentru DEFAULT, metaobject-ul este deja creat cu handle-ul global
-                console.log('[updateTemplate] Global assignment - metaobject already created');
+               
               } else if (assignment.assignmentType === "COLLECTION") {
                 for (const target of assignment.targets) {
                   const collectionGid = target.targetShopifyId.startsWith('gid://') 
@@ -740,7 +704,7 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
           }
         } else {
           // Template-ul devine inactiv - șterge assignment-urile și metafield-urile
-          console.log('[updateTemplate] Template became inactive, deleting assignments and metafields...');
+    
           const { deleteProductMetafield, deleteCollectionMetafield, deleteMetaobject, deleteMetaobjectByHandle } = await import("../utils/metaobject.server.js");
           const { normalizeShopifyId } = await import("./template-lookup.server.js");
           
@@ -827,20 +791,15 @@ export async function updateTemplate(templateId, data, shopDomain, admin = null)
     await rebuildTemplateLookup(template.shopId, shopDomain, admin);
   } else if (admin && updated.isActive) {
     // Dacă template-ul este activ și nu s-a schimbat isActive, actualizează metaobject-ul
-    console.log('[updateTemplate] Admin available, updating metaobject...');
-    console.log('[updateTemplate] Template ID:', updated.id);
-    console.log('[updateTemplate] Template assignments:', updated.assignments);
     try {
       const { createOrUpdateMetaobject } = await import("../utils/metaobject.server.js");
       const result = await createOrUpdateMetaobject(admin, updated);
-      console.log('[updateTemplate] Metaobject update result:', result);
     } catch (error) {
       // Nu aruncăm eroarea - template-ul este deja actualizat în DB
       console.error("[updateTemplate] Error updating metaobject for template:", error);
       console.error("[updateTemplate] Error stack:", error.stack);
     }
   } else {
-    console.log('[updateTemplate] Template is inactive or admin NOT available, skipping metaobject update');
   }
 
   return updated;
@@ -925,7 +884,7 @@ export async function deleteTemplate(templateId, shopDomain, admin = null) {
                         ],
                       },
                     });
-                    console.log(`[deleteTemplate] Deleted Product entry from DB: ${normalizedId}`);
+
                   } else if (assignment.assignmentType === "COLLECTION") {
                     await prisma.collection.deleteMany({
                       where: {
@@ -936,7 +895,7 @@ export async function deleteTemplate(templateId, shopDomain, admin = null) {
                         ],
                       },
                     });
-                    console.log(`[deleteTemplate] Deleted Collection entry from DB: ${normalizedId}`);
+
                   }
                 }
               }
@@ -1280,7 +1239,7 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
                     ],
                   },
                 });
-                console.log(`[saveTemplateAssignment] Deleted Product entry from DB: ${normalizedId}`);
+
               } else if (targetToRemove.targetType === "COLLECTION") {
                 await prisma.collection.deleteMany({
                   where: {
@@ -1291,7 +1250,7 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
                     ],
                   },
                 });
-                console.log(`[saveTemplateAssignment] Deleted Collection entry from DB: ${normalizedId}`);
+
               }
             }
           }
@@ -1333,7 +1292,6 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
 
   // Dacă template-ul este inactiv, nu creăm assignment-uri
   if (!refreshedTemplate.isActive) {
-    console.log('[saveTemplateAssignment] Template is inactive, skipping assignment creation');
     const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
     await rebuildTemplateLookup(shop.id, shopDomain, admin);
     return { success: true, skipped: true, reason: 'Template is inactive' };
@@ -1345,23 +1303,14 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
 
   // Elimină duplicate-urile din targetIds înainte de salvare
   const uniqueTargetIds = targetIds ? [...new Set(targetIds)] : [];
-  if (targetIds && targetIds.length !== uniqueTargetIds.length) {
-    console.log(`[saveTemplateAssignment] Removed ${targetIds.length - uniqueTargetIds.length} duplicate targetIds`);
-  }
-  
-  console.log(`[saveTemplateAssignment] Creating assignment:`, {
-    templateId: template.id,
-    assignmentType: assignmentType,
-    targetIdsCount: uniqueTargetIds.length,
-    targetIds: uniqueTargetIds,
-  });
+
+
 
   // Populează produsele/colecțiile în DB când se face assignment
   // NOUA LOGICĂ: Populăm doar produsele/colecțiile assignate, nu toate
   if (uniqueTargetIds.length > 0 && admin) {
     const { syncSingleProduct, syncSingleCollection } = await import("./sync.server.js");
     
-    console.log(`[saveTemplateAssignment] Syncing ${uniqueTargetIds.length} ${assignmentType === "PRODUCT" ? "products" : "collections"} to DB...`);
     
     // Sincronizează fiecare produs/colecție în DB
     for (const targetId of uniqueTargetIds) {
@@ -1381,7 +1330,7 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
       }
     }
     
-    console.log(`[saveTemplateAssignment] Successfully synced ${uniqueTargetIds.length} ${assignmentType === "PRODUCT" ? "products" : "collections"} to DB`);
+   
   }
 
   // Creează noul assignment
@@ -1400,10 +1349,7 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     },
   });
 
-  console.log(`[saveTemplateAssignment] Assignment created:`, {
-    assignmentId: assignment.id,
-    targetsCount: assignment.targets?.length || 0,
-  });
+ 
 
   // Creează/actualizează metaobject-ul pentru toate tipurile de assignment DOAR dacă template-ul este activ
   if (admin && template.isActive) {
@@ -1430,69 +1376,46 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
       });
 
       if (templateWithAssignments) {
-        console.log('[saveTemplateAssignment] Template with assignments found and is active, updating metaobject...');
-        console.log('[saveTemplateAssignment] Template assignments:', templateWithAssignments.assignments);
         const { createOrUpdateMetaobject, setCollectionMetafield, setProductMetafield } = await import("../utils/metaobject.server.js");
         const metaobjectResult = await createOrUpdateMetaobject(admin, templateWithAssignments);
-        console.log('[saveTemplateAssignment] Metaobject update result:', metaobjectResult);
         
         if (metaobjectResult && metaobjectResult.id) {
           const metaobjectId = metaobjectResult.id;
           
           // Dacă assignment-ul este DEFAULT, nu setăm metafield-uri (template-ul global este accesat direct)
           if (assignmentType === "DEFAULT") {
-            console.log(`[saveTemplateAssignment] Metaobject updated with global handle - no metafields to set`);
+         
           } else if (assignmentType === "COLLECTION") {
             // Setează metafield-ul pe fiecare colecție
-            console.log(`[saveTemplateAssignment] Setting metafields on ${uniqueTargetIds.length} collections...`);
+          
             for (const collectionId of uniqueTargetIds) {
               // Asigură-te că collectionId este în format GID
               const collectionGid = collectionId.startsWith('gid://') 
                 ? collectionId 
                 : `gid://shopify/Collection/${collectionId}`;
               
-              const success = await setCollectionMetafield(admin, collectionGid, metaobjectId);
-              if (success) {
-                console.log(`[saveTemplateAssignment] Metafield set successfully for collection: ${collectionGid}`);
-              } else {
-                console.error(`[saveTemplateAssignment] Failed to set metafield for collection: ${collectionGid}`);
-              }
             }
           } else if (assignmentType === "PRODUCT") {
             // Setează metafield-ul pe fiecare produs
-            console.log(`[saveTemplateAssignment] Setting metafields on ${uniqueTargetIds.length} products...`);
+            
             for (const productId of uniqueTargetIds) {
               // Asigură-te că productId este în format GID
               const productGid = productId.startsWith('gid://') 
                 ? productId 
                 : `gid://shopify/Product/${productId}`;
               
-              const success = await setProductMetafield(admin, productGid, metaobjectId);
-              if (success) {
-                console.log(`[saveTemplateAssignment] Metafield set successfully for product: ${productGid}`);
-              } else {
-                console.error(`[saveTemplateAssignment] Failed to set metafield for product: ${productGid}`);
-              }
             }
           }
         } else {
           console.error('[saveTemplateAssignment] Metaobject was not created/updated, cannot set metafields');
         }
       } else {
-        console.log('[saveTemplateAssignment] Template with assignments NOT found');
       }
     } catch (error) {
       console.error("[saveTemplateAssignment] Error updating metaobject:", error);
       // Nu aruncăm eroarea - assignment-ul este deja salvat
     }
   } else {
-    if (!admin) {
-      console.log('[saveTemplateAssignment] Admin NOT available, skipping metaobject update');
-    } else if (!template.isActive) {
-      console.log('[saveTemplateAssignment] Template is inactive, skipping metaobject and assignment creation');
-      // Dacă template-ul este inactiv, nu creăm assignment-urile
-      return { success: true, skipped: true, reason: 'Template is inactive' };
-    }
   }
 
   // Reconstruiește lookup table-ul pentru acest shop (o singură dată, după ce s-a creat noul assignment)
@@ -1618,17 +1541,6 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
   const normalizedCollectionId = normalizeShopifyId(collectionId);
   const normalizeTime = performance.now() - normalizeStart;
 
-  // Debug logging pentru normalizare
-  console.log(`   🔍 [DEBUG] Normalization:`, {
-    productId: productId,
-    productIdType: typeof productId,
-    normalizedProductId: normalizedProductId,
-    normalizedProductIdType: typeof normalizedProductId,
-    collectionId: collectionId,
-    collectionIdType: typeof collectionId,
-    normalizedCollectionId: normalizedCollectionId,
-    normalizedCollectionIdType: typeof normalizedCollectionId,
-  });
 
   // OPTIMIZARE: Caută în ordinea priorității (PRODUCT > COLLECTION > DEFAULT)
   // NOTĂ: collectionId vine din Shopify context (Liquid), nu din DB
@@ -1653,31 +1565,18 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
     });
     lookupQueryTime = performance.now() - queryStart;
     
-    if (lookup && process.env.NODE_ENV === "development") {
-      console.log(`   ✅ Found template via PRODUCT lookup: ${lookupQueryTime.toFixed(2)}ms`);
-    }
+
   }
 
   // 2. Dacă nu s-a găsit, caută după collectionId (priority 2)
   // NOTĂ: collectionId vine din parametru (Shopify context), nu din DB
   // Nu mai stocăm produsele din colecții în TemplateLookup - doar colecțiile în sine
-  console.log(`   🔍 [DEBUG] Checking collection lookup:`, {
-    lookup: lookup,
-    normalizedCollectionId: normalizedCollectionId,
-    willSearch: !lookup && normalizedCollectionId,
-  });
+
   
   if (!lookup && normalizedCollectionId) {
     const queryStart = performance.now();
     
-    // Debug logging pentru a verifica normalizarea
-    console.log(`   🔍 [DEBUG] Looking for collection template:`, {
-      originalCollectionId: collectionId,
-      originalType: typeof collectionId,
-      normalizedCollectionId: normalizedCollectionId,
-      normalizedType: typeof normalizedCollectionId,
-      shopId: shopId,
-    });
+
     
     // IMPORTANT: Asigură-te că normalizedCollectionId este string pentru match corect
     const collectionIdForQuery = String(normalizedCollectionId).trim();
@@ -1699,16 +1598,9 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
     lookupQueryTime = performance.now() - queryStart;
     
     if (lookup && process.env.NODE_ENV === "development") {
-      console.log(`   ✅ Found template via COLLECTION lookup (collectionId from context): ${lookupQueryTime.toFixed(2)}ms`, {
-        templateId: lookup.templateId,
-        collectionId: normalizedCollectionId,
-      });
+
     } else if (!lookup) {
-      console.log(`   ⚠️  [DEBUG] No template found for collection:`, {
-        normalizedCollectionId: normalizedCollectionId,
-        normalizedType: typeof normalizedCollectionId,
-        shopId: shopId,
-      });
+
       // Verifică dacă există colecții în TemplateLookup pentru acest shop
       const allCollectionLookups = await prisma.templateLookup.findMany({
         where: {
@@ -1720,16 +1612,6 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
           templateId: true,
           priority: true,
         },
-      });
-      console.log(`   🔍 [DEBUG] Available collection lookups in DB:`, allCollectionLookups);
-      console.log(`   🔍 [DEBUG] Comparing:`, {
-        searchingFor: String(normalizedCollectionId),
-        searchingForType: typeof String(normalizedCollectionId),
-        availableInDB: allCollectionLookups.map(l => ({
-          collectionId: l.collectionId,
-          collectionIdType: typeof l.collectionId,
-          matches: String(l.collectionId) === String(normalizedCollectionId),
-        })),
       });
     }
   }
@@ -1752,14 +1634,12 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
     lookupQueryTime = performance.now() - queryStart;
     
     if (lookup && process.env.NODE_ENV === "development") {
-      console.log(`   ✅ Found template via DEFAULT lookup: ${lookupQueryTime.toFixed(2)}ms`);
     } else if (!lookup && process.env.NODE_ENV === "development") {
       // Dacă lookup table-ul este gol, încearcă să-l reconstruiască (doar o dată)
-      console.log("⚠️  [PERF] Lookup table is empty! Rebuilding...");
       try {
         const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
         await rebuildTemplateLookup(shopId);
-        console.log("✅ [PERF] Lookup table rebuilt successfully");
+      
         // Reîncearcă query-ul după rebuild
         lookup = await prisma.templateLookup.findFirst({
           where: {
@@ -1779,13 +1659,6 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
     }
   }
 
-  if (!lookup) {
-    if (process.env.NODE_ENV === "development") {
-      console.log(`   ⚠️  No template found. Lookup time: ${lookupQueryTime.toFixed(2)}ms`);
-      console.log(`   💡 Tip: Rebuild lookup table if assignments exist`);
-    }
-    return null;
-  }
 
   // 4. Obține template-ul complet cu toate relațiile (query separat pentru performanță)
   // OPTIMIZARE: Folosim query-uri separate pentru a evita JOIN-uri complexe
@@ -1889,29 +1762,7 @@ export async function getTemplateForTarget(shopDomain, productId = null, collect
 
   const totalTime = performance.now() - perfStart;
 
-  if (process.env.NODE_ENV === "development") {
-    console.log("🔍 [PERF] getTemplateForTarget Breakdown:");
-    console.log(`   🏪 Shop Query: ${shopQueryTime.toFixed(2)}ms ${shopIdCache.has(shopDomain) ? '(cached)' : '(new)'}`);
-    console.log(`   🔄 Normalize IDs: ${normalizeTime.toFixed(2)}ms`);
-    console.log(`   🔎 Lookup Query: ${lookupQueryTime.toFixed(2)}ms`);
-    console.log(`   📄 Template Query: ${templateQueryTime.toFixed(2)}ms`);
-    console.log(`      - Sections: ${sectionsTime.toFixed(2)}ms (${sections.length} sections)`);
-    console.log(`      - Metafields: ${metafieldsTime.toFixed(2)}ms (${metafields.length} metafields)`);
-    console.log(`   ⏱️  Total: ${totalTime.toFixed(2)}ms`);
-    
-    if (totalTime > 500) {
-      console.log(`   ⚠️  WARNING: Query is slow (>500ms)!`);
-      if (shopQueryTime > 50 && !shopIdCache.has(shopDomain)) {
-        console.log(`   💡 Tip: Shop query is slow - check index on shopDomain`);
-      }
-      if (lookupQueryTime > 100) {
-        console.log(`   💡 Tip: Lookup query is slow - check indexes on TemplateLookup`);
-      }
-      if (templateQueryTime > 300) {
-        console.log(`   💡 Tip: Template query is slow - template has ${sections.length} sections, ${metafields.length} metafields`);
-      }
-    }
-  }
+
 
   return templateWithSections;
 }

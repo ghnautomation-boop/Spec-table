@@ -38,7 +38,6 @@ function getPubSubClient() {
         
         if (keyFile) {
           keyPath = path.join(projectRoot, keyFile);
-          console.log(`[pubsub] Found service account key: ${keyFile}`);
         }
       } catch (error) {
         console.warn(`[pubsub] Could not search for service account key:`, error.message);
@@ -46,14 +45,12 @@ function getPubSubClient() {
     }
     
     if (keyPath) {
-      console.log(`[pubsub] Using service account key: ${keyPath}`);
       pubsubClient = new PubSub({
         projectId,
         keyFilename: keyPath,
       });
     } else {
       // Altfel, folosește default credentials (pentru Cloud Run/Cloud Functions)
-      console.log(`[pubsub] Using default credentials (Cloud Run/Cloud Functions)`);
       pubsubClient = new PubSub({ projectId });
     }
   }

@@ -17,16 +17,7 @@ export async function loader({ request }) {
   }
   const shop = url.searchParams.get("shop");
 
-  // Log doar în development
-  if (process.env.NODE_ENV === "development") {
-    console.log("📡 [API] Template Request received:", { 
-      productId, 
-      collectionId, 
-      shop,
-      collectionIdType: typeof collectionId,
-      collectionIdLength: collectionId?.length,
-    });
-  }
+
 
   if (!shop) {
     return Response.json(
@@ -37,15 +28,10 @@ export async function loader({ request }) {
 
   try {
     const queryStart = performance.now();
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔍 [API] Starting template query...");
-    }
+
     const template = await getTemplateForTarget(shop, productId, collectionId);
     const queryTime = performance.now() - queryStart;
-    
-    if (process.env.NODE_ENV === "development") {
-      console.log(`🔍 [API] Template query completed: ${queryTime.toFixed(2)}ms`);
-    }
+
 
     if (!template) {
       return Response.json({ template: null });
@@ -66,17 +52,7 @@ export async function loader({ request }) {
     const sections = template.sections.map(section => ({
       heading: section.heading,
       metafields: section.metafields.map(mf => {
-        // Debug logging pentru hideFromPC/hideFromMobile
-        if (process.env.NODE_ENV === "development") {
-          console.log("📦 [API] Metafield hide flags:", {
-            namespace: mf.metafieldDefinition.namespace,
-            key: mf.metafieldDefinition.key,
-            hideFromPC: mf.hideFromPC,
-            hideFromMobile: mf.hideFromMobile,
-            hideFromPCType: typeof mf.hideFromPC,
-            hideFromMobileType: typeof mf.hideFromMobile
-          });
-        }
+
         
         return {
           namespace: mf.metafieldDefinition.namespace,
@@ -151,13 +127,7 @@ export async function loader({ request }) {
     const totalTime = performance.now() - perfStart;
 
     // Logging detaliat pentru performanță
-    if (process.env.NODE_ENV === "development") {
-      console.log("📊 [API] Performance Metrics:");
-      console.log(`   🔍 Template Query: ${queryTime.toFixed(2)}ms`);
-      console.log(`   🔍 Metafield Query: ${metafieldQueryTime.toFixed(2)}ms`);
-      console.log(`   ⚙️  Processing: ${(performance.now() - processingStart).toFixed(2)}ms`);
-      console.log(`   ⏱️  Total API Time: ${totalTime.toFixed(2)}ms`);
-    }
+
 
     // Adaugă CORS headers pentru a permite request-uri din theme extension
     response.headers.set("Access-Control-Allow-Origin", "*");

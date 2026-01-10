@@ -11,7 +11,7 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shopDomain = session.shop;
   
-  console.log(`[app.plans] Loader called for shop: ${shopDomain}, has accessToken: ${!!session.accessToken}`);
+  
 
   // Verifică dacă există deja plan selectat
   const shop = await prisma.shop.upsert({
@@ -86,15 +86,12 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  console.log("[app.plans.action] Action called");
   
   const { admin, session } = await authenticate.admin(request);
   const shopDomain = session.shop;
   const formData = await request.formData();
   const planKey = String(formData.get("planKey") || "");
 
-  console.log("[app.plans.action] Plan key:", planKey);
-  console.log("[app.plans.action] Shop domain:", shopDomain);
 
   // Validează că planul există
   const plan = PLANS.find((p) => p.key === planKey);
@@ -103,7 +100,7 @@ export const action = async ({ request }) => {
     return { success: false, error: "Invalid plan selected." };
   }
 
-  console.log("[app.plans.action] Plan found:", plan.title);
+
 
   // Obține productsCount pentru validare
   let productsCount = 0;
@@ -135,17 +132,11 @@ export const action = async ({ request }) => {
   const appHandle = process.env.SHOPIFY_APP_HANDLE || 'specification-table';
   const returnUrl = `https://admin.shopify.com/store/${shopDomainForUrl}/apps/${appHandle}/app`;
   
-  console.log("[app.plans.action] Creating subscription with returnUrl:", returnUrl);
-  console.log("[app.plans.action] Plan details:", { title: plan.title, price: plan.price, currencyCode: plan.currencyCode });
-  
+
   try {
     const result = await createAppSubscription(admin, plan, returnUrl);
     
-    console.log("[app.plans.action] Subscription creation result:", {
-      hasConfirmationUrl: !!result.confirmationUrl,
-      subscriptionId: result.subscriptionId,
-      userErrors: result.userErrors?.length || 0
-    });
+
     
     if (result.userErrors && result.userErrors.length > 0) {
       console.error("[app.plans.action] User errors:", result.userErrors);
@@ -163,7 +154,7 @@ export const action = async ({ request }) => {
       };
     }
 
-    console.log("[app.plans.action] Success! Redirecting to:", result.confirmationUrl);
+
     
     // Returnăm confirmationUrl pentru redirect
     return { 
@@ -281,28 +272,24 @@ export default function PlansRoute() {
   const isSubmitting = ["submitting", "loading"].includes(fetcher.state);
 
   useEffect(() => {
-    console.log("[app.plans] Fetcher state changed:", {
-      state: fetcher.state,
-      hasData: !!fetcher.data,
-      data: fetcher.data
-    });
+
 
     if (fetcher.data?.success === false) {
       console.error("[app.plans] Action returned error:", fetcher.data.error);
       shopify.toast.show(fetcher.data.error || "Error selecting plan", { isError: true });
     } else if (fetcher.data?.success === true && fetcher.data?.redirectUrl) {
-      console.log("[app.plans] Redirecting to:", fetcher.data.redirectUrl);
+     
       
       // Pentru aplicațiile embedded Shopify, trebuie să redirecționăm tab-ul principal, nu iframe-ul
       // Folosim window.top.location.href pentru a ieși din iframe și a redirecționa tab-ul principal
       try {
         // Încearcă să redirecționeze tab-ul principal (ieșind din iframe)
         if (window.top && window.top !== window.self) {
-          console.log("[app.plans] Redirecting top window (embedded app)");
+          
           window.top.location.href = fetcher.data.redirectUrl;
         } else {
           // Dacă nu suntem în iframe, folosim window.location.href normal
-          console.log("[app.plans] Redirecting current window (not embedded)");
+        
           window.location.href = fetcher.data.redirectUrl;
         }
       } catch (error) {
@@ -402,9 +389,9 @@ export default function PlansRoute() {
                   <fetcher.Form 
                     method="post"
                     onSubmit={(e) => {
-                      console.log("[app.plans] Form submitted for plan:", p.key);
+                     
                       const formData = new FormData(e.currentTarget);
-                      console.log("[app.plans] Form data - planKey:", formData.get("planKey"));
+                      
                     }}
                   >
                     <input type="hidden" name="planKey" value={p.key} />
@@ -413,8 +400,7 @@ export default function PlansRoute() {
                       disabled={isTooSmall || isSubmitting || isActivated}
                       type="submit"
                       onClick={() => {
-                        console.log("[app.plans] Button clicked for plan:", p.key);
-                        console.log("[app.plans] Button disabled state:", { isTooSmall, isSubmitting, isActivated });
+                      
                       }}
                       {...(isSubmitting ? { loading: true } : {})}
                     >

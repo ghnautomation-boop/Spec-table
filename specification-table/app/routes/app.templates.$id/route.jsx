@@ -2018,8 +2018,6 @@ export default function TemplateEditorPage() {
     );
   };
 
-  // Debug pentru metafield-uri
-
   // Component pentru secțiune accordion
   const AccordionSection = ({ section, sectionIndex, styling, metafieldDefinitions, renderMetafieldRow, globalIndexOffset }) => {
     const [isOpen, setIsOpen] = useState(sectionIndex === 0);

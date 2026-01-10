@@ -37,9 +37,7 @@ export async function logWebhookEvent(shopDomain, topic, status, errorMessage = 
       },
     });
 
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[Webhook Logger] ${status.toUpperCase()}: ${topic} for ${shopDomain}${responseTime ? ` (${responseTime}ms)` : ""}${retryCount > 0 ? ` (retry ${retryCount})` : ""}`);
-    }
+
   } catch (error) {
     // Nu vrem să blocheze webhook-ul dacă logging-ul eșuează
     console.error(`[Webhook Logger] Error logging webhook event:`, error);

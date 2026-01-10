@@ -65,10 +65,8 @@ export const loader = async ({ request }) => {
   let currentPlan = null;
   try {
     const currentSubscription = await getCurrentSubscription(admin);
-    console.log("[app.templates] Current subscription:", currentSubscription);
     if (currentSubscription?.name) {
       currentPlan = currentSubscription.name.toLowerCase();
-      console.log("[app.templates] Plan from subscription:", currentPlan);
     } else {
       // Fallback: verifică în DB pentru backward compatibility
       const shop = await prisma.shop.findUnique({
@@ -81,7 +79,6 @@ export const loader = async ({ request }) => {
         `;
         if (Array.isArray(planRows) && planRows.length > 0) {
           currentPlan = planRows[0].planKey;
-          console.log("[app.templates] Plan from DB:", currentPlan);
         }
       }
     }
@@ -121,14 +118,7 @@ export const loader = async ({ request }) => {
   const maxTemplates = getMaxTemplatesForPlan(planKeyForLimit);
   const isTemplateLimitReached = currentTemplatesCount >= maxTemplates;
   
-  // Debug logging
-  console.log("[app.templates] Template limit check:", {
-    currentPlan,
-    planKeyForLimit,
-    currentTemplatesCount,
-    maxTemplates,
-    isTemplateLimitReached
-  });
+
 
   // Creează map-uri pentru a verifica rapid ce este deja assignat
   const assignedCollections = new Set();
@@ -1034,13 +1024,7 @@ export default function TemplatesPage() {
   
   // Debug logging
   useEffect(() => {
-    console.log("[app.templates] Component render with:", {
-      isTemplateLimitReached,
-      maxTemplates,
-      currentTemplatesCount,
-      currentPlan,
-      templatesCount: templates.length
-    });
+
   }, [isTemplateLimitReached, maxTemplates, currentTemplatesCount, currentPlan, templates.length]);
   const fetcher = useFetcher();
   const shopify = useAppBridge();
