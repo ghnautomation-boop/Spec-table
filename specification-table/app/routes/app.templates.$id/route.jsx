@@ -793,6 +793,9 @@ export default function TemplateEditorPage() {
       heading: section.heading,
       metafields: (section.metafields || []).map(mf => ({
         metafieldDefinitionId: mf.metafieldDefinitionId,
+        type: mf.type || 'metafield',
+        productSpecType: mf.productSpecType !== undefined && mf.productSpecType !== null ? mf.productSpecType : null,
+        customValue: mf.customValue !== undefined && mf.customValue !== null ? mf.customValue : null,
         customName: mf.customName !== undefined && mf.customName !== null ? mf.customName : null,
         tooltipEnabled: mf.tooltipEnabled === true,
         tooltipText: mf.tooltipText !== undefined && mf.tooltipText !== null ? mf.tooltipText : null,
@@ -955,14 +958,29 @@ export default function TemplateEditorPage() {
   // Sincronizează state-ul când se încarcă template-ul
   useEffect(() => {
     if (template?.sections) {
-      // Asigură-te că toate metafields-urile au type setat
+      // Asigură-te că toate metafields-urile au type setat și toate proprietățile necesare
       const sectionsWithType = template.sections.map(section => ({
         ...section,
-        metafields: section.metafields?.map(mf => ({
-          ...mf,
-          type: mf.type || 'metafield',
-          productSpecType: mf.productSpecType || null,
-        })) || [],
+        metafields: section.metafields?.map(mf => {
+          // Determină tipul pe baza proprietăților disponibile dacă type nu este setat
+          let metafieldType = mf.type;
+          if (!metafieldType) {
+            if (mf.customValue !== null && mf.customValue !== undefined) {
+              metafieldType = 'custom_spec';
+            } else if (mf.productSpecType !== null && mf.productSpecType !== undefined) {
+              metafieldType = 'product_spec';
+            } else {
+              metafieldType = 'metafield';
+            }
+          }
+          return {
+            ...mf,
+            type: metafieldType,
+            productSpecType: mf.productSpecType || null,
+            customValue: mf.customValue || null, // Include customValue pentru custom specs
+            customName: mf.customName || null,
+          };
+        }) || [],
       }));
       setSections(sectionsWithType);
     }
@@ -1171,9 +1189,14 @@ export default function TemplateEditorPage() {
 
         if (!initialMf) return true;
 
-        if (currentMf.type !== (initialMf.type || 'metafield') ||
+        // Determină tipul pentru comparație
+        const currentType = currentMf.type || (currentMf.customValue ? 'custom_spec' : (currentMf.productSpecType ? 'product_spec' : 'metafield'));
+        const initialType = initialMf.type || (initialMf.customValue ? 'custom_spec' : (initialMf.productSpecType ? 'product_spec' : 'metafield'));
+        
+        if (currentType !== initialType ||
             currentMf.metafieldDefinitionId !== initialMf.metafieldDefinitionId ||
             currentMf.productSpecType !== (initialMf.productSpecType || null) ||
+            currentMf.customValue !== (initialMf.customValue || null) ||
             currentMf.customName !== initialMf.customName ||
             currentMf.tooltipEnabled !== initialMf.tooltipEnabled ||
             currentMf.tooltipText !== initialMf.tooltipText ||
@@ -3402,8 +3425,20 @@ export default function TemplateEditorPage() {
                           </thead>
                           <tbody>
                             {section.metafields.map((metafield, mfIndex) => {
-                              const isProductSpec = metafield.type === 'product_spec';
-                              const isCustomSpec = metafield.type === 'custom_spec';
+                              // Asigură-te că type este setat corect - verifică și pe baza proprietăților disponibile
+                              let metafieldType = metafield.type;
+                              // Dacă type nu este setat, încearcă să-l determine pe baza proprietăților
+                              if (!metafieldType) {
+                                if (metafield.customValue !== null && metafield.customValue !== undefined) {
+                                  metafieldType = 'custom_spec';
+                                } else if (metafield.productSpecType !== null && metafield.productSpecType !== undefined) {
+                                  metafieldType = 'product_spec';
+                                } else {
+                                  metafieldType = 'metafield';
+                                }
+                              }
+                              const isProductSpec = metafieldType === 'product_spec';
+                              const isCustomSpec = metafieldType === 'custom_spec';
                               const mfDef = !isProductSpec && !isCustomSpec ? metafieldDefinitions.find(
                                 (mf) => mf.id === metafield.metafieldDefinitionId
                               ) : null;
