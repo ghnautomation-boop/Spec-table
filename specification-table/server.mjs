@@ -1,12 +1,12 @@
-import http from "node:http";
-import { createRequestHandler } from "@react-router/node";
-import * as build from "./build/server/index.js";
+import { spawn } from "node:child_process";
 
-const handler = createRequestHandler(build, process.env.NODE_ENV);
-
-const port = Number(process.env.PORT || 3000);
+const port = process.env.PORT || "3000";
 const host = "0.0.0.0";
 
-http.createServer((req, res) => handler(req, res)).listen(port, host, () => {
-  console.log(`Listening on http://${host}:${port}`);
-});
+const child = spawn(
+  process.platform === "win32" ? "npx.cmd" : "npx",
+  ["react-router-serve", "./build/server/index.js", "--host", host, "--port", port],
+  { stdio: "inherit", env: process.env }
+);
+
+child.on("exit", (code) => process.exit(code ?? 0));
