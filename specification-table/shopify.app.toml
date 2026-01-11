@@ -2,7 +2,7 @@
 
 client_id = "0016f30db22fa84f9b5068900f240d15"
 name = "Smart Specs"
-application_url = "https://couples-reef-gif-ashley.trycloudflare.com"
+application_url = "https://smart-specs.fly.dev"
 embedded = true
 
 [build]
@@ -50,9 +50,9 @@ scopes = "read_products,write_products,read_collection_listings,read_themes,read
 
 [auth]
 redirect_urls = [
-  "https://couples-reef-gif-ashley.trycloudflare.com/auth/callback",
-  "https://couples-reef-gif-ashley.trycloudflare.com/auth/shopify/callback",
-  "https://couples-reef-gif-ashley.trycloudflare.com/api/auth/callback"
+  "https://smart-specs.fly.dev/auth/callback",
+  "https://smart-specs.fly.dev/auth/shopify/callback",
+  "https://smart-specs.fly.dev/api/auth/callback"
 ]
 
 
