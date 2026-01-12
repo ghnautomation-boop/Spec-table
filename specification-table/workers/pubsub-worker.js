@@ -21,7 +21,9 @@ const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, ".."); // Root-ul proiectului (specification-table)
 
 // Încearcă să încarce .env din root-ul proiectului
-config({ path: resolve(projectRoot, ".env") });
+if (process.env.NODE_ENV !== "production") {
+  config({ path: resolve(projectRoot, ".env") });
+}
 
 import "@shopify/shopify-app-react-router/adapters/node";
 import { PubSub } from "@google-cloud/pubsub";
@@ -285,6 +287,11 @@ const pendingWebhooks = new Map();
  * Extrage resource ID și tipul din payload
  */
 function extractResourceInfo(topic, payload) {
+  // Verificăm topic-ul original înainte de normalizare pentru metafield_definitions
+  const topicLower = String(topic || "").trim().toLowerCase();
+  
+  const normalizedTopic = topicLower.replace(/_/g, "/");  // metafield_definitions/delete devine metafield/definitions/delete
+    
   // Simplificăm logica - recunoaștem direct topic-urile
   const topicUpper = topic.toUpperCase();
   
@@ -294,22 +301,23 @@ function extractResourceInfo(topic, payload) {
   let action = null;
   let resourceId = null;
   
-  // Metafield definitions - tratăm direct (verificăm exact match-ul primul)
-  if (topicUpper === "METAFIELD_DEFINITIONS_CREATE" || topicUpper.includes("METAFIELD_DEFINITIONS_CREATE")) {
+  // Metafield definitions - tratăm direct (verificăm ambele formate: original și normalizat)
+  if (
+    topicLower === "metafield_definitions/create" ||
+    topicLower === "metafield_definitions/update" ||
+    topicLower === "metafield_definitions/delete" ||
+    normalizedTopic === "metafield/definitions/create" ||
+    normalizedTopic === "metafield/definitions/update" ||
+    normalizedTopic === "metafield/definitions/delete" ||
+    normalizedTopic.startsWith("metafield/definitions/")
+  ) {
     resourceType = "metafield_definitions";
-    action = "create";
-    resourceId = payload?.id || payload?.admin_graphql_api_id;
-    console.log(`[worker] Matched METAFIELD_DEFINITIONS_CREATE`);
-  } else if (topicUpper === "METAFIELD_DEFINITIONS_UPDATE" || topicUpper.includes("METAFIELD_DEFINITIONS_UPDATE")) {
-    resourceType = "metafield_definitions";
-    action = "update";
-    resourceId = payload?.id || payload?.admin_graphql_api_id;
-    console.log(`[worker] Matched METAFIELD_DEFINITIONS_UPDATE`);
-  } else if (topicUpper === "METAFIELD_DEFINITIONS_DELETE" || topicUpper.includes("METAFIELD_DEFINITIONS_DELETE")) {
-    resourceType = "metafield_definitions";
-    action = "delete";
-    resourceId = payload?.id || payload?.admin_graphql_api_id;
-    console.log(`[worker] Matched METAFIELD_DEFINITIONS_DELETE`);
+    // Extragem action-ul din topic-ul normalizat (care are formatul metafield/definitions/delete)
+    action = normalizedTopic.split("/").pop(); // create/update/delete
+    resourceId = payload?.id || payload?.admin_graphql_api_id || null;
+
+    console.log(`[worker] Matched metafield_definitions - action: ${action}, resourceId: ${resourceId}`);
+    return { resourceType, action, resourceId };
   }
   // Products delete
   else if (topicUpper === "PRODUCTS_DELETE" || topicUpper.includes("PRODUCTS_DELETE")) {
@@ -578,77 +586,115 @@ async function processWebhook(shop, topic, payload) {
           throw new Error(`Shop not found: ${shop}`);
         }
         
-        // Pentru delete, trebuie să ștergem folosind namespace, key, ownerType și shopId
-        // Dar nu avem aceste date direct în payload pentru delete
-        // Trebuie să facem query GraphQL pentru a obține datele sau să le extragem din payload dacă există
-        if (payload?.namespace && payload?.key && payload?.owner_type) {
-          // Normalizează ownerType
-          const normalizedOwnerType = 
-            payload.owner_type === "PRODUCT_VARIANT" || payload.owner_type === "PRODUCTVARIANT"
-              ? "VARIANT"
-              : payload.owner_type;
-          
-          const deleted = await prisma.metafieldDefinition.deleteMany({
-            where: {
-              namespace: payload.namespace,
-              key: payload.key,
-              ownerType: normalizedOwnerType,
-              shopId: shopRecord.id,
-            },
-          });
-          console.log(`[worker] Deleted ${deleted.count} metafield definition(s) using namespace/key/ownerType`);
+        // Construim GID-ul dacă nu este deja în format GID
+        const definitionGid = definitionId.toString().startsWith('gid://') 
+          ? definitionId 
+          : `gid://shopify/MetafieldDefinition/${definitionId}`;
+        
+        // Încercăm mai întâi să ștergem direct folosind shopifyId (dacă l-am stocat)
+        const deletedByShopifyId = await prisma.metafieldDefinition.deleteMany({
+          where: {
+            shopifyId: definitionGid,
+            shopId: shopRecord.id,
+          },
+        });
+        
+        if (deletedByShopifyId.count > 0) {
+          console.log(`[worker] Deleted ${deletedByShopifyId.count} metafield definition(s) using shopifyId`);
         } else {
-          // Dacă nu avem namespace/key în payload, facem query GraphQL pentru a le obține
-          // Construim GID-ul dacă nu este deja în format GID
-          const definitionGid = definitionId.toString().startsWith('gid://') 
-            ? definitionId 
-            : `gid://shopify/MetafieldDefinition/${definitionId}`;
-          
-          console.log(`[worker] Fetching metafield definition for delete using GID: ${definitionGid}`);
-          
-          const query = `
-            query GetMetafieldDefinitionById($id: ID!) {
-              metafieldDefinition(id: $id) {
-                id
-                namespace
-                key
-                ownerType
-              }
-            }
-          `;
-          
-          const response = await admin.graphql(query, { variables: { id: definitionGid } });
-          const data = await response.json();
-          
-          if (data.errors) {
-            console.error(`[worker] GraphQL errors:`, data.errors);
-            throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
-          }
-          
-          if (data.data?.metafieldDefinition) {
-            const def = data.data.metafieldDefinition;
+          // Dacă nu am găsit folosind shopifyId, încercăm cu namespace/key/ownerType din payload
+          if (payload?.namespace && payload?.key && payload?.owner_type) {
+            // Normalizează ownerType
             const normalizedOwnerType = 
-              def.ownerType === "PRODUCT_VARIANT" || def.ownerType === "PRODUCTVARIANT"
+              payload.owner_type === "PRODUCT_VARIANT" || payload.owner_type === "PRODUCTVARIANT"
                 ? "VARIANT"
-                : def.ownerType;
-            
-            console.log(`[worker] Deleting metafield definition:`, {
-              namespace: def.namespace,
-              key: def.key,
-              ownerType: normalizedOwnerType
-            });
+                : payload.owner_type;
             
             const deleted = await prisma.metafieldDefinition.deleteMany({
               where: {
-                namespace: def.namespace,
-                key: def.key,
+                namespace: payload.namespace,
+                key: payload.key,
                 ownerType: normalizedOwnerType,
                 shopId: shopRecord.id,
               },
             });
-            console.log(`[worker] Deleted ${deleted.count} metafield definition(s) using GraphQL query`);
+            console.log(`[worker] Deleted ${deleted.count} metafield definition(s) using namespace/key/ownerType from payload`);
           } else {
-            console.warn(`[worker] Metafield definition not found in Shopify: ${definitionId}`, data);
+            // Dacă nu avem namespace/key în payload, facem query GraphQL pentru a le obține
+            console.log(`[worker] Fetching metafield definition for delete using GID: ${definitionGid}`);
+            
+            const query = `
+              query GetMetafieldDefinitionById($id: ID!) {
+                metafieldDefinition(id: $id) {
+                  id
+                  namespace
+                  key
+                  ownerType
+                }
+              }
+            `;
+            
+            const response = await admin.graphql(query, { variables: { id: definitionGid } });
+            const data = await response.json();
+            
+            if (data.errors) {
+              console.error(`[worker] GraphQL errors:`, data.errors);
+              // Dacă metafield definition-ul a fost deja șters din Shopify, încercăm să-l ștergem direct din DB folosind shopifyId
+              // (chiar dacă nu l-am găsit mai devreme, poate că nu era stocat corect)
+              console.log(`[worker] Metafield definition not found in Shopify (already deleted). Attempting to delete from DB using shopifyId as fallback`);
+              
+              const deletedFallback = await prisma.metafieldDefinition.deleteMany({
+                where: {
+                  shopifyId: definitionGid,
+                  shopId: shopRecord.id,
+                },
+              });
+              
+              if (deletedFallback.count > 0) {
+                console.log(`[worker] Deleted ${deletedFallback.count} metafield definition(s) using shopifyId fallback`);
+              } else {
+                console.warn(`[worker] Could not delete metafield definition: ${definitionGid}. It may already be deleted from DB.`);
+              }
+            } else if (data.data?.metafieldDefinition) {
+              const def = data.data.metafieldDefinition;
+              const normalizedOwnerType = 
+                def.ownerType === "PRODUCT_VARIANT" || def.ownerType === "PRODUCTVARIANT"
+                  ? "VARIANT"
+                  : def.ownerType;
+              
+              console.log(`[worker] Deleting metafield definition:`, {
+                namespace: def.namespace,
+                key: def.key,
+                ownerType: normalizedOwnerType
+              });
+              
+              const deleted = await prisma.metafieldDefinition.deleteMany({
+                where: {
+                  namespace: def.namespace,
+                  key: def.key,
+                  ownerType: normalizedOwnerType,
+                  shopId: shopRecord.id,
+                },
+              });
+              console.log(`[worker] Deleted ${deleted.count} metafield definition(s) using GraphQL query`);
+            } else {
+              // Metafield definition-ul a fost deja șters din Shopify
+              console.warn(`[worker] Metafield definition not found in Shopify (already deleted): ${definitionId}`);
+              console.log(`[worker] Attempting to delete from DB using shopifyId as fallback`);
+              
+              const deletedFallback = await prisma.metafieldDefinition.deleteMany({
+                where: {
+                  shopifyId: definitionGid,
+                  shopId: shopRecord.id,
+                },
+              });
+              
+              if (deletedFallback.count > 0) {
+                console.log(`[worker] Deleted ${deletedFallback.count} metafield definition(s) using shopifyId fallback`);
+              } else {
+                console.warn(`[worker] Could not delete metafield definition: ${definitionGid}. It may already be deleted from DB.`);
+              }
+            }
           }
         }
       } else {
@@ -677,7 +723,18 @@ async function processWebhook(shop, topic, payload) {
           // Verifică dacă avem toate datele necesare direct din payload
           if (payload.namespace && payload.key && payload.owner_type) {
             // Avem toate datele necesare din payload - folosim direct
+            // Convertim ID-ul la string/GID dacă este număr
+            let shopifyId = payload.id || payload.admin_graphql_api_id || null;
+            if (shopifyId) {
+              if (typeof shopifyId === 'number') {
+                shopifyId = `gid://shopify/MetafieldDefinition/${shopifyId}`;
+              } else if (typeof shopifyId === 'string' && !shopifyId.startsWith('gid://')) {
+                shopifyId = `gid://shopify/MetafieldDefinition/${shopifyId}`;
+              }
+            }
+            
             const metafieldDefinitionData = {
+              id: shopifyId, // Include shopifyId pentru a-l stoca (deja convertit la GID)
               namespace: payload.namespace,
               key: payload.key,
               name: payload.name || null,
@@ -729,6 +786,7 @@ async function processWebhook(shop, topic, payload) {
               if (data.data?.metafieldDefinition) {
                 const def = data.data.metafieldDefinition;
                 const metafieldDefinitionData = {
+                  id: def.id, // Include shopifyId pentru a-l stoca
                   namespace: def.namespace,
                   key: def.key,
                   name: def.name || null,

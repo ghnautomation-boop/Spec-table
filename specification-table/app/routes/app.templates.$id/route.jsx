@@ -1,4 +1,4 @@
-import { useLoaderData, useFetcher, Form, useNavigate, useActionData, useRevalidator } from "react-router";
+import { useLoaderData, useFetcher, Form, useNavigate, useActionData, useRevalidator, redirect } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { Modal, TitleBar } from "@shopify/app-bridge-react";
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
@@ -205,13 +205,7 @@ export const loader = async ({ request, params }) => {
 
     // Dacă limita este atinsă, redirect către pagina de templates cu mesaj
     if (isTemplateLimitReached) {
-      const url = new URL(request.url);
-      url.pathname = "/app/templates";
-      url.searchParams.set("limitReached", "true");
-      throw new Response("", {
-        status: 302,
-        headers: { Location: url.toString() },
-      });
+      return redirect("/app/templates?limitReached=true");
     }
   }
 

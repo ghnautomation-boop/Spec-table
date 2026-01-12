@@ -1,45 +1,56 @@
-import { authenticate } from "../shopify.server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { publishWebhookByTopic } from "../models/pubsub.server.js";
 import { logWebhookEvent } from "../models/webhook-logger.server.js";
+
+function safeCompareBase64(a, b) {
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
 
 export const action = async ({ request }) => {
   const startTime = performance.now();
 
-  // Citește payload-ul înainte de autentificare (request-ul este consumat de authenticate.webhook)
-  let payload = null;
-  try {
-    const requestClone = request.clone();
-    payload = await requestClone.json();
-  } catch {
-    // ignore
+  // IMPORTANT: raw body pentru HMAC
+  const rawBody = await request.text();
+
+  const hmac = request.headers.get("x-shopify-hmac-sha256");
+  const shop = request.headers.get("x-shopify-shop-domain");
+  const topic = request.headers.get("x-shopify-topic");
+
+  if (!hmac || !shop || !topic) {
+    console.warn("[webhook] Missing headers", { hasHmac: !!hmac, shop, topic });
+    return new Response("Ignored", { status: 200 });
   }
 
-  const { shop, topic } = await authenticate.webhook(request);
-  console.log(`[webhook] Received ${topic} webhook for ${shop}`);
+  const secret = process.env.SHOPIFY_API_SECRET || "";
+  const digest = createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("base64");
+
+  if (!safeCompareBase64(digest, hmac)) {
+    console.warn("[webhook] Invalid HMAC", { shop, topic });
+    return new Response("Invalid", { status: 200 });
+  }
+
+  // parse după validare
+  let payload = null;
+  try { payload = rawBody ? JSON.parse(rawBody) : null; } catch {}
 
   try {
-    // Publică webhook-ul în Pub/Sub pentru procesare asincronă cu debouncing
     const messageId = await publishWebhookByTopic(shop, topic, payload);
-    
-    console.log(`[webhook] Published to Pub/Sub: ${messageId} for ${shop}`);
-    
-    // Log event-ul (doar recepția, procesarea se face în worker)
+
     const responseTime = Math.round(performance.now() - startTime);
-    await logWebhookEvent(shop, topic, "queued", null, { 
+    await logWebhookEvent(shop, topic, "queued", null, {
       id: payload?.id,
-      pubsubMessageId: messageId 
+      pubsubMessageId: messageId,
     }, responseTime);
-    
-    // Returnează 200 imediat - worker-ul va procesa webhook-ul cu debouncing
-    return new Response();
+
+    return new Response("OK", { status: 200 });
   } catch (error) {
     const responseTime = Math.round(performance.now() - startTime);
-    const errorMessage = error.message || "Unknown error";
-    console.error(`[webhook] Error publishing to Pub/Sub:`, error);
-    await logWebhookEvent(shop, topic, "error", errorMessage, { id: payload?.id }, responseTime);
-    // Returnăm 200 ca să evităm retry în buclă
-    return new Response("Error publishing webhook", { status: 200 });
+    await logWebhookEvent(shop, topic, "error", error.message || "Unknown error", { id: payload?.id }, responseTime);
+    return new Response("Publish error", { status: 200 });
   }
 };
-
-

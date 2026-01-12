@@ -9,15 +9,14 @@
  * @returns {Promise<Object>} Metaobject-ul creat/actualizat
  */
 export async function createOrUpdateMetaobject(admin, template) {
-
-  
-  // PAS 1: Asigură-te că metaobject definition-ul există înainte de a crea metaobject-ul
-
-  const metaobjectDefinitionId = await getMetaobjectDefinitionId(admin);
-  if (!metaobjectDefinitionId) {
-    console.error('[createOrUpdateMetaobject] Cannot create metaobject without metaobject definition');
-    throw new Error('Metaobject definition does not exist and could not be created');
-  }
+  try {
+    // PAS 1: Asigură-te că metaobject definition-ul există înainte de a crea metaobject-ul
+    const metaobjectDefinitionId = await getMetaobjectDefinitionId(admin);
+    if (!metaobjectDefinitionId) {
+      console.error('[createOrUpdateMetaobject] Cannot create metaobject without metaobject definition');
+      // Nu aruncăm eroarea, doar returnăm null - nu vrem să blocheze salvarea template-ului
+      return null;
+    }
 
   
   // Verifică dacă template-ul este global (are assignment de tip DEFAULT)
@@ -132,9 +131,7 @@ export async function createOrUpdateMetaobject(admin, template) {
     },
   };
 
-  try {
-
-    const checkResponse = await admin.graphql(checkQuery, { variables: checkVariables });
+  const checkResponse = await admin.graphql(checkQuery, { variables: checkVariables });
     const checkData = await checkResponse.json();
 
 

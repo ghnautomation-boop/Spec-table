@@ -13,6 +13,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 
+# IMPORTANT: prisma client
+RUN npx prisma generate --schema=./prisma/schema.prisma
+
 RUN npm run build
 
 CMD ["npm", "run", "docker-start"]

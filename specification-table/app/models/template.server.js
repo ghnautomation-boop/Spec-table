@@ -1265,6 +1265,14 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
     }
   }
 
+  // Obține assignment-urile existente înainte de a le șterge (pentru a șterge metaobject-urile corespunzătoare)
+  const existingAssignmentsBeforeDelete = await prisma.templateAssignment.findMany({
+    where: { templateId: template.id },
+    include: {
+      targets: true,
+    },
+  });
+
   // Șterge assignment-urile existente pentru acest template
   await prisma.templateAssignment.deleteMany({
     where: { templateId: template.id },
@@ -1272,9 +1280,80 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
 
   // Dacă nu există assignment (null sau empty), reconstruiește lookup table-ul și returnează
   if (!assignmentType || assignmentType === "NONE") {
+    // Șterge metaobject-urile (global și specific) dacă există
+    if (admin) {
+      try {
+        const { deleteMetaobjectByHandle, deleteMetaobject } = await import("../utils/metaobject.server.js");
+        // Verifică dacă există assignment DEFAULT (metaobject global)
+        const hadDefaultAssignment = existingAssignmentsBeforeDelete.some(a => a.assignmentType === "DEFAULT");
+        if (hadDefaultAssignment) {
+          await deleteMetaobjectByHandle(admin, "specification_template_global");
+          console.log(`[saveTemplateAssignment] Deleted global metaobject for template ${template.id}`);
+        }
+        // Șterge metaobject-ul specific dacă există
+        await deleteMetaobject(admin, template.id);
+      } catch (error) {
+        console.error(`[saveTemplateAssignment] Error deleting metaobjects:`, error);
+      }
+    }
     const { rebuildTemplateLookup } = await import("./template-lookup.server.js");
     await rebuildTemplateLookup(shop.id, shopDomain, admin);
     return { success: true };
+  }
+
+  // LOGICĂ: Șterge metaobject-ul global dacă se face assignment pe produs/colecție
+  // Și invers: șterge metaobject-ul specific dacă se face assignment DEFAULT
+  if (admin) {
+    try {
+      const { deleteMetaobjectByHandle, deleteMetaobject, deleteProductMetafield, deleteCollectionMetafield } = await import("../utils/metaobject.server.js");
+      
+      if (assignmentType === "DEFAULT") {
+        // Dacă se face assignment DEFAULT, șterge metaobject-ul specific și metafield-urile de pe produse/colecții
+        const hadProductOrCollectionAssignment = existingAssignmentsBeforeDelete.some(
+          a => a.assignmentType === "PRODUCT" || a.assignmentType === "COLLECTION"
+        );
+        
+        if (hadProductOrCollectionAssignment) {
+          // Șterge metaobject-ul specific
+          await deleteMetaobject(admin, template.id);
+          console.log(`[saveTemplateAssignment] Deleted specific metaobject for template ${template.id} (switching to DEFAULT)`);
+          
+          // Șterge metafield-urile de pe produse/colecții
+          for (const assignment of existingAssignmentsBeforeDelete) {
+            if (assignment.assignmentType === "PRODUCT" || assignment.assignmentType === "COLLECTION") {
+              for (const target of assignment.targets) {
+                try {
+                  const targetGid = target.targetShopifyId.startsWith('gid://') 
+                    ? target.targetShopifyId 
+                    : (assignment.assignmentType === "PRODUCT" 
+                      ? `gid://shopify/Product/${target.targetShopifyId}` 
+                      : `gid://shopify/Collection/${target.targetShopifyId}`);
+                  
+                  if (assignment.assignmentType === "PRODUCT") {
+                    await deleteProductMetafield(admin, targetGid);
+                  } else if (assignment.assignmentType === "COLLECTION") {
+                    await deleteCollectionMetafield(admin, targetGid);
+                  }
+                } catch (error) {
+                  console.error(`[saveTemplateAssignment] Error deleting metafield for ${assignment.assignmentType} ${target.targetShopifyId}:`, error);
+                }
+              }
+            }
+          }
+        }
+      } else if (assignmentType === "PRODUCT" || assignmentType === "COLLECTION") {
+        // Dacă se face assignment pe produs/colecție, șterge metaobject-ul global
+        const hadDefaultAssignment = existingAssignmentsBeforeDelete.some(a => a.assignmentType === "DEFAULT");
+        
+        if (hadDefaultAssignment) {
+          await deleteMetaobjectByHandle(admin, "specification_template_global");
+          console.log(`[saveTemplateAssignment] Deleted global metaobject for template ${template.id} (switching to ${assignmentType})`);
+        }
+      }
+    } catch (error) {
+      console.error(`[saveTemplateAssignment] Error cleaning up metaobjects:`, error);
+      // Continuă cu crearea assignment-ului chiar dacă ștergerea metaobject-urilor eșuează
+    }
   }
 
   // Reîncarcă template-ul pentru a obține starea cea mai recentă (în cazul în care a fost activat recent)
@@ -1384,26 +1463,47 @@ export async function saveTemplateAssignment(templateId, assignmentType, targetI
           
           // Dacă assignment-ul este DEFAULT, nu setăm metafield-uri (template-ul global este accesat direct)
           if (assignmentType === "DEFAULT") {
-         
+            // Pentru DEFAULT, metaobject-ul este deja creat cu handle-ul global
+            console.log(`[saveTemplateAssignment] DEFAULT assignment - no metafields to set`);
           } else if (assignmentType === "COLLECTION") {
             // Setează metafield-ul pe fiecare colecție
-          
+            console.log(`[saveTemplateAssignment] Setting metafields for ${uniqueTargetIds.length} collections`);
             for (const collectionId of uniqueTargetIds) {
               // Asigură-te că collectionId este în format GID
               const collectionGid = collectionId.startsWith('gid://') 
                 ? collectionId 
                 : `gid://shopify/Collection/${collectionId}`;
               
+              try {
+                const success = await setCollectionMetafield(admin, collectionGid, metaobjectId);
+                if (success) {
+                  console.log(`[saveTemplateAssignment] Successfully set metafield for collection ${collectionGid}`);
+                } else {
+                  console.error(`[saveTemplateAssignment] Failed to set metafield for collection ${collectionGid}`);
+                }
+              } catch (error) {
+                console.error(`[saveTemplateAssignment] Error setting metafield for collection ${collectionGid}:`, error);
+              }
             }
           } else if (assignmentType === "PRODUCT") {
             // Setează metafield-ul pe fiecare produs
-            
+            console.log(`[saveTemplateAssignment] Setting metafields for ${uniqueTargetIds.length} products`);
             for (const productId of uniqueTargetIds) {
               // Asigură-te că productId este în format GID
               const productGid = productId.startsWith('gid://') 
                 ? productId 
                 : `gid://shopify/Product/${productId}`;
               
+              try {
+                const success = await setProductMetafield(admin, productGid, metaobjectId);
+                if (success) {
+                  console.log(`[saveTemplateAssignment] Successfully set metafield for product ${productGid}`);
+                } else {
+                  console.error(`[saveTemplateAssignment] Failed to set metafield for product ${productGid}`);
+                }
+              } catch (error) {
+                console.error(`[saveTemplateAssignment] Error setting metafield for product ${productGid}:`, error);
+              }
             }
           }
         } else {

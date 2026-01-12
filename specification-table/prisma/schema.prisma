@@ -82,6 +82,7 @@ model Collection {
 
 model MetafieldDefinition {
   id        String   @id @default(uuid())
+  shopifyId String?  // Shopify GID: gid://shopify/MetafieldDefinition/...
   namespace String
   key       String
   name      String?
@@ -96,6 +97,7 @@ model MetafieldDefinition {
 
   @@unique([namespace, key, ownerType, shopId])
   @@index([shopId])
+  @@index([shopifyId])
 }
 
 model SpecificationTemplate {

@@ -64,7 +64,7 @@ export async function createAppSubscription(admin, plan, returnUrl) {
       },
     ],
     returnUrl: returnUrl,
-    test: process.env.NODE_ENV !== "production", // Test mode în development
+    test: process.env.NODE_ENV == "production", // Test mode în development
   };
 
   try {

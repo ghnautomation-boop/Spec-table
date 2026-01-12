@@ -485,6 +485,12 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
       // Adaugă în set pentru comparație ulterioară
       shopifyMetafields.add(`${definition.namespace}:${definition.key}:${normalizedOwnerType}`);
 
+      // Asigură-te că shopifyId este string (GraphQL returnează deja GID string, dar verificăm pentru siguranță)
+      let shopifyId = definition.id;
+      if (shopifyId && typeof shopifyId !== 'string') {
+        shopifyId = `gid://shopify/MetafieldDefinition/${shopifyId}`;
+      }
+
       await prisma.metafieldDefinition.upsert({
         where: {
           namespace_key_ownerType_shopId: {
@@ -497,8 +503,10 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
         update: {
           name: definition.name || null,
           type: definition.type.name,
+          shopifyId: shopifyId,
         },
         create: {
+          shopifyId: shopifyId,
           namespace: definition.namespace,
           key: definition.key,
           name: definition.name || null,
@@ -566,6 +574,12 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
       // Adaugă în set pentru comparație ulterioară
       shopifyMetafields.add(`${definition.namespace}:${definition.key}:${normalizedOwnerType}`);
 
+      // Asigură-te că shopifyId este string (GraphQL returnează deja GID string, dar verificăm pentru siguranță)
+      let shopifyId = definition.id;
+      if (shopifyId && typeof shopifyId !== 'string') {
+        shopifyId = `gid://shopify/MetafieldDefinition/${shopifyId}`;
+      }
+
       await prisma.metafieldDefinition.upsert({
         where: {
           namespace_key_ownerType_shopId: {
@@ -578,8 +592,10 @@ export async function syncMetafieldDefinitions(admin, shopDomain, updatedAfter =
         update: {
           name: definition.name || null,
           type: definition.type.name,
+          shopifyId: shopifyId,
         },
         create: {
+          shopifyId: shopifyId,
           namespace: definition.namespace,
           key: definition.key,
           name: definition.name || null,
@@ -669,6 +685,22 @@ export async function syncSingleMetafieldDefinition(admin, shopDomain, metafield
   // Asigură-te că ownerType este uppercase
   normalizedOwnerType = normalizedOwnerType.toUpperCase();
 
+  // Extrage shopifyId dacă este disponibil (poate fi în id sau shopifyId)
+  // Convertim la string sau GID dacă este număr
+  let shopifyId = metafieldDefinitionData.id || metafieldDefinitionData.shopifyId || null;
+  if (shopifyId) {
+    // Dacă este deja un GID string, îl păstrăm
+    if (typeof shopifyId === 'string' && shopifyId.startsWith('gid://')) {
+      // E deja GID, ok
+    } else if (typeof shopifyId === 'number') {
+      // Convertim numărul la GID string
+      shopifyId = `gid://shopify/MetafieldDefinition/${shopifyId}`;
+    } else if (typeof shopifyId === 'string') {
+      // Dacă este string dar nu GID, convertim la GID
+      shopifyId = `gid://shopify/MetafieldDefinition/${shopifyId}`;
+    }
+  }
+
   // Upsert metafield definition
   const result = await prisma.metafieldDefinition.upsert({
     where: {
@@ -682,8 +714,10 @@ export async function syncSingleMetafieldDefinition(admin, shopDomain, metafield
     update: {
       name: metafieldDefinitionData.name || null,
       type: metafieldDefinitionData.type?.name || metafieldDefinitionData.type,
+      shopifyId: shopifyId,
     },
     create: {
+      shopifyId: shopifyId,
       namespace: metafieldDefinitionData.namespace,
       key: metafieldDefinitionData.key,
       name: metafieldDefinitionData.name || null,

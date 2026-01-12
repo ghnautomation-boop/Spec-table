@@ -1,104 +1,50 @@
-import "@shopify/shopify-api/adapters/node";
-import { authenticate } from "../shopify.server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import db from "../db.server";
 import prisma from "../db.server";
 import { invalidateShopIdCache } from "../models/template.server";
 
+function safeCompareBase64(a, b) {
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 export const action = async ({ request }) => {
-  const { shop, session, topic } = await authenticate.webhook(request);
+  // IMPORTANT: raw body pentru HMAC
+  const rawBody = await request.text();
+
+  const hmac = request.headers.get("x-shopify-hmac-sha256");
+  const shop = request.headers.get("x-shopify-shop-domain");
+  const topic = request.headers.get("x-shopify-topic");
+
+  if (!hmac || !shop || !topic) {
+    console.warn("[webhook] Missing headers", { hasHmac: !!hmac, shop, topic });
+    return new Response("Ignored", { status: 200 });
+  }
+
+  const secret = process.env.SHOPIFY_API_SECRET || "";
+  const digest = createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("base64");
+
+  if (!safeCompareBase64(digest, hmac)) {
+    console.warn("[webhook] Invalid HMAC", { shop, topic });
+    return new Response("Invalid", { status: 200 });
+  }
 
   console.log(`Received ${topic} webhook for ${shop}`);
 
-  // IMPORTANT: La uninstall, token-ul este invalidat imediat de Shopify
-  // Trebuie să obținem session-ul din DB și să creăm manual admin client-ul înainte de a-l șterge
-  // Notă: Token-ul poate fi deja invalidat, dar încercăm oricum
-  let admin = null;
-  
-  // Încearcă să obțină session-ul direct din DB (înainte de a-l șterge)
-  try {
-    const dbSession = await db.session.findFirst({
-      where: { shop },
-      orderBy: { expires: "desc" },
-    });
-    
-    if (dbSession && dbSession.accessToken) {
-      try {
-        // Creează manual un admin client folosind session-ul din DB
-        // Folosim aceeași metodă ca în worker
-        const { shopifyApi, ApiVersion } = await import("@shopify/shopify-api");
-        
-        // Inițializează shopifyApi similar cu worker-ul
-        const shopify = shopifyApi({
-          apiKey: process.env.SHOPIFY_API_KEY,
-          apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
-          apiVersion: ApiVersion.October25,
-          scopes: process.env.SCOPES?.split(",") || [],
-          hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, "") || "",
-          isEmbeddedApp: true,
-        });
-        
-        // Creează session object pentru admin client (format simplificat)
-        const sessionForAdmin = {
-          shop: dbSession.shop,
-          accessToken: dbSession.accessToken,
-        };
-        
-        // Verifică dacă există clients.Graphql
-        if (!shopify.clients || !shopify.clients.Graphql) {
-          throw new Error(`shopify.clients.Graphql is not available. shopify.clients: ${Object.keys(shopify.clients || {}).join(", ")}`);
-        }
-        
-        // Creează admin client folosind shopify API (similar cu worker-ul)
-        const graphqlClient = new shopify.clients.Graphql({ session: sessionForAdmin });
-        
-        // Creează wrapper pentru compatibilitate cu funcțiile existente
-        admin = {
-          graphql: async (query, options = {}) => {
-            const { variables } = options;
-            const response = await graphqlClient.request(query, { variables });
-            return {
-              json: async () => response,
-            };
-          },
-        };
-        
-        console.log(`[app/uninstalled] Created admin client from DB session for cleanup`);
-      } catch (error) {
-        console.warn(`[app/uninstalled] Failed to create admin client from DB session:`, error.message);
-        console.warn(`[app/uninstalled] Error details:`, error);
-      }
-    } else {
-      console.warn(`[app/uninstalled] No valid session found in DB for shop ${shop}`);
-    }
-  } catch (error) {
-    console.warn(`[app/uninstalled] Failed to get session from DB:`, error.message);
-  }
+  // IMPORTANT: La uninstall, Shopify invalidează imediat token-ul de acces
+  // Nu mai putem face request-uri API pentru a șterge metaobjects și metafields
+  // Shopify va șterge automat metaobjects și metafields-urile create de aplicație
+  // Deci nu mai încercăm cleanup-ul - doar ștergem datele din baza noastră de date
 
-  // Șterge metaobject-urile și metafield-urile create de aplicație înainte de a șterge datele din DB
-  if (admin) {
-    try {
-      console.log(`[app/uninstalled] Cleaning up metaobjects and metafields for ${shop}...`);
-      
-      const { deleteAllMetaobjects, deleteAllMetafields } = await import("../utils/metaobject.server.js");
-      
-      // Șterge toate metaobject-urile de tip specification_template
-      const metaobjectsDeleted = await deleteAllMetaobjects(admin);
-      if (metaobjectsDeleted) {
-        console.log(`[app/uninstalled] Metaobjects deletion initiated successfully`);
-      } else {
-        console.warn(`[app/uninstalled] Failed to delete metaobjects`);
-      }
-      
-      // Șterge toate metafield-urile de pe produse și colecții
-      const metafieldsResult = await deleteAllMetafields(admin);
-      console.log(`[app/uninstalled] Deleted ${metafieldsResult.productsDeleted} product metafields and ${metafieldsResult.collectionsDeleted} collection metafields`);
-    } catch (error) {
-      console.error(`[app/uninstalled] Error cleaning up metaobjects and metafields:`, error);
-      // Continuă cu ștergerea datelor din DB chiar dacă cleanup-ul eșuează
-    }
-  } else {
-    console.warn(`[app/uninstalled] Admin client not available, skipping metaobjects and metafields cleanup`);
-  }
+  // Obține session-ul din DB pentru a-l șterge
+  const session = await db.session.findFirst({
+    where: { shop },
+    orderBy: { expires: "desc" },
+  });
 
   // Webhook requests can trigger multiple times and after an app has already been uninstalled.
   // If this webhook already ran, the session may have been deleted previously.
