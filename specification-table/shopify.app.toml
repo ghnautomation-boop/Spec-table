@@ -44,9 +44,15 @@ api_version = "2026-01"
   topics = ["app_subscriptions/update" ]
   uri = "/webhooks/app_subscription"
 
+  # Mandatory compliance webhooks for privacy law compliance
+  # See: https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "/webhooks/compliance"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_collection_listings,read_themes,read_content,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
+scopes = "read_products,write_products,read_themes,read_content,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
 
 [auth]
 redirect_urls = [

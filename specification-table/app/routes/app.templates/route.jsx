@@ -141,6 +141,16 @@ export const loader = async ({ request }) => {
     }
   });
   
+  // Calculează template-urile fără assignment
+  // Un template este neassignat dacă nu are assignments sau assignments este gol
+  const unassignedTemplatesCount = templates.filter(template => {
+    // Verifică dacă assignments există și dacă are elemente
+    const hasAssignments = template.assignments && Array.isArray(template.assignments) && template.assignments.length > 0;
+    return !hasAssignments;
+  }).length;
+  
+
+  
   return { 
     templates, 
     products, 
@@ -153,6 +163,7 @@ export const loader = async ({ request }) => {
     maxTemplates,
     currentTemplatesCount,
     isTemplateLimitReached,
+    unassignedTemplatesCount,
     // Performance metrics pentru debugging (doar în development)
     ...(process.env.NODE_ENV === "development" && {
       _perf: {
@@ -1020,7 +1031,7 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
 
 export default function TemplatesPage() {
   const loaderData = useLoaderData();
-  const { templates, products, collections, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId, isTemplateLimitReached, maxTemplates, currentTemplatesCount, currentPlan, _perf } = loaderData;
+  const { templates, products, collections, assignedCollections, assignedProducts, hasGlobalAssignment, globalAssignmentTemplateId, isTemplateLimitReached, maxTemplates, currentTemplatesCount, currentPlan, unassignedTemplatesCount, _perf } = loaderData;
   
   // Debug logging
   useEffect(() => {
@@ -1385,6 +1396,25 @@ export default function TemplatesPage() {
                 >
                   Upgrade Plan
                 </s-button>
+              </s-stack>
+            </s-banner>
+          </s-section>
+        )}
+
+        {unassignedTemplatesCount > 0 && templates.length > 0 && (
+          <s-section>
+            <s-banner tone="warning">
+              <s-stack direction="block" gap="tight">
+                <s-text emphasis="strong">
+                  {unassignedTemplatesCount === 1 
+                    ? "1 template without assignment" 
+                    : `${unassignedTemplatesCount} templates without assignment`}
+                </s-text>
+                <s-paragraph>
+                  {unassignedTemplatesCount === 1
+                    ? "You have 1 template that is not assigned to any products or collections. Assign it to make it visible on your storefront."
+                    : `You have ${unassignedTemplatesCount} templates that are not assigned to any products or collections. Assign them to make them visible on your storefront.`}
+                </s-paragraph>
               </s-stack>
             </s-banner>
           </s-section>

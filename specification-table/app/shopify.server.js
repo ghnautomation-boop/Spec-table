@@ -22,9 +22,6 @@ const shopify = shopifyApp({
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
-  logger: {
-    level: LogSeverity.Debug,
-  },
 });
 
 

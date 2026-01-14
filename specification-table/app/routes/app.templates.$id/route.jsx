@@ -3270,7 +3270,7 @@ export default function TemplateEditorPage() {
                     }
                   }}
                   value={collapsibleOnPC ? "true" : "false"}
-                  label="Collapsible table just on PC"
+                  label="Collapsible table just on Desktop"
                   accessibilityLabel="Enable collapsible table on PC only"
                 />
                 <s-switch
