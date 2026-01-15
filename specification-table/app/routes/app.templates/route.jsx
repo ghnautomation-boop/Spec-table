@@ -434,6 +434,8 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
     return false;
   }, [assignmentType, selectedProducts, selectedCollections]);
 
+  const isDirty = hasUnsavedChanges();
+
   // Ascunde Save Bar explicit la prima încărcare
   useEffect(() => {
     if (isInitialMount.current) {
@@ -893,8 +895,9 @@ function TemplateAssignment({ template, products: initialProducts, collections: 
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base" background="base" suppressHydrationWarning>
       <Form
-        data-save-bar
-        data-discard-confirmation
+        // IMPORTANT: only one template form should participate in the global SaveBar at a time,
+        // otherwise the Save action can trigger submissions for all template forms.
+        {...(isDirty ? { "data-save-bar": true, "data-discard-confirmation": true } : {})}
         data-template-id={template.id}
         onSubmit={handleSave}
         onReset={handleReset}
@@ -1627,13 +1630,13 @@ export default function TemplatesPage() {
         {templates.length > 3 && (
           <s-section>
             <s-stack direction="block" gap="base">
-              <s-stack direction="row" gap="tight" alignment="center">
+              <s-stack direction="inline" gap="tight" alignment="center">
                 <s-text variant="headingMd" emphasis="strong">Search Templates</s-text>
                 <button
                   type="button"
                   onClick={() => setSearchInfoOpen(true)}
-                  title="What is Search Templates?"
-                  aria-label="What is Search Templates?"
+                  title="What is Search Templates? Press the button to find out"
+                  aria-label="What is Search Templates?Press the button to find out"
                   style={{
                     cursor: "pointer",
                     display: "inline-flex",
