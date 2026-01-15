@@ -27,6 +27,12 @@ function graphQLToShopifyId(graphQLId) {
   return match ? match[1] : graphQLId;
 }
 
+function normalizeTargetId(id) {
+  if (!id) return null;
+  if (typeof id === "string") return graphQLToShopifyId(id);
+  return graphQLToShopifyId(String(id));
+}
+
 export const loader = async ({ request }) => {
   const perfStart = performance.now();
   const { admin, session } = await authenticate.admin(request);
@@ -1047,6 +1053,13 @@ export default function TemplatesPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState(null);
   const createButtonRef = useRef(null);
+  const [searchInfoOpen, setSearchInfoOpen] = useState(false);
+  
+  // State pentru search
+  const [searchType, setSearchType] = useState(null); // 'product' | 'collection' | null
+  const [selectedResourceId, setSelectedResourceId] = useState(null);
+  const [selectedResourceName, setSelectedResourceName] = useState(null);
+  const [filteredTemplates, setFilteredTemplates] = useState(null); // null = show all, array = filtered
 
   // Creează funcția globală IMEDIAT, înainte de orice altceva
   // Această funcție trebuie să fie disponibilă când s-page clonează butonul
@@ -1245,6 +1258,171 @@ export default function TemplatesPage() {
     );
   };
 
+  // Funcții pentru search
+  const handleOpenSearchProductPicker = useCallback(async () => {
+    try {
+      const result = await shopify.resourcePicker({
+        type: 'product',
+        multiple: false,
+        filter: {
+          variants: false,
+        },
+      });
+      
+      if (result && result.selection && result.selection.length > 0) {
+        const item = result.selection[0];
+        const gid = typeof item === 'string' ? item : (item.id || item);
+        const productId = graphQLToShopifyId(gid);
+        
+        if (productId) {
+          // Găsește numele produsului
+          const product = products.find(p => String(p.shopifyId) === String(productId));
+          const productName = product ? product.title : `Product ${productId}`;
+          
+          setSearchType('product');
+          setSelectedResourceId(productId);
+          setSelectedResourceName(productName);
+          
+          // Filtrează template-urile
+          await filterTemplatesByResource('product', productId);
+        }
+      }
+    } catch (error) {
+      console.error("[TemplatesPage] Error opening product picker:", error);
+      shopify.toast.show('Failed to open product picker. Please try again.', { isError: true });
+    }
+  }, [shopify, products]);
+
+  const handleOpenSearchCollectionPicker = useCallback(async () => {
+    try {
+      const result = await shopify.resourcePicker({
+        type: 'collection',
+        multiple: false,
+      });
+      
+      if (result && result.selection && result.selection.length > 0) {
+        const item = result.selection[0];
+        const gid = typeof item === 'string' ? item : (item.id || item);
+        const collectionId = graphQLToShopifyId(gid);
+        
+        if (collectionId) {
+          // Găsește numele colecției
+          const collection = collections.find(c => String(c.shopifyId) === String(collectionId));
+          const collectionName = collection ? collection.title : `Collection ${collectionId}`;
+          
+          setSearchType('collection');
+          setSelectedResourceId(collectionId);
+          setSelectedResourceName(collectionName);
+          
+          // Filtrează template-urile
+          await filterTemplatesByResource('collection', collectionId);
+        }
+      }
+    } catch (error) {
+      console.error("[TemplatesPage] Error opening collection picker:", error);
+      shopify.toast.show('Failed to open collection picker. Please try again.', { isError: true });
+    }
+  }, [shopify, collections]);
+
+  const filterTemplatesByResource = useCallback(async (type, resourceId) => {
+    const matchingTemplates = [];
+    let foundSpecificTemplate = false;
+    const normalizedResourceId = normalizeTargetId(resourceId);
+    
+    // Parcurge toate template-urile pentru a găsi template-uri specifice
+    for (const template of templates) {
+      let shouldInclude = false;
+      
+      // Verifică assignments-urile template-ului
+      if (template.assignments && template.assignments.length > 0) {
+        for (const assignment of template.assignments) {
+          if (assignment.assignmentType === 'DEFAULT') {
+            // Template global - îl ignorăm pentru moment
+            continue;
+          }
+          
+          // Verifică targets-urile
+          if (assignment.targets && assignment.targets.length > 0) {
+            for (const target of assignment.targets) {
+              const targetId = normalizeTargetId(target.targetShopifyId);
+              if (type === 'product' && target.targetType === 'PRODUCT' && 
+                  String(targetId) === String(normalizedResourceId)) {
+                shouldInclude = true;
+                foundSpecificTemplate = true;
+                break;
+              } else if (type === 'collection' && target.targetType === 'COLLECTION' && 
+                        String(targetId) === String(normalizedResourceId)) {
+                shouldInclude = true;
+                foundSpecificTemplate = true;
+                break;
+              }
+            }
+          }
+          
+          if (shouldInclude) break;
+        }
+      }
+      
+      if (shouldInclude) {
+        matchingTemplates.push(template);
+      }
+    }
+    
+    // Dacă căutăm un produs și nu am găsit un template specific, verificăm dacă produsul face parte dintr-o colecție
+    if (!foundSpecificTemplate && type === 'product') {
+      // Verifică dacă produsul face parte dintr-o colecție care are un template
+      for (const template of templates) {
+        if (template.assignments && template.assignments.length > 0) {
+          for (const assignment of template.assignments) {
+            if (assignment.assignmentType === 'COLLECTION' && assignment.targets) {
+              for (const target of assignment.targets) {
+                if (target.targetType === 'COLLECTION') {
+                  const collectionId = normalizeTargetId(target.targetShopifyId);
+                  if (!collectionId) continue;
+                  // Verifică dacă produsul face parte din această colecție
+                  try {
+                    const response = await fetch(
+                      `/api/product-collections?productId=${normalizedResourceId}&collectionId=${collectionId}`
+                    );
+                    if (response.ok) {
+                      const data = await response.json();
+                      if (data.isInCollection) {
+                        if (!matchingTemplates.find(t => t.id === template.id)) {
+                          matchingTemplates.push(template);
+                          foundSpecificTemplate = true;
+                        }
+                        break;
+                      }
+                    }
+                  } catch (error) {
+                    console.error("[TemplatesPage] Error checking product in collection:", error);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Dacă nu am găsit un template specific, adăugăm template-ul global (dacă există)
+    if (!foundSpecificTemplate && hasGlobalAssignment && globalAssignmentTemplateId) {
+      const globalTemplate = templates.find(t => t.id === globalAssignmentTemplateId);
+      if (globalTemplate && !matchingTemplates.find(t => t.id === globalTemplate.id)) {
+        matchingTemplates.push(globalTemplate);
+      }
+    }
+    
+    setFilteredTemplates(matchingTemplates);
+  }, [templates, hasGlobalAssignment, globalAssignmentTemplateId]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchType(null);
+    setSelectedResourceId(null);
+    setSelectedResourceName(null);
+    setFilteredTemplates(null);
+  }, []);
+
   // State pentru a ține minte modificările nesalvate de isActive
   const [pendingActiveChanges, setPendingActiveChanges] = useState({});
   
@@ -1361,6 +1539,31 @@ export default function TemplatesPage() {
             <button onClick={cancelDelete}>Cancel</button>
           </TitleBar>
         </Modal>
+
+        <Modal id="search-templates-info" open={searchInfoOpen} onHide={() => setSearchInfoOpen(false)}>
+          <div style={{ padding: "16px" }}>
+            <p style={{ margin: 0, fontSize: "14px", lineHeight: "20px" }}>
+              Search helps you quickly find the template that applies to a selected product or collection.
+            </p>
+            <div style={{ height: 12 }} />
+            <p style={{ margin: 0, fontSize: "14px", lineHeight: "20px" }}>
+              <strong>How it works</strong>
+            </p>
+            <ul style={{ margin: "8px 0 0 18px", padding: 0, fontSize: "14px", lineHeight: "20px" }}>
+              <li>
+                <strong>Product search</strong>: shows a product-assigned template; if none, checks collection templates
+                for collections that include the product; if still none, shows the global template (if set).
+              </li>
+              <li>
+                <strong>Collection search</strong>: shows a collection-assigned template; if none, shows the global
+                template (if set).
+              </li>
+            </ul>
+          </div>
+          <TitleBar title="Search Templates">
+            <button onClick={() => setSearchInfoOpen(false)}>Close</button>
+          </TitleBar>
+        </Modal>
         <s-button 
           slot="primary-action" 
           variant="primary" 
@@ -1420,6 +1623,117 @@ export default function TemplatesPage() {
           </s-section>
         )}
 
+        {/* Search Section */}
+        {templates.length > 3 && (
+          <s-section>
+            <s-stack direction="block" gap="base">
+              <s-stack direction="row" gap="tight" alignment="center">
+                <s-text variant="headingMd" emphasis="strong">Search Templates</s-text>
+                <button
+                  type="button"
+                  onClick={() => setSearchInfoOpen(true)}
+                  title="What is Search Templates?"
+                  aria-label="What is Search Templates?"
+                  style={{
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "6px",
+                    background: "transparent",
+                    border: "1px solid transparent",
+                    padding: 0,
+                  }}
+                >
+                  {/* Polaris-like info icon (inline SVG) */}
+                  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                    <path
+                      fill="#5C5F62"
+                      fillRule="evenodd"
+                      d="M10 2.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15ZM1.5 10a8.5 8.5 0 1 1 17 0 8.5 8.5 0 0 1-17 0Zm8.5-4.25a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm-.75 3.25a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V9.75h-.5A.75.75 0 0 1 9.25 9Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </s-stack>
+              <s-stack direction="row" gap="base" alignment="start">
+                <s-select
+                  label="Search by"
+                  value={searchType || ""}
+                  onInput={(e) => {
+                    const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                    const newType = value || null;
+                    setSearchType(newType);
+                    if (!newType) handleClearSearch();
+                  }}
+                  onChange={(e) => {
+                    const value = e.currentTarget?.value || e.target?.value || e.detail?.value;
+                    const newType = value || null;
+                    setSearchType(newType);
+                    if (!newType) handleClearSearch();
+                  }}
+                >
+                  <s-option value="">Select search type</s-option>
+                  <s-option value="product">Product</s-option>
+                  <s-option value="collection">Collection</s-option>
+                </s-select>
+                
+                {searchType === 'product' && (
+                  <s-stack direction="row" gap="tight" alignment="end">
+                    <s-button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleOpenSearchProductPicker}
+                    >
+                      {selectedResourceName ? `Selected: ${selectedResourceName}` : "Select Product"}
+                    </s-button>
+                    {selectedResourceId && (
+                      <s-button
+                        type="button"
+                        variant="plain"
+                        onClick={handleClearSearch}
+                      >
+                        Clear
+                      </s-button>
+                    )}
+                  </s-stack>
+                )}
+                
+                {searchType === 'collection' && (
+                  <s-stack direction="row" gap="tight" alignment="end">
+                    <s-button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleOpenSearchCollectionPicker}
+                    >
+                      {selectedResourceName ? `Selected: ${selectedResourceName}` : "Select Collection"}
+                    </s-button>
+                    {selectedResourceId && (
+                      <s-button
+                        type="button"
+                        variant="plain"
+                        onClick={handleClearSearch}
+                      >
+                        Clear
+                      </s-button>
+                    )}
+                  </s-stack>
+                )}
+              </s-stack>
+              
+              {selectedResourceId && filteredTemplates !== null && (
+                <s-text variant="bodyMd" tone="subdued">
+                  {filteredTemplates.length === 0
+                    ? `No templates found for ${searchType === 'product' ? 'this product' : 'this collection'}.`
+                    : `Found ${filteredTemplates.length} ${filteredTemplates.length === 1 ? 'template' : 'templates'} for ${searchType === 'product' ? 'this product' : 'this collection'}.`}
+                </s-text>
+              )}
+            </s-stack>
+          </s-section>
+        )}
+
         {templates.length === 0 ? (
           <s-section suppressHydrationWarning>
             <div className={styles.emptyStateContainer}>
@@ -1473,7 +1787,7 @@ export default function TemplatesPage() {
         ) : (
           <s-section suppressHydrationWarning>
             <s-stack direction="block" gap="base" suppressHydrationWarning>
-              {templates.map((template) => (
+              {(filteredTemplates !== null ? filteredTemplates : templates).map((template) => (
                 <div
                   key={template.id}
                   className={styles.templateCard}
