@@ -1063,6 +1063,49 @@ export default function TemplatesPage() {
   const [selectedResourceId, setSelectedResourceId] = useState(null);
   const [selectedResourceName, setSelectedResourceName] = useState(null);
   const [filteredTemplates, setFilteredTemplates] = useState(null); // null = show all, array = filtered
+  const [focusedTemplateId, setFocusedTemplateId] = useState(null);
+
+  // Focus + blink on a specific template after redirect from template editor
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || "");
+    const focusId = params.get("focusTemplateId");
+    if (!focusId) return;
+
+    // Ensure full list is visible so the focused card exists in DOM
+    setFilteredTemplates(null);
+    setFocusedTemplateId(focusId);
+
+    // Scroll into view after render
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-template-card-id="${focusId}"]`);
+      if (el && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 150);
+
+    // Remove highlight + clean URL param after a short delay
+    const cleanup = setTimeout(() => {
+      setFocusedTemplateId(null);
+      const next = new URLSearchParams(location.search || "");
+      next.delete("focusTemplateId");
+      const qs = next.toString();
+      const newUrl = qs ? `${location.pathname}?${qs}` : location.pathname;
+      
+      // Use window.history.replaceState to update URL without triggering React Router re-render
+      // This prevents the duplicate refresh/redirect issue
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, "", newUrl);
+      } else {
+        // Fallback to navigate if replaceState is not available
+        navigate(newUrl, { replace: true });
+      }
+    }, 2600);
+
+    return () => {
+      clearTimeout(t);
+      clearTimeout(cleanup);
+    };
+  }, [location.pathname, location.search, navigate]);
 
   // Creează funcția globală IMEDIAT, înainte de orice altceva
   // Această funcție trebuie să fie disponibilă când s-page clonează butonul
@@ -1793,7 +1836,8 @@ export default function TemplatesPage() {
               {(filteredTemplates !== null ? filteredTemplates : templates).map((template) => (
                 <div
                   key={template.id}
-                  className={styles.templateCard}
+                  data-template-card-id={template.id}
+                  className={`${styles.templateCard} ${focusedTemplateId === template.id ? styles.focusBlink : ""}`}
                 >
                   <s-stack direction="block" gap="base">
                     <s-stack direction="inline" gap="base" alignment="space-between">

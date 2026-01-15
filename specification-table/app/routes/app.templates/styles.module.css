@@ -108,6 +108,28 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+@keyframes focusBlink {
+  0% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-color: #e1e3e5;
+    background-color: #ffffff;
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 200, 0, 0.25);
+    border-color: #f5c542;
+    background-color: #fff8db;
+  }
+  100% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-color: #e1e3e5;
+    background-color: #ffffff;
+  }
+}
+
+.focusBlink {
+  animation: focusBlink 0.9s ease-in-out 0s 2;
+}
+
 /* Clase pentru hover effects fără inline styles */
 .templateCardHover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;

@@ -1,6 +1,6 @@
 import { useLoaderData, useFetcher, Form, useNavigate, useActionData, useRevalidator, redirect } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { Modal, TitleBar } from "@shopify/app-bridge-react";
+import { Modal, TitleBar, SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "~/shopify.server";
@@ -495,7 +495,7 @@ export const action = async ({ request, params }) => {
 
   try {
     if (id === "new") {
-      await createTemplate(
+      const created = await createTemplate(
         {
           name,
           styling,
@@ -519,6 +519,7 @@ export const action = async ({ request, params }) => {
         session.shop,
         admin
       );
+      return { success: true, redirect: `/app/templates?focusTemplateId=${created.id}`, redirectNonce: String(Date.now()) };
     } else {
       await updateTemplate(
         id,
@@ -545,9 +546,8 @@ export const action = async ({ request, params }) => {
         session.shop,
         admin
       );
+      return { success: true, redirect: `/app/templates?focusTemplateId=${id}`, redirectNonce: String(Date.now()) };
     }
-
-    return { success: true, redirect: "/app/templates" };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -660,12 +660,12 @@ function migrateStylingToDeviceSpecific(oldStyling) {
 
 export default function TemplateEditorPage() {
   const { template, metafieldDefinitions, isNew } = useLoaderData();
-  const fetcher = useFetcher();
   const actionData = useActionData();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const processedRedirectRef = useRef(null);
   const shopify = useAppBridge();
+  const saveFormRef = useRef(null);
 
   const [sections, setSections] = useState(() => {
     if (!template?.sections) {
@@ -1040,79 +1040,21 @@ export default function TemplateEditorPage() {
     }
   }, [styling.seeLessButtonStyle, styling.seeLessButtonText, styling.seeMoreButtonStyle]);
 
-  // Monitorizează salvarea cu succes
+  // Redirect after successful save (works for both create and edit)
   useEffect(() => {
-    if (actionData?.success) {
-      // Creează un identificator unic pentru acest răspuns pentru a preveni re-executarea
-      const responseId = JSON.stringify({ success: actionData.success, redirect: actionData.redirect });
-      
-      // Verifică dacă am procesat deja acest răspuns
-      if (processedRedirectRef.current === responseId) {
-        return; // Nu procesa din nou același răspuns
-      }
-      
-      // Marchează că am procesat acest răspuns
-      processedRedirectRef.current = responseId;
-      
-      // Afișează notificare toast de succes
-      shopify.toast.show(
-        `Template ${isNew ? "created" : "updated"} successfully!`
-      );
-      
-      // Actualizează state-ul inițial după salvare cu succes
-      // pentru a reseta detectarea schimbărilor nesalvate
-      initialFormState.current = {
-        templateName,
-        sections: JSON.parse(JSON.stringify(sections)),
-        isActive,
-        isAccordion,
-        isAccordionHideFromPC,
-        isAccordionHideFromMobile,
-        seeMoreEnabled,
-        seeMoreHideFromPC,
-        seeMoreHideFromMobile,
-        seeLessHideFromPC,
-        seeLessHideFromMobile,
-        splitViewPerSection,
-        splitViewPerMetafield,
-        styling: JSON.parse(JSON.stringify(styling))
-      };
-      
-      // Resetează flag-ul pentru a preveni declanșarea evenimentelor change imediat după salvare
-      isInitialMount.current = true;
-      
-      // Save Bar se va ascunde automat după submit cu succes
-      
-      // Dacă există redirect, navighează după 1.5 secunde pentru a permite utilizatorului să vadă notificarea
-      // Folosim navigate() pentru navigare SPA (fără reload complet) pentru a păstra contextul App Bridge
-      if (actionData?.redirect) {
-        // Verifică dacă suntem deja pe pagina de redirect pentru a preveni loop-uri
-        const currentPath = window.location.pathname;
-        if (currentPath !== actionData.redirect) {
-          const timer = setTimeout(() => {
-            // Navigare SPA care păstrează contextul React și App Bridge
-            navigate(actionData.redirect, { replace: true });
-            // Reîncarcă datele pentru a afișa template-ul nou creat în listă
-            revalidator.revalidate();
-          }, 1500);
-          return () => clearTimeout(timer);
-        } else {
-          // Suntem deja pe pagina de redirect, doar revalidăm datele
-          revalidator.revalidate();
-        }
-      }
-    } else if (actionData?.success === false && actionData?.error) {
-      // Dacă există eroare, afișează-o automat
+    if (!actionData) return;
+    if (!actionData.redirectNonce) return;
+    if (processedRedirectRef.current === actionData.redirectNonce) return;
+
+    if (actionData.success) {
+      processedRedirectRef.current = actionData.redirectNonce;
+      shopify.toast.show(`Template ${isNew ? "created" : "updated"} successfully!`);
+      navigate(actionData.redirect || "/app/templates", { replace: true });
+    } else if (actionData.success === false) {
+      processedRedirectRef.current = actionData.redirectNonce;
       shopify.toast.show(`Eroare: ${actionData.error}`, { isError: true });
     }
-    
-    // Resetează flag-ul când actionData devine null sau se schimbă complet
-    if (!actionData || (actionData.success === undefined && actionData.error === undefined)) {
-      processedRedirectRef.current = null;
-    }
-  }, [actionData, navigate, revalidator, shopify, templateName, sections, isActive, isAccordion, 
-      isAccordionHideFromPC, isAccordionHideFromMobile, seeMoreEnabled, 
-      seeMoreHideFromPC, seeMoreHideFromMobile, styling, isNew]);
+  }, [actionData, shopify, navigate, isNew]);
 
   // Funcție pentru a detecta dacă există schimbări nesalvate
   const hasUnsavedChanges = useCallback(() => {
@@ -1214,6 +1156,34 @@ export default function TemplateEditorPage() {
   }, [templateName, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, 
       seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, 
       tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections, styling, actionData]);
+
+  // Explicit SaveBar wiring: guarantees Save triggers a form submit
+  useEffect(() => {
+    if (!shopify?.saveBar) return;
+    const dirty = hasUnsavedChanges();
+    if (dirty) {
+      shopify.saveBar.show("save-bar").catch(() => {});
+    } else {
+      shopify.saveBar.hide("save-bar").catch(() => {});
+    }
+  }, [shopify, hasUnsavedChanges]);
+
+  const requestSubmitSaveForm = useCallback(() => {
+    const form = saveFormRef.current || document.querySelector('form[data-save-bar]');
+    if (form && typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+    } else if (form) {
+      // Fallback
+      form.submit();
+    }
+  }, []);
+
+  const resetSaveForm = useCallback(() => {
+    const form = saveFormRef.current || document.querySelector('form[data-save-bar]');
+    if (form && typeof form.reset === "function") {
+      form.reset();
+    }
+  }, []);
 
 
   // Funcție pentru a declanșa evenimente change pe hidden inputs
@@ -1473,16 +1443,7 @@ export default function TemplateEditorPage() {
     };
   }, []); // Rulează o singură dată la mount
 
-  useEffect(() => {
-    if (fetcher.data?.success) {
-      shopify.toast.show(
-        `Template ${isNew ? "created" : "updated"} successfully!`
-      );
-      navigate("/app/templates");
-    } else if (fetcher.data?.success === false) {
-      shopify.toast.show(`Eroare: ${fetcher.data.error}`, { isError: true });
-    }
-  }, [fetcher.data, shopify, navigate, isNew]);
+  // (redirect handled by the unified effect above)
 
   // Elimină complet scroll-ul modal-ului principal - doar container-ul de metafield-uri are scroll
   useEffect(() => {
@@ -2794,6 +2755,14 @@ export default function TemplateEditorPage() {
 
   return (
     <s-page heading={isNew ? "Creează Template Nou" : `Editează: ${template?.name}`}>
+      {/* Explicit contextual SaveBar (reliable Save/Discard behavior) */}
+      <SaveBar id="save-bar">
+        <button variant="primary" onClick={requestSubmitSaveForm}>
+          Save
+        </button>
+        <button onClick={resetSaveForm}>Discard</button>
+      </SaveBar>
+
       {/* Banner de eroare */}
       {actionData?.error && (
         <div style={{ marginBottom: "16px" }}>
@@ -2808,6 +2777,8 @@ export default function TemplateEditorPage() {
             method="post" 
             style={{ display: "inline" }}
             key={`form-${formKey}`}
+            id="template-editor-save-form"
+            ref={saveFormRef}
             data-save-bar
             data-discard-confirmation
             onSubmit={(e) => {
@@ -3172,6 +3143,10 @@ export default function TemplateEditorPage() {
                 </div>
                 ))}
 
+            {/* Hidden submit button so App Bridge SaveBar can trigger a real form submit */}
+            <button type="submit" style={{ display: "none" }} aria-hidden="true" tabIndex={-1}>
+              Submit
+            </button>
           </Form>
 
       {/* Secțiuni de bază - Informații și Metafield-uri */}
@@ -4925,7 +4900,7 @@ export default function TemplateEditorPage() {
                               onChange={(value) => {
                                 updateCurrentDeviceStyling({ borderWidth: numberToPx(value) });
                               }}
-                              min={0}
+                              min={1}
                               max={20}
                               step={1}
                               output
@@ -5118,7 +5093,7 @@ export default function TemplateEditorPage() {
                       onChange={(value) => {
                         updateCurrentDeviceStyling({ headerBottomBorderWidth: numberToPx(value) });
                       }}
-                      min={0}
+                      min={1}
                       max={20}
                       step={1}
                       output
@@ -5382,7 +5357,7 @@ export default function TemplateEditorPage() {
                       <s-stack direction="block" gap="base" style={{ marginLeft: "24px" }}>
                         <s-stack direction="inline" gap="base">
               <s-color-field
-                            label="Culoare Row Border"
+                            label="Row Border Color"
                             name="rowBorderColor"
                             value={getCurrentDeviceStyling().rowBorderColor}
                 alpha
@@ -5422,7 +5397,7 @@ export default function TemplateEditorPage() {
                             onChange={(value) => {
                               updateCurrentDeviceStyling({ rowBorderWidth: numberToPx(value) });
                             }}
-                            min={0}
+                            min={1}
                             max={20}
                             step={1}
                             output
@@ -5581,7 +5556,7 @@ export default function TemplateEditorPage() {
                                       onChange={(value) => {
                                         updateCurrentDeviceStyling({ seeMoreButtonBorderWidth: numberToPx(value) });
                                       }}
-                                      min={0}
+                                      min={1}
                                       max={10}
                                       step={1}
                                       output
