@@ -186,7 +186,7 @@ const PLANS = [
     quantities: ["Up to 300 products", "20 templates"],
     features: ["Dynamic metafields", "Template assignments", "Custom tooltips", "Custom names","Suffix & Preffix"],
     maxProducts: 300,
-    maxTemplates: 2,
+    maxTemplates: 20,
   },
   {
     key: "growth",

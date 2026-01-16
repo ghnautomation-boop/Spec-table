@@ -2776,11 +2776,15 @@ export default function TemplateEditorPage() {
       {/* SaveBar component with declarative control (Shopify recommended approach) */}
       {/* Don't render SaveBar until initial mount is complete */}
       {!isInitialMount.current && (
-        <SaveBar id="save-bar" open={showSaveBar} discardConfirmation>
+        <SaveBar id="save-bar" open={showSaveBar}>
           <button variant="primary" onClick={requestSubmitSaveForm}>
             Save
           </button>
-          <button onClick={resetSaveForm}>Discard</button>
+          <button onClick={() => {
+            if (window.confirm('Are you sure you want to discard all unsaved changes?')) {
+              resetSaveForm();
+            }
+          }}>Discard</button>
         </SaveBar>
       )}
 
@@ -3462,6 +3466,7 @@ export default function TemplateEditorPage() {
                     variant="secondary"
                     icon="plus"
                     style={{ marginTop: "8px" }}
+                    accessibilityLabel="Add New Section"
                   >
                     Add New Section
                   </s-button>
@@ -3861,6 +3866,7 @@ export default function TemplateEditorPage() {
                                         onClick={() =>
                                           removeMetafieldFromSection(sectionIndex, mfIndex)
                                         }
+                                        accessibilityLabel={`Remove metafield from section ${sectionIndex + 1}`}
                                       >
                                       </s-button>
                                     </div>
@@ -3970,6 +3976,9 @@ export default function TemplateEditorPage() {
                                     setOpenSelectIndex(sectionIndex);
                                   }
                                 }}
+                                accessibilityLabel={getAvailableMetafields(sectionIndex).length > 0
+                                  ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
+                                  : "No any metafields available"}
                               >
                                 {getAvailableMetafields(sectionIndex).length > 0
                                   ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
@@ -4605,6 +4614,7 @@ export default function TemplateEditorPage() {
                 onClick={() => setSelectedDevice("mobile")}
                 style={{ flex: 1 }}
                 icon="mobile"
+                accessibilityLabel="Select mobile device view"
               >
                 Mobile
               </s-button>
@@ -4613,6 +4623,7 @@ export default function TemplateEditorPage() {
                 onClick={() => setSelectedDevice("tablet")}
                 style={{ flex: 1 }}
                 icon="tablet"
+                accessibilityLabel="Select tablet device view"
               >
                 Tablet
               </s-button>
@@ -4621,6 +4632,7 @@ export default function TemplateEditorPage() {
                 onClick={() => setSelectedDevice("desktop")}
                 style={{ flex: 1 }}
                 icon="desktop"
+                accessibilityLabel="Select desktop device view"
               >
                 Desktop
               </s-button>

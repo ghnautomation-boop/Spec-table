@@ -3,7 +3,7 @@
 const PLANS = [
   {
     key: "starter",
-    maxTemplates: 2, // Temporar setat la 2 pentru testare
+    maxTemplates: 20,
   },
   {
     key: "growth",
