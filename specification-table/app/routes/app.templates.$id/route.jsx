@@ -779,6 +779,7 @@ export default function TemplateEditorPage() {
   const isInitialMount = useRef(true); // Flag pentru a detecta prima încărcare
   const [expandedSections, setExpandedSections] = useState({}); // State pentru secțiunile expandate (key: sectionIndex, value: boolean)
   const [selectedSectionIndex, setSelectedSectionIndex] = useState(0); // State pentru secțiunea selectată în layout-ul cu 2 coloane
+  const [showSaveBar, setShowSaveBar] = useState(false); // Control visibility of SaveBar
 
   // Salvează state-ul inițial pentru detectarea schimbărilor
   const initialFormState = useRef({
@@ -1157,16 +1158,17 @@ export default function TemplateEditorPage() {
       seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, splitViewPerSection, splitViewPerMetafield, 
       tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, sections, styling, actionData]);
 
-  // Explicit SaveBar wiring: guarantees Save triggers a form submit
+  // Control SaveBar visibility based on unsaved changes (only after initial mount)
+  // Using SaveBar component with 'open' prop (Shopify recommended approach)
   useEffect(() => {
-    if (!shopify?.saveBar) return;
-    const dirty = hasUnsavedChanges();
-    if (dirty) {
-      shopify.saveBar.show("save-bar").catch(() => {});
-    } else {
-      shopify.saveBar.hide("save-bar").catch(() => {});
+    if (isInitialMount.current) {
+      setShowSaveBar(false);
+      return;
     }
-  }, [shopify, hasUnsavedChanges]);
+    
+    const dirty = hasUnsavedChanges();
+    setShowSaveBar(dirty);
+  }, [hasUnsavedChanges]);
 
   const requestSubmitSaveForm = useCallback(() => {
     const form = saveFormRef.current || document.querySelector('form[data-save-bar]');
@@ -1179,10 +1181,13 @@ export default function TemplateEditorPage() {
   }, []);
 
   const resetSaveForm = useCallback(() => {
-    const form = saveFormRef.current || document.querySelector('form[data-save-bar]');
+    const form = saveFormRef.current || document.querySelector('form#template-editor-save-form');
     if (form && typeof form.reset === "function") {
       form.reset();
     }
+    
+    // Hide SaveBar after discard
+    setShowSaveBar(false);
   }, []);
 
 
@@ -2755,13 +2760,16 @@ export default function TemplateEditorPage() {
 
   return (
     <s-page heading={isNew ? "Creează Template Nou" : `Editează: ${template?.name}`}>
-      {/* Explicit contextual SaveBar (reliable Save/Discard behavior) */}
-      <SaveBar id="save-bar">
-        <button variant="primary" onClick={requestSubmitSaveForm}>
-          Save
-        </button>
-        <button onClick={resetSaveForm}>Discard</button>
-      </SaveBar>
+      {/* SaveBar component with declarative control (Shopify recommended approach) */}
+      {/* Don't render SaveBar until initial mount is complete */}
+      {!isInitialMount.current && (
+        <SaveBar id="save-bar" open={showSaveBar} discardConfirmation>
+          <button variant="primary" onClick={requestSubmitSaveForm}>
+            Save
+          </button>
+          <button onClick={resetSaveForm}>Discard</button>
+        </SaveBar>
+      )}
 
       {/* Banner de eroare */}
       {actionData?.error && (
@@ -2779,8 +2787,6 @@ export default function TemplateEditorPage() {
             key={`form-${formKey}`}
             id="template-editor-save-form"
             ref={saveFormRef}
-            data-save-bar
-            data-discard-confirmation
             onSubmit={(e) => {
               // Validare în frontend
               if (!templateName || templateName.trim() === "") {
@@ -2910,6 +2916,9 @@ export default function TemplateEditorPage() {
               setSections(JSON.parse(JSON.stringify(initialFormState.current.sections)));
               setStyling(JSON.parse(JSON.stringify(initialFormState.current.styling)));
               setFormKey(prev => prev + 1);
+              
+              // Hide SaveBar after discard
+              setShowSaveBar(false);
               
               // După ce state-urile s-au resetat, resetează flag-ul pentru a permite detectarea modificărilor viitoare
               setTimeout(() => {

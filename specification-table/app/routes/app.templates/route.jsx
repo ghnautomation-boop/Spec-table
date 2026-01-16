@@ -1674,7 +1674,7 @@ export default function TemplatesPage() {
           <s-section>
             <s-stack direction="block" gap="base">
               <s-stack direction="inline" gap="tight" alignment="center">
-                <s-text variant="headingMd" emphasis="strong">Search Templates</s-text>
+                <s-text variant="headingMd" emphasis="strong">Search for Templates based on assignement</s-text>
                 <button
                   type="button"
                   onClick={() => setSearchInfoOpen(true)}
