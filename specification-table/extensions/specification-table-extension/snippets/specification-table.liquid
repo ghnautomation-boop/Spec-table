@@ -1,0 +1,493 @@
+{% comment %}
+  Snippet pentru afișarea tabelului de specificații în tab-uri custom
+  Folosește: {% render 'specification-table', max_width: 1200, alignment: 'center', margin_top: 20, margin_left: 0, image_height: 100 %}
+  
+  Parametri opționali:
+  - max_width: Lățimea maximă a tabelului (0 = fără limită)
+  - alignment: Alinierea tabelului ('left', 'center', 'right')
+  - margin_top: Spațiu superior (px)
+  - margin_left: Spațiu stânga (px)
+  - image_height: Înălțimea imaginilor (px)
+{% endcomment %}
+
+{% comment %} Generează un ID unic pentru container {% endcomment %}
+{% assign product_id_str = product.id | split: '/' | last %}
+{% assign timestamp = 'now' | date: '%s' %}
+{% assign container_id = 'spec-table-' | append: product_id_str | append: '-' | append: timestamp %}
+
+{% comment %} Setează valorile default pentru parametri {% endcomment %}
+{% assign max_width = max_width | default: 0 %}
+{% assign alignment = alignment | default: 'left' %}
+{% assign margin_top = margin_top | default: 0 %}
+{% assign margin_left = margin_left | default: 0 %}
+{% assign image_height = image_height | default: 100 %}
+{% assign first_column_width = 40 %}
+
+{% comment %} Include CSS și JS {% endcomment %}
+{% comment %} Assets-urile trebuie să fie copiate în theme sau să folosească calea către extensie {% endcomment %}
+{% comment %} Verifică dacă assets-urile există în theme, altfel folosește calea către extensie {% endcomment %}
+{% assign css_asset = 'specification-table.css' | asset_url %}
+{% assign js_asset = 'specification_table.js' | asset_url %}
+<link rel="stylesheet" href="{{ css_asset }}">
+<script src="{{ js_asset }}" defer></script>
+
+{% comment %} Extrage collection_id {% endcomment %}
+{% assign collection_id = blank %}
+{% if collection and collection.id %}
+  {% assign collection_id = collection.id %}
+{% elsif product and product.collections %}
+  {% for collection_item in product.collections limit: 1 %}
+    {% assign collection_id = collection_item.id %}
+  {% endfor %}
+{% endif %}
+{% assign shop_domain = shop.permanent_domain %}
+
+{% comment %} Verifică dacă produsul are un template assignat {% endcomment %}
+{% assign product_template_ref = blank %}
+{% assign product_metafield_has_value = false %}
+{% if product.metafields.custom.dc_specification_template %}
+  {% assign product_metafield_value = product.metafields.custom.dc_specification_template.value %}
+  {% if product_metafield_value != blank and product_metafield_value != null %}
+    {% assign product_template_ref = product_metafield_value %}
+    {% assign product_metafield_has_value = true %}
+  {% endif %}
+{% endif %}
+
+{% comment %} Verifică dacă colecția are un template assignat {% endcomment %}
+{% assign collection_template_ref = blank %}
+{% assign collection_metafield_has_value = false %}
+{% if product.collections.size > 0 %}
+  {% for collection_item in product.collections %}
+    {% if collection_item.metafields.custom.dc_specification_template %}
+      {% assign collection_metafield_value = collection_item.metafields.custom.dc_specification_template.value %}
+      {% if collection_metafield_value != blank and collection_metafield_value != null %}
+        {% assign collection_template_ref = collection_metafield_value %}
+        {% assign collection_metafield_has_value = true %}
+        {% break %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{% comment %} Determină template-ul de folosit (prioritate: produs > colecție > global) {% endcomment %}
+{% assign template_metaobject = blank %}
+{% assign template_source = 'none' %}
+{% if product_metafield_has_value and product_template_ref %}
+  {% assign template_metaobject = product_template_ref %}
+  {% assign template_source = 'product' %}
+{% elsif collection_metafield_has_value and collection_template_ref %}
+  {% assign template_metaobject = collection_template_ref %}
+  {% assign template_source = 'collection' %}
+{% else %}
+  {% comment %} Folosește template-ul global {% endcomment %}
+  {% assign global_template_handle = 'specification_template_global' %}
+  {% assign metaobject_type = 'specification_template' %}
+  {% assign template_metaobject = metaobjects[metaobject_type][global_template_handle] %}
+  {% if template_metaobject %}
+    {% assign template_source = 'global' %}
+  {% endif %}
+{% endif %}
+
+{% comment %} Extrage datele din metaobject {% endcomment %}
+{% if template_metaobject %}
+  {% assign template_structure_json = template_metaobject.template_structure.value %}
+  {% assign template_styling_json = template_metaobject.template_styling.value %}
+  {% assign template_settings_json = template_metaobject.template_settings.value %}
+  {% assign template_id_value = template_metaobject.template_id.value %}
+{% endif %}
+
+{% comment %} Container pentru template {% endcomment %}
+<div id="specification-table-container-{{ container_id }}" 
+     data-product-id="{{ product.id }}" 
+     {% if collection_id != blank %}data-collection-id="{{ collection_id }}"{% endif %}
+     data-shop="{{ shop_domain }}"
+     data-first-column-width="{{ first_column_width }}"
+     data-image-height="{{ image_height }}"
+     data-max-width="{{ max_width }}"
+     data-alignment="{{ alignment }}"
+     data-margin-top="{{ margin_top }}"
+     data-margin-left="{{ margin_left }}">
+  <div class="spec-loading" style="text-align: center; padding: 20px;">
+    Loading specifications...
+  </div>
+</div>
+
+{% comment %} Pasează datele template-ului în JavaScript {% endcomment %}
+{% if template_metaobject and template_structure_json != blank and template_styling_json != blank and template_settings_json != blank %}
+<script>
+(function() {
+  'use strict';
+  // Folosim un namespace izolat pentru a evita conflicte
+  var specTableNS = window.SpecTableNS = window.SpecTableNS || {};
+  var containerId = '{{ container_id }}';
+  
+  // Setează datele template-ului direct în JavaScript
+  {% if template_source == 'global' %}
+    specTableNS['templateData_' + containerId] = {
+      structure: {{ template_structure_json | json }},
+      styling: {{ template_styling_json | json }},
+      settings: {{ template_settings_json | json }},
+      id: {{ template_id_value | json }}
+    };
+    
+    // Parsează string-urile JSON dacă este necesar
+    var templateData = specTableNS['templateData_' + containerId];
+    if (typeof templateData.structure === 'string') {
+      try {
+        templateData.structure = JSON.parse(templateData.structure);
+      } catch(e) {
+        console.error('[SpecTable] Error parsing structure JSON:', e);
+      }
+    }
+    if (typeof templateData.styling === 'string') {
+      try {
+        templateData.styling = JSON.parse(templateData.styling);
+      } catch(e) {
+        console.error('[SpecTable] Error parsing styling JSON:', e);
+      }
+    }
+    if (typeof templateData.settings === 'string') {
+      try {
+        templateData.settings = JSON.parse(templateData.settings);
+      } catch(e) {
+        console.error('[SpecTable] Error parsing settings JSON:', e);
+      }
+    }
+  {% else %}
+    specTableNS['templateData_' + containerId] = {
+      structure: {{ template_structure_json | json }},
+      styling: {{ template_styling_json | json }},
+      settings: {{ template_settings_json | json }},
+      id: {{ template_id_value | json }}
+    };
+  {% endif %}
+  
+  // Expune și în window pentru compatibilitate
+  window['templateData_{{ container_id }}'] = specTableNS['templateData_' + containerId];
+})();
+</script>
+
+{% comment %} Construiește obiectul JavaScript cu TOATE metafield-urile disponibile din Liquid {% endcomment %}
+{% if product %}
+<script>
+  // Inițializează obiectele pentru metafield-uri
+  window.productMetafieldsData = window.productMetafieldsData || {};
+  window.variantMetafieldsData = window.variantMetafieldsData || {};
+  
+  // Construiește obiectul JavaScript cu TOATE metafield-urile disponibile din Liquid
+  window.allProductMetafieldsFromLiquid = window.allProductMetafieldsFromLiquid || {
+    {% if product.metafields.custom %}
+    custom: {
+      {% for metafield_pair in product.metafields.custom %}
+        {% assign mf_key = metafield_pair[0] %}
+        {% assign mf_value = metafield_pair[1] %}
+        {% if mf_value.type == 'file_reference' %}
+          {% if mf_value.value != blank %}
+            {% assign file = mf_value.value %}
+            {% assign media_type = file.media_type | default: '' %}
+            {% if media_type == 'image' %}
+              '{{ mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+            {% elsif media_type == 'video' %}
+              {% if file.sources.size > 0 %}
+                {% assign video_url = file.sources[0].url %}
+              {% elsif file.originalSourceUrl %}
+                {% assign video_url = file.originalSourceUrl %}
+              {% else %}
+                {% assign video_url = file.url %}
+              {% endif %}
+              {% unless video_url contains 'http' %}
+                {% assign video_url = 'https:' | append: video_url %}
+              {% endunless %}
+              {% assign filename = file.filename | default: video_url | split: '/' | last | split: '?' | first %}
+              {% assign file_alt = file.alt | default: filename %}
+              '{{ mf_key }}': {"url": {{ video_url | json }}, "filename": {{ filename | json }}, "alt": {{ file_alt | json }}, "media_type": "video"}{% unless forloop.last %},{% endunless %}
+            {% else %}
+              {% assign file_url = file.originalSourceUrl | default: file.url %}
+              {% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}
+              {% assign download_url = file_url %}
+              {% unless download_url contains 'http' %}
+                {% assign download_url = 'https:' | append: download_url %}
+              {% endunless %}
+              {% assign file_alt = file.alt | default: filename %}
+              '{{ mf_key }}': {"url": {{ download_url | json }}, "filename": {{ filename | json }}, "alt": {{ file_alt | json }}}{% unless forloop.last %},{% endunless %}
+            {% endif %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
+        {% elsif mf_value.type == 'list.file_reference' %}
+          '{{ mf_key }}': {% if mf_value.value and mf_value.value.size > 0 %}[{% for file in mf_value.value %}{% assign media_type = file.media_type | default: '' %}{% if media_type == 'image' %}'{{ file | image_url }}'{% elsif media_type == 'video' %}{% if file.sources.size > 0 %}{% assign video_url = file.sources[0].url %}{% elsif file.originalSourceUrl %}{% assign video_url = file.originalSourceUrl %}{% else %}{% assign video_url = file.url %}{% endif %}{% unless video_url contains 'http' %}{% assign video_url = 'https:' | append: video_url %}{% endunless %}{% assign filename = file.filename | default: video_url | split: '/' | last | split: '?' | first %}{% assign file_alt = file.alt | default: filename %}{"url": {{ video_url | json }}, "filename": {{ filename | json }}, "alt": {{ file_alt | json }}, "media_type": "video"}{% else %}{% assign file_url = file.originalSourceUrl | default: file.url %}{% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}{% assign download_url = file_url %}{% unless download_url contains 'http' %}{% assign download_url = 'https:' | append: download_url %}{% endunless %}{% assign file_alt = file.alt | default: filename %}{"url": {{ download_url | json }}, "filename": {{ filename | json }}, "alt": {{ file_alt | json }}, "media_type": "generic_file"}{% endif %}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'product_reference' %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_product = mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'list.product_reference' %}
+          '{{ mf_key }}': {% if mf_value.value and mf_value.value.size > 0 %}[{% for ref_product in mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'collection_reference' %}
+          '{{ mf_key }}': {% if mf_value.value %}{% assign ref_collection = mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'list.collection_reference' %}
+          '{{ mf_key }}': {% if mf_value.value and mf_value.value.size > 0 %}[{% for ref_collection in mf_value.value %}{"title": {{ ref_collection.title | json }}, "featured_image": {% if ref_collection.featured_image %}"{{ ref_collection.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_collection.url %}{{ ref_collection.url | json }}{% else %}null{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% else %}[]{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'dimension' %}
+          '{{ mf_key }}': {% if mf_value.value != blank %}{% if mf_value.value.value != blank and mf_value.value.unit != blank %}'{{ mf_value.value.value }} {{ mf_value.value.unit }}'{% elsif mf_value.value.value != blank %}'{{ mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+        {% elsif mf_value.type == 'volume' %}
+          {% if mf_value.value != blank %}
+            {% assign volume_obj = mf_value.value %}
+            {% assign volume_value = volume_obj.value | default: '0' %}
+            {% assign volume_unit = volume_obj.unit | default: '' %}
+            '{{ mf_key }}': {"value": {{ volume_value }}, "unit": {{ volume_unit | json }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
+        {% elsif mf_value.type == 'money' %}
+          {% if mf_value.value != blank %}
+            {% assign money_obj = mf_value.value %}
+            {% assign money_amount = money_obj.amount | default: '0' %}
+            {% assign money_currency = money_obj.currency_code | default: '' %}
+            '{{ mf_key }}': {"amount": {{ money_amount }}, "currency_code": {{ money_currency | json }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
+        {% elsif mf_value.type == 'rating' %}
+          {% if mf_value.value != blank %}
+            {% assign rating_obj = mf_value.value %}
+            {% if rating_obj.value != blank %}
+              {% assign rating_value = rating_obj.value %}
+            {% elsif rating_obj != blank %}
+              {% assign rating_value = rating_obj %}
+            {% else %}
+              {% assign rating_value = '0' %}
+            {% endif %}
+            {% assign rating_scale_max = rating_obj.scale_max | default: '5' %}
+            {% assign rating_scale_min = rating_obj.scale_min | default: '1' %}
+            '{{ mf_key }}': {"scale_min": {{ rating_scale_min }}, "scale_max": {{ rating_scale_max }}, "value": {{ rating_value }}}{% unless forloop.last %},{% endunless %}
+          {% else %}
+            '{{ mf_key }}': null{% unless forloop.last %},{% endunless %}
+          {% endif %}
+        {% else %}
+          '{{ mf_key }}': {{ mf_value.value | json }}{% unless forloop.last %},{% endunless %}
+        {% endif %}
+      {% endfor %}
+    }
+    {% endif %}
+  };
+  
+  // Construiește obiectul JavaScript cu TOATE product specifications disponibile din Liquid
+  {% assign current_variant = product.selected_or_first_available_variant %}
+  window.productSpecsFromLiquid = window.productSpecsFromLiquid || {
+    vendor: {% if product.vendor != blank %}{{ product.vendor | json }}{% else %}null{% endif %},
+    inventory_quantity: {% if current_variant %}{% if current_variant.inventory_quantity != blank %}{{ current_variant.inventory_quantity }}{% else %}0{% endif %}{% else %}null{% endif %},
+    weight: {% if current_variant and current_variant.weight != blank %}{{ current_variant.weight }}{% else %}null{% endif %},
+    weight_unit: {% if current_variant and current_variant.weight_unit != blank %}{{ current_variant.weight_unit | json }}{% else %}null{% endif %},
+    sku: {% if current_variant and current_variant.sku != blank %}{{ current_variant.sku | json }}{% else %}null{% endif %},
+    barcode: {% if current_variant and current_variant.barcode != blank %}{{ current_variant.barcode | json }}{% else %}null{% endif %},
+    variant_sku: {% if current_variant and current_variant.sku != blank %}{{ current_variant.sku | json }}{% else %}null{% endif %},
+    compare_at_price: {% if current_variant and current_variant.compare_at_price != blank %}{{ current_variant.compare_at_price }}{% else %}null{% endif %},
+    product_type: {% if product.type != blank %}{{ product.type | json }}{% else %}null{% endif %},
+    collection_names: {% if product.collections.size > 0 %}{% assign collection_names_array = '' %}{% for collection in product.collections %}{% if forloop.first %}{% assign collection_names_array = collection.title %}{% else %}{% assign collection_names_array = collection_names_array | append: ', ' | append: collection.title %}{% endif %}{% endfor %}{{ collection_names_array | json }}{% else %}null{% endif %}
+  };
+  
+  // Construiește obiectul JavaScript cu TOATE metafield-urile VARIANT disponibile din Liquid
+  window.allVariantMetafieldsFromLiquid = window.allVariantMetafieldsFromLiquid || {};
+  {% if product.selected_or_first_available_variant %}
+    {% assign current_variant_id = product.selected_or_first_available_variant.id | split: '/' | last %}
+    window.allVariantMetafieldsFromLiquid['{{ current_variant_id }}'] = {
+      {% if product.selected_or_first_available_variant.metafields.custom %}
+      custom: {
+        {% for variant_mf_pair in product.selected_or_first_available_variant.metafields.custom %}
+          {% assign variant_mf_key = variant_mf_pair[0] %}
+          {% assign variant_mf_value = variant_mf_pair[1] %}
+          {% if variant_mf_value.type == 'file_reference' %}
+            {% if variant_mf_value.value != blank %}
+              {% assign file = variant_mf_value.value %}
+              {% assign media_type = file.media_type | default: '' %}
+              {% if media_type == 'image' %}
+                '{{ variant_mf_key }}': '{{ file | image_url }}'{% unless forloop.last %},{% endunless %}
+              {% elsif media_type == 'video' %}
+                {% if file.sources.size > 0 %}
+                  {% assign video_url = file.sources[0].url %}
+                {% elsif file.originalSourceUrl %}
+                  {% assign video_url = file.originalSourceUrl %}
+                {% else %}
+                  {% assign video_url = file.url %}
+                {% endif %}
+                {% unless video_url contains 'http' %}
+                  {% assign video_url = 'https:' | append: video_url %}
+                {% endunless %}
+                {% assign filename = file.filename | default: video_url | split: '/' | last | split: '?' | first %}
+                {% assign file_alt = file.alt | default: filename %}
+                '{{ variant_mf_key }}': {"url": {{ video_url | json }}, "filename": {{ filename | json }}, "alt": {{ file_alt | json }}, "media_type": "video"}{% unless forloop.last %},{% endunless %}
+              {% else %}
+                {% assign file_url = file.originalSourceUrl | default: file.url %}
+                {% assign filename = file.filename | default: file_url | split: '/' | last | split: '?' | first %}
+                {% assign download_url = file_url %}
+                {% unless download_url contains 'http' %}
+                  {% assign download_url = 'https:' | append: download_url %}
+                {% endunless %}
+                {% assign file_alt = file.alt | default: filename %}
+                '{{ variant_mf_key }}': {"url": {{ download_url | json }}, "filename": {{ filename | json }}, "alt": {{ file_alt | json }}}{% unless forloop.last %},{% endunless %}
+              {% endif %}
+            {% else %}
+              '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+            {% endif %}
+          {% elsif variant_mf_value.type == 'product_reference' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value %}{% assign ref_product = variant_mf_value.value %}{"title": {{ ref_product.title | json }}, "featured_image": {% if ref_product.featured_image %}"{{ ref_product.featured_image | image_url: width: 300 }}"{% else %}null{% endif %}, "url": {% if ref_product.url %}{{ ref_product.url | json }}{% else %}null{% endif %}}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% elsif variant_mf_value.type == 'dimension' %}
+            '{{ variant_mf_key }}': {% if variant_mf_value.value != blank %}{% if variant_mf_value.value.value != blank and variant_mf_value.value.unit != blank %}'{{ variant_mf_value.value.value }} {{ variant_mf_value.value.unit }}'{% elsif variant_mf_value.value.value != blank %}'{{ variant_mf_value.value.value }}'{% else %}null{% endif %}{% else %}null{% endif %}{% unless forloop.last %},{% endunless %}
+          {% elsif variant_mf_value.type == 'rating' %}
+            {% if variant_mf_value.value != blank %}
+              {% assign rating_obj = variant_mf_value.value %}
+              {% if rating_obj.value != blank %}
+                {% assign rating_value = rating_obj.value %}
+              {% elsif rating_obj.rating != blank %}
+                {% assign rating_value = rating_obj.rating %}
+              {% elsif rating_obj != blank %}
+                {% assign rating_value = rating_obj %}
+              {% else %}
+                {% assign rating_value = '0' %}
+              {% endif %}
+              {% assign rating_scale_max = rating_obj.scale_max | default: '5' %}
+              {% assign rating_scale_min = rating_obj.scale_min | default: '1' %}
+              '{{ variant_mf_key }}': {"scale_min": {{ rating_scale_min }}, "scale_max": {{ rating_scale_max }}, "value": {{ rating_value }}}{% unless forloop.last %},{% endunless %}
+            {% else %}
+              '{{ variant_mf_key }}': null{% unless forloop.last %},{% endunless %}
+            {% endif %}
+          {% else %}
+            '{{ variant_mf_key }}': {{ variant_mf_value.value | json }}{% unless forloop.last %},{% endunless %}
+          {% endif %}
+        {% endfor %}
+      }
+      {% endif %}
+    };
+  {% endif %}
+  
+  // Funcție helper pentru a construi obiectul JavaScript cu metafield-urile din Liquid
+  window.buildMetafieldsFromTemplate = window.buildMetafieldsFromTemplate || function(template, allMetafieldDefinitions) {
+    const metafieldTypeMap = {};
+    if (allMetafieldDefinitions) {
+      allMetafieldDefinitions.forEach(mf => {
+        const key = `${mf.namespace}.${mf.key}.${mf.ownerType}`;
+        metafieldTypeMap[key] = mf.type;
+      });
+    }
+    
+    const filteredProductMetafields = {};
+    const filteredVariantMetafields = {};
+    
+    const allProductMetafields = window.allProductMetafieldsFromLiquid || {};
+    const allVariantMetafields = window.allVariantMetafieldsFromLiquid || {};
+    
+    if (template && template.sections) {
+      template.sections.forEach(section => {
+        section.metafields.forEach(mf => {
+          const metafieldKey = `${mf.namespace}.${mf.key}.${mf.ownerType}`;
+          const metafieldType = mf.type || metafieldTypeMap[metafieldKey] || 'single_line_text_field';
+          
+          if (mf.ownerType === 'PRODUCT') {
+            if (allProductMetafields[mf.namespace] && allProductMetafields[mf.namespace][mf.key] !== undefined) {
+              if (!filteredProductMetafields[mf.namespace]) {
+                filteredProductMetafields[mf.namespace] = {};
+              }
+              filteredProductMetafields[mf.namespace][mf.key] = allProductMetafields[mf.namespace][mf.key];
+            }
+          } else if (mf.ownerType === 'VARIANT') {
+            Object.keys(allVariantMetafields).forEach(variantId => {
+              if (allVariantMetafields[variantId][mf.namespace] && allVariantMetafields[variantId][mf.namespace][mf.key] !== undefined) {
+                if (!filteredVariantMetafields[variantId]) {
+                  filteredVariantMetafields[variantId] = {};
+                }
+                if (!filteredVariantMetafields[variantId][mf.namespace]) {
+                  filteredVariantMetafields[variantId][mf.namespace] = {};
+                }
+                filteredVariantMetafields[variantId][mf.namespace][mf.key] = allVariantMetafields[variantId][mf.namespace][mf.key];
+              }
+            });
+          }
+        });
+      });
+    }
+    
+    window.productMetafieldsData = filteredProductMetafields;
+    window.variantMetafieldsData = filteredVariantMetafields;
+    
+    return { productMetafields: filteredProductMetafields, variantMetafields: filteredVariantMetafields };
+  };
+</script>
+{% endif %}
+{% endif %}
+
+{% comment %} Inițializează tabelul când script-ul este gata {% endcomment %}
+{% if template_metaobject and template_structure_json != blank and template_styling_json != blank and template_settings_json != blank %}
+<script>
+(function() {
+  'use strict';
+  var containerId = '{{ container_id }}';
+  var containerElementId = 'specification-table-container-' + containerId;
+  var attempts = 0;
+  var maxAttempts = 100; // 5 secunde (100 * 50ms)
+  
+  function initWhenReady() {
+    attempts++;
+    
+    if (typeof window.initSpecificationTable !== 'undefined') {
+      var specTableNS = window.SpecTableNS || {};
+      var templateData = specTableNS['templateData_' + containerId] || window['templateData_' + containerId];
+      
+      if (templateData) {
+        try {
+          window.initSpecificationTable(containerElementId, templateData);
+        } catch(e) {
+          console.error('[SpecTable] Error initializing table:', e);
+          var container = document.getElementById(containerElementId);
+          if (container) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff0000;">Error initializing table. Check console for details.</div>';
+          }
+        }
+      } else {
+        console.error('[SpecTable] Template data not found for container:', containerElementId);
+        var container = document.getElementById(containerElementId);
+        if (container) {
+          container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff0000;">Error: Template data not found</div>';
+        }
+      }
+    } else if (attempts < maxAttempts) {
+      setTimeout(initWhenReady, 50);
+    } else {
+      console.error('[SpecTable] initSpecificationTable function not found after', attempts, 'attempts');
+      console.error('[SpecTable] Make sure specification_table.js is loaded in your theme');
+      var container = document.getElementById(containerElementId);
+      if (container) {
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff0000;">Error: JavaScript file not loaded. Please copy specification_table.js to your theme assets.</div>';
+      }
+    }
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWhenReady);
+  } else {
+    initWhenReady();
+  }
+})();
+</script>
+{% else %}
+<script>
+  console.warn('[SpecTable] Template metaobject not found or missing data');
+  {% if template_metaobject %}
+    console.log('[SpecTable] template_metaobject exists:', true);
+  {% else %}
+    console.log('[SpecTable] template_metaobject exists:', false);
+  {% endif %}
+  {% if template_structure_json != blank %}
+    console.log('[SpecTable] template_structure_json exists:', true);
+  {% else %}
+    console.log('[SpecTable] template_structure_json exists:', false);
+  {% endif %}
+  {% if template_styling_json != blank %}
+    console.log('[SpecTable] template_styling_json exists:', true);
+  {% else %}
+    console.log('[SpecTable] template_styling_json exists:', false);
+  {% endif %}
+  {% if template_settings_json != blank %}
+    console.log('[SpecTable] template_settings_json exists:', true);
+  {% else %}
+    console.log('[SpecTable] template_settings_json exists:', false);
+  {% endif %}
+  document.getElementById('specification-table-container-{{ container_id }}').innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No template found for this product. Please assign a template in the app.</div>';
+</script>
+{% endif %}

@@ -793,6 +793,10 @@ export default function TemplateEditorPage() {
   const [expandedSections, setExpandedSections] = useState({}); // State pentru secțiunile expandate (key: sectionIndex, value: boolean)
   const [selectedSectionIndex, setSelectedSectionIndex] = useState(0); // State pentru secțiunea selectată în layout-ul cu 2 coloane
   const [showSaveBar, setShowSaveBar] = useState(false); // Control visibility of SaveBar
+  
+  // State-uri pentru tooltip modals
+  const [showTemplateNameTooltip, setShowTemplateNameTooltip] = useState(false);
+  const [showSectionsTooltip, setShowSectionsTooltip] = useState(false);
 
   // Salvează state-ul inițial pentru detectarea schimbărilor
   const initialFormState = useRef({
@@ -2772,7 +2776,10 @@ export default function TemplateEditorPage() {
   };
 
   return (
-    <s-page heading={isNew ? "Create New Template" : `Edit: ${template?.name}`}>
+    <s-page 
+      heading={isNew ? "Create New Template" : `Edit: ${template?.name}`}
+      inlineSize="large"
+    >
       {/* SaveBar component with declarative control (Shopify recommended approach) */}
       {/* Don't render SaveBar until initial mount is complete */}
       {!isInitialMount.current && (
@@ -3194,12 +3201,20 @@ export default function TemplateEditorPage() {
           </Form>
 
       {/* Secțiuni de bază - Informații și Metafield-uri */}
-      <div style={{ marginBottom: "20px" }}>
-        <s-section heading="Basic information">
+      <s-section heading="Basic information">
           <s-stack direction="block" gap="base">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <label style={{ margin: 0, fontWeight: "500" }}>Template name</label>
+              <s-button
+                variant="tertiary"
+                onClick={() => setShowTemplateNameTooltip(true)}
+                icon="info"
+                accessibilityLabel="Information about Template name"
+              />
+            </div>
             <s-text-field
               name="name"
-              label="Template name"
+              label=""
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value || e.currentTarget?.value || "")}
               required
@@ -3207,7 +3222,7 @@ export default function TemplateEditorPage() {
           </s-stack>
         </s-section>
 
-        <s-section heading="Specification Table settings" style={{ marginTop: "32px" }}>
+        <s-section heading="Specification Table settings">
           <s-stack direction="block" gap="base">
             <s-text-field
               name="tableName"
@@ -3327,7 +3342,16 @@ export default function TemplateEditorPage() {
           </s-stack>
         </s-section>
 
-        <s-section heading="Sections and Specifications" style={{ marginTop: "32px" }}>
+        <s-section>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <s-heading level="2" style={{ margin: 0, flex: 1 }}>Sections and Specifications</s-heading>
+            <s-button
+              variant="tertiary"
+              onClick={() => setShowSectionsTooltip(true)}
+              icon="info"
+              accessibilityLabel="Information about Sections and Specifications"
+            />
+          </div>
           <s-grid gridTemplateColumns="1fr 3fr" gap="base">
             {/* Coloana stângă - Lista de secțiuni */}
             <s-grid-item>
@@ -3964,9 +3988,17 @@ export default function TemplateEditorPage() {
                           )}
 
                             <div
-                              style={{ display: "flex", gap: "8px", position: "relative", width: "100%",marginTop: "20px" }}
+                              style={{ 
+                                display: "flex", 
+                                flexWrap: "wrap",
+                                gap: "8px", 
+                                position: "relative", 
+                                width: "100%",
+                                marginTop: "20px" 
+                              }}
                             >
-                            <div style={{ position: "relative", flex: 1 }}>
+                            {/* Buton pentru Add metafields specification */}
+                            <div style={{ position: "relative", flex: "1 1 30%", maxWidth: "30%", minWidth: "180px" }}>
                               <s-button
                                 type="button"
                                 variant="secondary"
@@ -3979,6 +4011,7 @@ export default function TemplateEditorPage() {
                                 accessibilityLabel={getAvailableMetafields(sectionIndex).length > 0
                                   ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
                                   : "No any metafields available"}
+                                style={{ width: "100%" }}
                               >
                                 {getAvailableMetafields(sectionIndex).length > 0
                                   ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
@@ -4004,7 +4037,8 @@ export default function TemplateEditorPage() {
                               )}
                               </div>
                               
-                              <div style={{ position: "relative", flex: 1 }}>
+                              {/* Buton pentru Add Product Specification */}
+                              <div style={{ position: "relative", flex: "1 1 33%", maxWidth: "33%", minWidth: "200px" }}>
                                 <s-button
                                   type="button"
                                   variant="secondary"
@@ -4014,6 +4048,7 @@ export default function TemplateEditorPage() {
                                       openProductSpecIndex === sectionIndex ? null : sectionIndex
                                     )
                                   }
+                                  style={{ width: "100%" }}
                                 >
                                   {openProductSpecIndex === sectionIndex
                                     ? "Close the list"
@@ -4089,24 +4124,24 @@ export default function TemplateEditorPage() {
                                   </s-box>
                                 )}
                               </div>
-                            </div>
-                                                        
-                            {/* Buton pentru Custom Specification */}
-                            <div style={{ position: "relative", flex: 1, marginTop: "20px" }}>
-                              <s-button
-                                type="button"
-                                variant="secondary"
-                                icon="add"
-                                onClick={() =>
-                                  setOpenCustomSpecIndex(
-                                    openCustomSpecIndex === sectionIndex ? null : sectionIndex
-                                  )
-                                }
-                              >
-                                {openCustomSpecIndex === sectionIndex
-                                  ? "Close"
-                                  : "+ Add Custom Specification"}
-                              </s-button>
+                              
+                              {/* Buton pentru Add Custom Specification */}
+                              <div style={{ position: "relative", flex: "1 1 33%", maxWidth: "33%", minWidth: "200px" }}>
+                                <s-button
+                                  type="button"
+                                  variant="secondary"
+                                  icon="add"
+                                  onClick={() =>
+                                    setOpenCustomSpecIndex(
+                                      openCustomSpecIndex === sectionIndex ? null : sectionIndex
+                                    )
+                                  }
+                                  style={{ width: "100%" }}
+                                >
+                                  {openCustomSpecIndex === sectionIndex
+                                    ? "Close"
+                                    : "+ Add Custom Specification"}
+                                </s-button>
                               {openCustomSpecIndex === sectionIndex && (
                                 <s-box
                                   padding="base"
@@ -4177,6 +4212,7 @@ export default function TemplateEditorPage() {
                                 </s-box>
                               )}
                             </div>
+                            </div>
                         </s-stack>
                       </s-stack>
                     );
@@ -4188,7 +4224,7 @@ export default function TemplateEditorPage() {
         </s-section>
         
         {/* Setări pentru afișare */}
-        <s-section heading="Display Settings" style={{ marginTop: "32px" }}>
+        <s-section heading="Display Settings">
           <s-stack direction="block" gap="base">
             <s-switch
               id="accordion-switch"
@@ -4603,7 +4639,6 @@ export default function TemplateEditorPage() {
             )}
           </s-stack>
         </s-section>
-      </div>
       <s-divider />
       <s-section>
           <s-stack direction="block" gap="base" alignItems="center">
@@ -4798,9 +4833,9 @@ export default function TemplateEditorPage() {
             )}
           </s-stack>
         </s-section>
-      <div style={{ display: "flex", gap: "20px", height: "calc(100vh - 400px)", minHeight: "600px" }}>
-        {/* Partea stângă - Stiluri (30%) */}
-        <div style={{ width: "30%", overflowY: "auto", paddingRight: "10px" }}>
+      <div style={{ display: "flex", gap: "20px", height: "calc(100vh - 400px)", minHeight: "600px", width: "100%" }}>
+        {/* Partea stângă - Stiluri (35%) */}
+        <div style={{ width: "35%", minWidth: "350px", overflowY: "auto", paddingRight: "10px" }}>
         {/* Device Selection Buttons */}
         
         <s-section heading="Styles">
@@ -5662,8 +5697,8 @@ export default function TemplateEditorPage() {
         </s-section>
         </div>
 
-        {/* Partea dreaptă - Preview (70%) */}
-        <div style={{ width: "70%", border: "1px solid #e1e3e5", borderRadius: "8px", padding: "20px", backgroundColor: "#f6f6f7", overflowY: "auto" }}>
+        {/* Partea dreaptă - Preview (65%) */}
+        <div style={{ width: "65%", flex: "1", border: "1px solid #e1e3e5", borderRadius: "8px", padding: "20px", backgroundColor: "#f6f6f7", overflowY: "auto" }}>
           <div style={{ marginBottom: "16px" }}>
             <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>
               Preview ({selectedDevice === "mobile" ? "Mobile" : selectedDevice === "tablet" ? "Tablet" : "Desktop"} Version)
@@ -5925,6 +5960,140 @@ export default function TemplateEditorPage() {
           </div>
         );
       })()}
+
+      {/* Modal pentru tooltip Template name */}
+      {showTemplateNameTooltip && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowTemplateNameTooltip(false);
+            }
+          }}
+        >
+          <s-box
+            padding="large"
+            borderWidth="base"
+            borderRadius="base"
+            background="base"
+            style={{
+              maxWidth: "500px",
+              width: "90%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <s-stack direction="block" gap="base">
+              <s-heading level="3">About Template Name</s-heading>
+              <s-paragraph>
+                The template name is used to identify and organize your specification tables. This name will be visible in the Templates page where you can manage all your templates.
+              </s-paragraph>
+              <s-paragraph>
+                <s-text type="strong">How it helps:</s-text>
+              </s-paragraph>
+              <s-unordered-list>
+                <s-list-item>Helps you quickly identify which template to use when assigning to products or collections</s-list-item>
+                <s-list-item>Makes it easier to manage multiple templates in your store</s-list-item>
+                <s-list-item>Appears in the template list for quick reference</s-list-item>
+              </s-unordered-list>
+              <s-stack direction="inline" gap="base" style={{ marginTop: "16px" }}>
+                <s-button
+                  variant="primary"
+                  onClick={() => setShowTemplateNameTooltip(false)}
+                >
+                  Got it
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-box>
+        </div>
+      )}
+
+      {/* Modal pentru tooltip Sections and Specifications */}
+      {showSectionsTooltip && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowSectionsTooltip(false);
+            }
+          }}
+        >
+          <s-box
+            padding="large"
+            borderWidth="base"
+            borderRadius="base"
+            background="base"
+            style={{
+              maxWidth: "600px",
+              width: "90%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <s-stack direction="block" gap="base">
+              <s-heading level="3">About Sections and Specifications</s-heading>
+              <s-paragraph>
+                Sections allow you to organize your specifications into logical groups. Each section can contain multiple specifications (metafields, product specifications, or custom specifications).
+              </s-paragraph>
+              <s-paragraph>
+                <s-text type="strong">How it works:</s-text>
+              </s-paragraph>
+              <s-unordered-list>
+                <s-list-item>
+                  <s-text type="strong">Sections:</s-text> Create multiple sections to group related specifications together (e.g., "Technical Specifications", "Dimensions", "Materials")
+                </s-list-item>
+                <s-list-item>
+                  <s-text type="strong">Specifications:</s-text> Add metafields, product specifications (like SKU, weight, vendor), or create custom specifications with your own name and value
+                </s-list-item>
+                <s-list-item>
+                  <s-text type="strong">Ordering:</s-text> You can reorder sections and specifications by dragging them to the desired position
+                </s-list-item>
+                <s-list-item>
+                  <s-text type="strong">Display Logic:</s-text> The specifications will be displayed in the order you arrange them, grouped by their sections. Each section can have its own heading that appears in the final table
+                </s-list-item>
+              </s-unordered-list>
+              <s-paragraph>
+                <s-text type="strong">Example:</s-text> You might create a "Technical Specs" section with metafields like "Processor", "RAM", and "Storage", and a "Dimensions" section with "Width", "Height", and "Depth" specifications.
+              </s-paragraph>
+              <s-stack direction="inline" gap="base" style={{ marginTop: "16px" }}>
+                <s-button
+                  variant="primary"
+                  onClick={() => setShowSectionsTooltip(false)}
+                >
+                  Got it
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-box>
+        </div>
+      )}
     </s-page>
   );
 }
