@@ -2759,7 +2759,7 @@ export default function TemplateEditorPage() {
   };
 
   return (
-    <s-page heading={isNew ? "Creează Template Nou" : `Editează: ${template?.name}`}>
+    <s-page heading={isNew ? "Create New Template" : `Edit: ${template?.name}`}>
       {/* SaveBar component with declarative control (Shopify recommended approach) */}
       {/* Don't render SaveBar until initial mount is complete */}
       {!isInitialMount.current && (

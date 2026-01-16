@@ -1,10 +1,11 @@
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import { Outlet, useLoaderData, useRouteError, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import CrispChat from "../components/CrispChat.jsx";
 import prisma from "../db.server.js";
 import { getCurrentSubscription } from "../models/billing.server.js";
+import { NavigationSkeleton, TemplatesPageSkeleton, HomePageSkeleton } from "../components/PageSkeleton.jsx";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -48,6 +49,18 @@ export const loader = async ({ request }) => {
 
 export default function App() {
   const { apiKey, hasActivePlan } = useLoaderData();
+  const location = useLocation();
+
+  // Determină ce skeleton să afișăm bazat pe ruta curentă
+  const getSkeletonForRoute = (pathname) => {
+    if (pathname.startsWith("/app/templates") && pathname !== "/app/templates/new") {
+      return <TemplatesPageSkeleton />;
+    }
+    if (pathname === "/app" || pathname === "/app/") {
+      return <HomePageSkeleton />;
+    }
+    return null; // Nu afișa skeleton pentru alte rute
+  };
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -64,7 +77,9 @@ export default function App() {
           <s-link href="/app/plans">Plans</s-link>
         )}
       </s-app-nav>
-      <Outlet />
+      <NavigationSkeleton skeletonComponent={getSkeletonForRoute(location.pathname)}>
+        <Outlet />
+      </NavigationSkeleton>
     </AppProvider>
   );
 }
