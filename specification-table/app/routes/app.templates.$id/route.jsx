@@ -10,6 +10,7 @@ import {
   createTemplate,
   updateTemplate,
   getTemplates,
+  getAllAssignments,
 } from "~/models/template.server";
 import { getCurrentSubscription } from "~/models/billing.server";
 import { getMaxTemplatesForPlan } from "~/models/plans.server";
@@ -209,15 +210,27 @@ export const loader = async ({ request, params }) => {
     }
   }
 
-  const [template, metafieldDefinitions] = await Promise.all([
+  const [template, metafieldDefinitions, allAssignments] = await Promise.all([
     id !== "new" ? getTemplate(id, session.shop) : null,
     getMetafieldDefinitions(session.shop),
+    getAllAssignments(session.shop),
   ]);
+
+  // Calculează numărul de template-uri assignate (template-uri care au cel puțin un assignment)
+  // Un template este assignat dacă există un assignment pentru el
+  const assignedTemplateIds = new Set();
+  allAssignments.forEach(assignment => {
+    if (assignment.templateId) {
+      assignedTemplateIds.add(assignment.templateId);
+    }
+  });
+  const assignedTemplatesCount = assignedTemplateIds.size;
 
   return {
     template,
     metafieldDefinitions,
     isNew: id === "new",
+    assignedTemplatesCount,
   };
 };
 
@@ -659,7 +672,7 @@ function migrateStylingToDeviceSpecific(oldStyling) {
 }
 
 export default function TemplateEditorPage() {
-  const { template, metafieldDefinitions, isNew } = useLoaderData();
+  const { template, metafieldDefinitions, isNew, assignedTemplatesCount } = useLoaderData();
   const actionData = useActionData();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -2769,6 +2782,24 @@ export default function TemplateEditorPage() {
           </button>
           <button onClick={resetSaveForm}>Discard</button>
         </SaveBar>
+      )}
+
+      {/* Banner informativ pentru utilizatori noi (mai puțin de 2 template-uri assignate) */}
+      {assignedTemplatesCount < 2 && (
+        <s-section>
+          <s-banner tone="info">
+            <s-stack direction="block" gap="tight">
+              <s-text emphasis="strong">💡 How to assign your template</s-text>
+              <s-paragraph>
+                In this page, you can configure all the settings for your specification table (structure, styling, and display options). 
+                After you save your template, you'll be redirected to the Templates page where you can assign it to products, collections, or set it as global.
+              </s-paragraph>
+              <s-paragraph tone="subdued" style={{ fontSize: "13px", marginTop: "4px" }}>
+                <strong>Next step:</strong> Once you save, go to the Templates page and use the assignment section to choose where this template should appear on your storefront.
+              </s-paragraph>
+            </s-stack>
+          </s-banner>
+        </s-section>
       )}
 
       {/* Banner de eroare */}
