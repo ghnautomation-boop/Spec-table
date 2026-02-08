@@ -2790,7 +2790,7 @@ export default function TemplateEditorPage() {
       {/* SaveBar component with declarative control (Shopify recommended approach) */}
       {/* Don't render SaveBar until initial mount is complete */}
       {!isInitialMount.current && (
-        <SaveBar id="save-bar" open={showSaveBar} discardConfirmation>
+        <SaveBar id="save-bar" open={showSaveBar} discardConfirmation={true}>
           <button 
             variant="primary" 
             onClick={requestSubmitSaveForm}
@@ -3293,10 +3293,12 @@ export default function TemplateEditorPage() {
             </div>
             <s-text-field
               name="name"
-              label=""
+              label="Template Name"
+              labelAccessibilityVisibility="exclusive"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value || e.currentTarget?.value || "")}
               required
+              data-onboarding="template-name-input"
             />
           </s-stack>
         </s-section>
@@ -3323,6 +3325,7 @@ export default function TemplateEditorPage() {
               placeholder="Specifications"
             />
             <s-switch
+              data-onboarding="collapsible-table-switch"
               checked={isCollapsible}
               onChange={(e) => {
                 const newValue = e.target.checked;
@@ -3570,6 +3573,7 @@ export default function TemplateEditorPage() {
                     icon="plus"
                     style={{ marginTop: "8px" }}
                     accessibilityLabel="Add New Section"
+                    data-onboarding="add-section"
                   >
                     Add New Section
                   </s-button>
@@ -3631,6 +3635,7 @@ export default function TemplateEditorPage() {
                             updateSectionHeading(sectionIndex, e.target.value)
                           }
                           required
+                          data-onboarding={sectionIndex === 0 ? "section-name-input" : undefined}
                         />
                         <s-stack direction="block" gap="small">
                           <s-text emphasis="strong">Metafields:</s-text>
@@ -4075,6 +4080,7 @@ export default function TemplateEditorPage() {
                                 width: "100%",
                                 marginTop: "20px" 
                               }}
+                              data-onboarding={sectionIndex === 0 ? "buttons-container" : undefined}
                             >
                             {/* Buton pentru Add metafields specification */}
                             <div style={{ position: "relative", flex: "1 1 30%", maxWidth: "30%", minWidth: "180px" }}>
@@ -4091,6 +4097,7 @@ export default function TemplateEditorPage() {
                                   ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
                                   : "No any metafields available"}
                                 style={{ width: "100%" }}
+                                data-onboarding={sectionIndex === 0 ? "add-metafields" : undefined}
                               >
                                 {getAvailableMetafields(sectionIndex).length > 0
                                   ? `Add metafields specification (${getAvailableMetafields(sectionIndex).length} available)`
@@ -4128,6 +4135,7 @@ export default function TemplateEditorPage() {
                                     )
                                   }
                                   style={{ width: "100%" }}
+                                  data-onboarding={sectionIndex === 0 ? "add-product-spec" : undefined}
                                 >
                                   {openProductSpecIndex === sectionIndex
                                     ? "Close the list"
@@ -4216,6 +4224,7 @@ export default function TemplateEditorPage() {
                                     )
                                   }
                                   style={{ width: "100%" }}
+                                  data-onboarding={sectionIndex === 0 ? "add-custom-spec" : undefined}
                                 >
                                   {openCustomSpecIndex === sectionIndex
                                     ? "Close"
@@ -4303,7 +4312,7 @@ export default function TemplateEditorPage() {
         </s-section>
         
         {/* Setări pentru afișare */}
-        <s-section heading="Display Settings">
+        <s-section heading="Display Settings" data-onboarding="display-settings-section">
           <s-stack direction="block" gap="base">
             <s-switch
               id="accordion-switch"
@@ -4912,7 +4921,7 @@ export default function TemplateEditorPage() {
             )}
           </s-stack>
         </s-section>
-      <div style={{ display: "flex", gap: "20px", height: "calc(100vh - 400px)", minHeight: "600px", width: "100%" }}>
+      <div data-onboarding="styles-preview-container" style={{ display: "flex", gap: "20px", height: "calc(100vh - 400px)", minHeight: "600px", width: "100%" }}>
         {/* Partea stângă - Stiluri (35%) */}
         <div style={{ width: "35%", minWidth: "350px", overflowY: "auto", paddingRight: "10px" }}>
         {/* Device Selection Buttons */}

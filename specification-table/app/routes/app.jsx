@@ -3,6 +3,9 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import CrispChat from "../components/CrispChat.jsx";
+import { OnboardingProvider } from "../components/OnboardingContext.jsx";
+import { OnboardingTour } from "../components/OnboardingTour.jsx";
+import { OnboardingButton } from "../components/OnboardingButton.jsx";
 import prisma from "../db.server.js";
 import { getCurrentSubscription } from "../models/billing.server.js";
 import { NavigationSkeleton, TemplatesPageSkeleton, HomePageSkeleton } from "../components/PageSkeleton.jsx";
@@ -64,22 +67,26 @@ export default function App() {
 
   return (
     <AppProvider embedded apiKey={apiKey}>
-      <CrispChat />
-      <s-app-nav>
-        {hasActivePlan ? (
-          <>
-            <s-link href="/app">Home</s-link>
-            <s-link href="/app/templates">Templates</s-link>
-            <s-link href="/app/sync">Data Sync</s-link>
+      <OnboardingProvider>
+        <CrispChat />
+        <s-app-nav>
+          {hasActivePlan ? (
+            <>
+              <s-link href="/app" data-onboarding="home-link">Home</s-link>
+              <s-link href="/app/templates" data-onboarding="templates-link">Templates</s-link>
+              <s-link href="/app/sync">Data Sync</s-link>
+              <s-link href="/app/plans">Plans</s-link>
+            </>
+          ) : (
             <s-link href="/app/plans">Plans</s-link>
-          </>
-        ) : (
-          <s-link href="/app/plans">Plans</s-link>
-        )}
-      </s-app-nav>
-      <NavigationSkeleton skeletonComponent={getSkeletonForRoute(location.pathname)}>
-        <Outlet />
-      </NavigationSkeleton>
+          )}
+        </s-app-nav>
+        <NavigationSkeleton skeletonComponent={getSkeletonForRoute(location.pathname)}>
+          <Outlet />
+        </NavigationSkeleton>
+        <OnboardingTour />
+        <OnboardingButton />
+      </OnboardingProvider>
     </AppProvider>
   );
 }

@@ -1624,6 +1624,7 @@ export default function TemplatesPage() {
               navigate("/app/templates/new");
             }
           }}
+          data-onboarding="create-template"
         >
           + Create New Template
         </s-button>
@@ -1877,6 +1878,7 @@ export default function TemplatesPage() {
                             href={`/app/templates/${template.id}`}
                             variant="primary"
                             icon="edit"
+                            data-onboarding="assign-template"
                           >
                             Edit
                           </s-button>

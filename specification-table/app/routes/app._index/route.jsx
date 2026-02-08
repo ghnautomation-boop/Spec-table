@@ -5,6 +5,8 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../../shopify.server";
 import { getCurrentSubscription } from "../../models/billing.server.js";
 import { getMaxTemplatesForPlan } from "../../models/plans.server.js";
+import { useOnboarding } from "../../components/OnboardingContext.jsx";
+import { onboardingSteps } from "../../utils/onboardingSteps.jsx";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -422,6 +424,7 @@ export default function Index() {
                     transition: "all 0.2s ease",
                   }}
                   onClick={() => handleSelectTheme(theme.id, theme.name)}
+                  data-onboarding={selectedThemeId === theme.id ? "theme-selector" : undefined}
                 >
                   <s-stack direction="inline" gap="base" blockAlignment="center" alignment="space-between">
                     <s-stack direction="inline" gap="base" blockAlignment="center">
@@ -495,6 +498,7 @@ export default function Index() {
                 variant="secondary"
                 onClick={() => handleMarkStep("markExtensionAppliedAndActivated")}
                 loading={isLoading}
+                data-onboarding="apply-extension"
               >
                 I have applied and activated the extension
               </s-button>
@@ -546,6 +550,7 @@ export default function Index() {
             <s-button 
               variant="primary"
               onClick={() => navigate("/app/templates/new")}
+              data-onboarding="create-template"
             >
               Create Template
             </s-button>
@@ -611,6 +616,8 @@ export default function Index() {
       ),
     },
   ];
+
+  const { startTour, isDismissed } = useOnboarding();
 
   return (
     <s-page>
@@ -888,18 +895,11 @@ export default function Index() {
             {/* Header */}
             <s-grid gap="small-200">
               <s-grid
-                gridTemplateColumns="1fr auto auto"
+                gridTemplateColumns="1fr auto"
                 gap="small-300"
                 alignItems="center"
               >
                 <s-heading>Setup Guide</s-heading>
-                <s-button
-                  accessibilityLabel="Dismiss Guide"
-                  onClick={() => setVisible({ ...visible, setupGuide: false })}
-                  variant="tertiary"
-                  tone="neutral"
-                  icon="x"
-                ></s-button>
                 <s-button
                   accessibilityLabel="Toggle setup guide"
                   onClick={() =>
@@ -914,8 +914,19 @@ export default function Index() {
                 ></s-button>
               </s-grid>
               <s-paragraph>
-                Use this personalized guide to get your store ready for sales.
+                Use this personalized guide to get your store ready for sales. You can follow the steps below manually, or use our interactive guide for a step-by-step walkthrough.
               </s-paragraph>
+              {!isDismissed && (
+                <div style={{ marginTop: "12px", marginBottom: "12px" }}>
+                  <s-button
+                    variant="primary"
+                    onClick={() => startTour(onboardingSteps)}
+                    data-onboarding="start-tour"
+                  >
+                    Start Interactive Guide
+                  </s-button>
+                </div>
+              )}
               {/* Banner informativ când se așteaptă confirmarea pentru selectarea temei */}
               {isSelectingTheme && (
                 <s-banner tone="info" style={{ marginBottom: "1rem" }}>
@@ -953,7 +964,7 @@ export default function Index() {
               display={expanded.setupGuide ? "auto" : "none"}
             >
               {/* Step 1 */}
-              <s-box>
+              <s-box data-onboarding="step1-section">
                 <s-grid
                   gridTemplateColumns="1fr auto"
                   gap="base"
@@ -965,7 +976,7 @@ export default function Index() {
                     ) : (
                       <s-icon type="check-circle" tone="subdued" />
                     )}
-                    <s-text>{steps[0].title}</s-text>
+                    <s-text data-onboarding="step1-title">{steps[0].title}</s-text>
                   </s-stack>
                   <s-button
                     onClick={() => {
@@ -992,7 +1003,7 @@ export default function Index() {
               </s-box>
               {/* Step 2 */}
               <s-divider />
-              <s-box>
+              <s-box data-onboarding="step2-section">
                 <s-grid
                   gridTemplateColumns="1fr auto"
                   gap="base"
@@ -1004,7 +1015,7 @@ export default function Index() {
                     ) : (
                       <s-icon type="check-circle" tone="subdued" />
                     )}
-                    <s-text>{steps[1].title}</s-text>
+                    <s-text data-onboarding="step2-title">{steps[1].title}</s-text>
                   </s-stack>
                   <s-button
                     onClick={() => {
