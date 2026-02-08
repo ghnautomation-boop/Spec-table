@@ -1,4 +1,4 @@
-import { useLoaderData, useFetcher, Form, useNavigate, useActionData, useRevalidator, redirect } from "react-router";
+import { useLoaderData, useFetcher, Form, useNavigate, useActionData, useRevalidator, redirect, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { Modal, TitleBar, SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
@@ -675,10 +675,14 @@ export default function TemplateEditorPage() {
   const { template, metafieldDefinitions, isNew, assignedTemplatesCount } = useLoaderData();
   const actionData = useActionData();
   const navigate = useNavigate();
+  const navigation = useNavigation();
   const revalidator = useRevalidator();
   const processedRedirectRef = useRef(null);
   const shopify = useAppBridge();
   const saveFormRef = useRef(null);
+  
+  // Detect loading state when form is submitting
+  const isSubmitting = navigation.state === "submitting";
 
   const [sections, setSections] = useState(() => {
     if (!template?.sections) {
@@ -1185,7 +1189,10 @@ export default function TemplateEditorPage() {
     
     const dirty = hasUnsavedChanges();
     setShowSaveBar(dirty);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, templateName, isActive, isAccordion, isAccordionHideFromPC, isAccordionHideFromMobile, 
+      seeMoreEnabled, seeMoreHideFromPC, seeMoreHideFromMobile, seeLessHideFromPC, seeLessHideFromMobile, 
+      splitViewPerSection, splitViewPerMetafield, tableName, isCollapsible, collapsibleOnPC, collapsibleOnMobile, 
+      sections, styling, actionData]);
 
   const requestSubmitSaveForm = useCallback(() => {
     const form = saveFormRef.current || document.querySelector('form[data-save-bar]');
@@ -1198,13 +1205,13 @@ export default function TemplateEditorPage() {
   }, []);
 
   const resetSaveForm = useCallback(() => {
+    // Hide SaveBar immediately before resetting form
+    setShowSaveBar(false);
+    
     const form = saveFormRef.current || document.querySelector('form#template-editor-save-form');
     if (form && typeof form.reset === "function") {
       form.reset();
     }
-    
-    // Hide SaveBar after discard
-    setShowSaveBar(false);
   }, []);
 
 
@@ -2783,16 +2790,96 @@ export default function TemplateEditorPage() {
       {/* SaveBar component with declarative control (Shopify recommended approach) */}
       {/* Don't render SaveBar until initial mount is complete */}
       {!isInitialMount.current && (
-        <SaveBar id="save-bar" open={showSaveBar}>
-          <button variant="primary" onClick={requestSubmitSaveForm}>
-            Save
+        <SaveBar id="save-bar" open={showSaveBar} discardConfirmation>
+          <button 
+            variant="primary" 
+            onClick={requestSubmitSaveForm}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving..." : "Save"}
           </button>
-          <button onClick={() => {
-            if (window.confirm('Are you sure you want to discard all unsaved changes?')) {
-              resetSaveForm();
-            }
-          }}>Discard</button>
+          <button 
+            onClick={resetSaveForm}
+            disabled={isSubmitting}
+          >
+            Discard
+          </button>
         </SaveBar>
+      )}
+
+      {/* Loading overlay with spinner when saving */}
+      {isSubmitting && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            backdropFilter: "blur(4px)",
+            transition: "opacity 0.2s ease-in-out",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "12px",
+              padding: "32px 40px",
+              minWidth: "320px",
+              maxWidth: "400px",
+              boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1)",
+              border: "1px solid rgba(0, 0, 0, 0.08)",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "20px",
+              }}
+            >
+              <s-spinner size="large" />
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  alignItems: "center",
+                }}
+              >
+                <s-text 
+                  emphasis="strong" 
+                  style={{ 
+                    fontSize: "18px",
+                    color: "#202223",
+                    fontWeight: "600",
+                    lineHeight: "24px",
+                    margin: 0,
+                  }}
+                >
+                  Saving template...
+                </s-text>
+                <s-text 
+                  style={{ 
+                    fontSize: "14px",
+                    color: "#6D7175",
+                    lineHeight: "20px",
+                    margin: 0,
+                  }}
+                >
+                  Please wait while we save your changes
+                </s-text>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Banner informativ pentru utilizatori noi (mai puțin de 2 template-uri assignate) */}
@@ -2936,9 +3023,6 @@ export default function TemplateEditorPage() {
             }}
             onReset={(e) => {
               // Resetare la state-ul inițial când utilizatorul apasă "Discard"
-              // Resetează flag-ul ÎNAINTE de a schimba state-urile pentru a preveni declanșarea evenimentelor change
-              isInitialMount.current = true;
-              
               setTemplateName(initialFormState.current.templateName);
               setIsActive(initialFormState.current.isActive);
               setIsAccordion(initialFormState.current.isAccordion);
@@ -2959,13 +3043,8 @@ export default function TemplateEditorPage() {
               setStyling(JSON.parse(JSON.stringify(initialFormState.current.styling)));
               setFormKey(prev => prev + 1);
               
-              // Hide SaveBar after discard
+              // Hide SaveBar immediately - useEffect will verify hasUnsavedChanges() after state updates
               setShowSaveBar(false);
-              
-              // După ce state-urile s-au resetat, resetează flag-ul pentru a permite detectarea modificărilor viitoare
-              setTimeout(() => {
-                isInitialMount.current = false;
-              }, 300);
             }}
           >
             <input type="hidden" name="name" value={templateName} />
