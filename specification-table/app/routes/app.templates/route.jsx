@@ -1567,8 +1567,87 @@ export default function TemplatesPage() {
     );
   }
 
+  // Detectează dacă delete-ul este în progres
+  const isDeleting = (fetcher.state === "submitting" || fetcher.state === "loading") && 
+                     fetcher.formData?.get("action") === "delete";
+
   return (
     <s-page heading="Specification Templates">
+        {/* Loading overlay with spinner when deleting */}
+        {isDeleting && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+              backdropFilter: "blur(4px)",
+              transition: "opacity 0.2s ease-in-out",
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "12px",
+                padding: "32px 40px",
+                minWidth: "320px",
+                maxWidth: "400px",
+                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1)",
+                border: "1px solid rgba(0, 0, 0, 0.08)",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "20px",
+                }}
+              >
+                <s-spinner size="large" />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    alignItems: "center",
+                  }}
+                >
+                  <s-text 
+                    emphasis="strong" 
+                    style={{ 
+                      fontSize: "18px",
+                      color: "#202223",
+                      fontWeight: "600",
+                      lineHeight: "24px",
+                      margin: 0,
+                    }}
+                  >
+                    Deleting template...
+                  </s-text>
+                  <s-text 
+                    style={{ 
+                      fontSize: "14px",
+                      color: "#6D7175",
+                      lineHeight: "20px",
+                      margin: 0,
+                    }}
+                  >
+                    Please wait while we delete the template.
+                  </s-text>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <SaveBar id="active-changes-save-bar">
           <button variant="primary" onClick={handleSaveAllChanges}>Save</button>
           <button onClick={handleDiscardAllChanges}>Discard</button>
